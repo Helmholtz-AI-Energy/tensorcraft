@@ -1,6 +1,6 @@
-from tensorcraft.distributions.dist import Dist
 import numpy as np
 
+from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
 from tensorcraft.util import multi2linearIndex
 
@@ -11,11 +11,11 @@ class TileDist(Dist):
         self._tile_size = tile_size
 
     @property
-    def numProcessors(self) -> int:
+    def numProcessors(self):
         return self._num_processors
 
     @property
-    def processorArrangement(self) -> np.ndarray:
+    def processorArrangement(self):
         return np.array((self._num_processors, 1))
 
     def compatible(self, tensor: Tensor) -> bool:
@@ -26,10 +26,10 @@ class TileDist(Dist):
 
         return True
 
-    def getProcessorMultiIndex(self, index: int) -> np.ndarray:
+    def getProcessorMultiIndex(self, index: int):
         return np.array((index,))
 
-    def processorView(self, tensor: Tensor) -> np.ndarray:
+    def processorView(self, tensor: Tensor):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
@@ -40,7 +40,9 @@ class TileDist(Dist):
 
         return processor_view
 
-    def getIndexLocation(self, tensor: Tensor, index: int | np.ndarray) -> np.ndarray:
+    def getIndexLocation(
+        self, tensor: Tensor, index: int | tuple | np.ndarray
+    ) -> np.ndarray:
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 

@@ -1,6 +1,6 @@
 import numpy as np
-from tensorcraft.distributions.dist import Dist
 
+from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
 
 
@@ -11,24 +11,24 @@ class BlockDist(Dist):
         self._block_size = block_size
 
     @property
-    def numProcessors(self) -> int:
+    def numProcessors(self):
         return self._num_processors
 
     @property
-    def processorArrangement(self) -> np.ndarray:
+    def processorArrangement(self):
         return np.array((self._num_processors,))
 
-    def compatible(self, tensor: Tensor) -> bool:
+    def compatible(self, tensor: Tensor):
         if tensor.shape[self._dim] < self._num_processors:
             print(f"Tensor dimension {self._dim} is less than the number of processors")
             return False
 
         return True
 
-    def getProcessorMultiIndex(self, index: int) -> np.ndarray:
+    def getProcessorMultiIndex(self, index: int):
         return np.array((index,))
 
-    def processorView(self, tensor: Tensor) -> np.ndarray:
+    def processorView(self, tensor: Tensor):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
@@ -52,7 +52,7 @@ class BlockDist(Dist):
             processor_view[slice_idx] = True
         return processor_view
 
-    def getIndexLocation(self, tensor: Tensor, index: int | np.ndarray) -> np.ndarray:
+    def getIndexLocation(self, tensor, index):
         if isinstance(index, int):
             index = tensor.getMultiIndex(index)
 

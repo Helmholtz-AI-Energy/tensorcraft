@@ -6,7 +6,9 @@ _order2npOrder = {"C": "F", "R": "C"}
 
 
 def multi2linearIndex(
-    dims: np.ndarray, indices: np.ndarray, order: np.ndarray | None = None
+    dims: tuple | np.ndarray,
+    indices: tuple | np.ndarray,
+    order: tuple | np.ndarray | None = None,
 ) -> int:
     """Converts a multi-dimensional index to a linear index
 
@@ -14,15 +16,17 @@ def multi2linearIndex(
     based on the dimensions of the tensor. The linear index represents the position
     of the element in a flattened version of the tensor.
 
+    Uses a column mayor indexing scheme by default.
+
     Parameters
     ----------
-    dims : np.ndarray
+    dims : tuple | np.ndarray
         An array containing the dimensions of the tensor.
 
-    indices : np.ndarray
+    indices : tuple | np.ndarray
         An array containing the multi-dimensional index.
 
-    order : np.ndarray | None, optional
+    order : tuple | np.ndarray | None, optional
         An array specifying the order in which the dimensions should be considered
         when calculating the linear index. If None, the dimensions are considered
         in the default order, which is the same as the input order.
@@ -98,4 +102,7 @@ def order2npOrder(order: str) -> str:
         ...
     KeyError: 'Z is not a valid order string.'
     """
+
+    if order not in _order2npOrder:
+        raise ValueError(f"{order} is not a valid order string.")
     return _order2npOrder[order]

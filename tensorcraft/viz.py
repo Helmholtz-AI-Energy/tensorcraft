@@ -1,14 +1,14 @@
-import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from tensorcraft.distributions.dist import Dist
-from tensorcraft.tensor import Tensor
-from tensorcraft.distributions.pmesh import PMeshDist
-
 import networkx as nx
+import numpy as np
+
+from tensorcraft.distributions.dist import Dist
+from tensorcraft.distributions.pmesh import PMeshDist
+from tensorcraft.tensor import Tensor
 
 
-def drawColorBar(fig, axs, colors: list[np.ndarray]):
+def drawColorBar(fig, axs, colors: np.ndarray):
     cmap = mpl.colors.ListedColormap(colors)
     norm = mpl.colors.BoundaryNorm(np.arange(-0.5, len(colors), 1), cmap.N)
     cbar = fig.colorbar(
@@ -22,7 +22,7 @@ def drawColorBar(fig, axs, colors: list[np.ndarray]):
     cbar.set_label("Processor index")
 
 
-def set2DTensorAxis(ax, shape: tuple[int, int], color: str = "black") -> None:
+def set2DTensorAxis(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
     # Ticks
     # ax.set_xticks(np.arange(0.0, shape[1], 1.0))
     # ax.set_yticks(np.arange(0.0, shape[0], 1.0))
@@ -129,7 +129,7 @@ def plotTensor2D(tensor: Tensor, distribution: PMeshDist, cbar: bool = True) -> 
     plt.show()
 
 
-def getNColors(n: int, colormap: str = "viridis") -> np.ndarray:
+def getNColors(n: int | np.int64, colormap: str = "viridis") -> np.ndarray:
     return mpl.colormaps[colormap].resampled(n).colors
 
 

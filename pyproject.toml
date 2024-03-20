@@ -57,6 +57,9 @@ dev = [
 [tool.ruff]
 target-version = "py310"
 
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
 [tool.semantic_release]
 version_variables = [ "tensorcraft/__init__.py:__version__"]
 version_toml = ["pyproject.toml:project.version"]
@@ -68,9 +71,13 @@ exclude_commit_patterns = [
 ]
 
 [tool.semantic_release.branches.test]
-match = "main"
+match = "release-test"
 prerelease = true
 
 [tool.semantic_release.branches.release]
 match = "release"
 prerelease = false
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]

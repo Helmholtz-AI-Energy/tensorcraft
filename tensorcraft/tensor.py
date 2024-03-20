@@ -1,4 +1,5 @@
 import numpy as np
+
 from tensorcraft.util import multi2linearIndex, order2npOrder
 
 
@@ -22,7 +23,7 @@ class Tensor:
         return self._dims
 
     @property
-    def size(self) -> int:
+    def size(self) -> np.int64:
         return np.prod(self._dims)
 
     def linearIndex(self, indices: tuple, order: str | tuple = "R") -> int:
@@ -30,18 +31,18 @@ class Tensor:
             raise ValueError(
                 "Indices must have the same length as the tensor's dimensions"
             )
-        indices = np.array(indices)
+        idx_array = np.array(indices)
 
         if order == "R":
-            print(np.arange(len(self._dims))[::-1])
+            # print(np.arange(len(self._dims))[::-1])
             return multi2linearIndex(
-                self._dims, indices, order=np.arange(len(self._dims))[::-1]
+                self._dims, idx_array, order=np.arange(len(self._dims))[::-1]
             )
         elif order == "C":
-            return multi2linearIndex(self._dims, indices)
+            return multi2linearIndex(self._dims, idx_array)
         elif isinstance(order, (list, tuple)):
-            order = np.array(order)
-            return multi2linearIndex(self._dims, indices, order)
+            order_array = np.array(order)
+            return multi2linearIndex(self._dims, idx_array, order_array)
         else:
             raise ValueError("Invalid order")
 

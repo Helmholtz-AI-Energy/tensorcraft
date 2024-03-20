@@ -1,7 +1,8 @@
+import numpy as np
+
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
 from tensorcraft.util import multi2linearIndex
-import numpy as np
 
 
 class PMeshDist(Dist):
@@ -25,17 +26,17 @@ class PMeshDist(Dist):
         self._omit_replication = None
 
     @property
-    def numProcessors(self) -> int:
+    def numProcessors(self):
         return self._mesh.size
 
     @property
-    def processorArrangement(self) -> np.ndarray:
+    def processorArrangement(self):
         return self._mesh.shape
 
-    def getProcessorMultiIndex(self, index: int) -> np.ndarray:
+    def getProcessorMultiIndex(self, index: int):
         return self._mesh.getMultiIndex(index)
 
-    def processorView(self, tensor: Tensor) -> np.ndarray:
+    def processorView(self, tensor: Tensor):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
@@ -51,7 +52,7 @@ class PMeshDist(Dist):
 
         return processor_view
 
-    def getIndexLocation(self, tensor: Tensor, index: int | np.ndarray) -> np.ndarray:
+    def getIndexLocation(self, tensor: Tensor, index: int | tuple | np.ndarray):
         if isinstance(index, int):
             index = tensor.getMultiIndex(index)
 
@@ -59,9 +60,7 @@ class PMeshDist(Dist):
         for dim in range(tensor.order):
             for p in range(self._mesh.size):
                 p_mi = self._mesh.getMultiIndex(p)
-                p_list[p] &= self._dimIndexInProcessor(
-                    dim, tensor.shape[dim], index[dim], p_mi
-                )
+                p_list[p] &= self._dimIndexInProcessor(dim, index[dim], p_mi)
 
         return p_list
 
@@ -100,7 +99,7 @@ class PMeshDist(Dist):
         return True
 
     def _dimIndexInProcessor(
-        self, dim: int, dim_size: int, dim_idx: int, p_mi: np.ndarray
+        self, dim: int, dim_idx: int, p_mi: tuple | np.ndarray
     ) -> bool:
         mesh_dims_idx = self._dims_mapping[dim]
 
@@ -126,8 +125,6 @@ class PMeshDist(Dist):
         for i in range(dim_size):
             for j in range(num_process):
                 p_mi = np.array(self._mesh.getMultiIndex(j))
-                dim_distribution[i, j] = self._dimIndexInProcessor(
-                    dim, dim_size, i, p_mi
-                )
+                dim_distribution[i, j] = self._dimIndexInProcessor(dim, i, p_mi)
 
         return dim_distribution
