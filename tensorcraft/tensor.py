@@ -1,32 +1,27 @@
 import numpy as np
+import numpy.typing as npt
 
+from tensorcraft.types import MIndex
 from tensorcraft.util import multi2linearIndex, order2npOrder
 
 
 class Tensor:
-    def __init__(self, dims: tuple | int) -> None:
-        if isinstance(dims, int):
-            self._dims = np.array((dims,), dtype=np.int32)
-        elif len(dims) < 1:
-            raise ValueError("Tensor must have at least one dimension")
-        elif len(dims) == 1:
-            self._dims = np.array((dims[0],), dtype=np.int32)
-        else:
-            self._dims = np.array(dims, dtype=np.int32)
+    def __init__(self, dims: npt.ArrayLike) -> None:
+        self._dims: MIndex = np.array(dims)
 
     @property
     def order(self) -> int:
         return len(self._dims)
 
     @property
-    def shape(self) -> np.ndarray:
+    def shape(self) -> MIndex:
         return self._dims
 
     @property
-    def size(self) -> np.int64:
-        return np.prod(self._dims)
+    def size(self) -> int:
+        return np.prod(self._dims, dtype=int)
 
-    def linearIndex(self, indices: tuple, order: str | tuple = "R") -> int:
+    def linearIndex(self, indices: MIndex, order: str | MIndex = "R") -> int:
         if len(indices) != len(self._dims):
             raise ValueError(
                 "Indices must have the same length as the tensor's dimensions"
@@ -46,11 +41,11 @@ class Tensor:
         else:
             raise ValueError("Invalid order")
 
-    def getMultiIndex(self, index: int, order: str = "R") -> tuple:
+    def getMultiIndex(self, index: int, order: str = "R") -> MIndex:
         if index < 0 or index >= self.size:
             raise ValueError("Index out of bounds")
 
-        return np.unravel_index(index, self._dims, order=order2npOrder(order))
+        return np.array(np.unravel_index(index, self._dims, order=order2npOrder(order)))
 
     def info(self) -> None:
         print(f"Order: {self.order}")

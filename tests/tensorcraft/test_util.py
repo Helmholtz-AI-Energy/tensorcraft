@@ -1,5 +1,7 @@
 import numpy as np
+
 from tensorcraft.util import multi2linearIndex, order2npOrder
+
 
 def test_multi2linearIndex():
     # Test case 1
@@ -35,6 +37,7 @@ def test_multi2linearIndex():
     order = np.array([1, 2, 0])
     expected_result = 70
     assert multi2linearIndex(dims, indices, order) == expected_result
+
 
 def test_order2npOrder():
     # Test case 1

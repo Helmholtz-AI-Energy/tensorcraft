@@ -1,14 +1,18 @@
 """Utility functions for tensorcraft"""
 
+from typing import Literal
+
 import numpy as np
 
-_order2npOrder = {"C": "F", "R": "C"}
+from tensorcraft.types import MIndex
+
+_order2npOrder: dict[str, Literal["C", "F"]] = {"C": "F", "R": "C"}
 
 
 def multi2linearIndex(
-    dims: tuple | np.ndarray,
-    indices: tuple | np.ndarray,
-    order: tuple | np.ndarray | None = None,
+    dims: MIndex,
+    indices: MIndex,
+    order: MIndex | None = None,
 ) -> int:
     """Converts a multi-dimensional index to a linear index
 
@@ -58,7 +62,7 @@ def multi2linearIndex(
     if len(indices) != len(dims):
         raise ValueError("Indices must have the same length as the tensor's dimensions")
 
-    result: int = 0
+    result = 0
     if order is None:
         for i in range(len(indices)):
             result += indices[i] * np.prod(dims[:i])
@@ -70,7 +74,7 @@ def multi2linearIndex(
     return result
 
 
-def order2npOrder(order: str) -> str:
+def order2npOrder(order: str) -> Literal["C", "F"]:
     """
     Convert the order of dimensions from a given order string to the corresponding NumPy order string.
 

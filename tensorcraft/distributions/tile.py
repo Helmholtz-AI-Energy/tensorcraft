@@ -1,7 +1,6 @@
 import numpy as np
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.tensor import Tensor
 from tensorcraft.util import multi2linearIndex
 
 
@@ -18,7 +17,7 @@ class TileDist(Dist):
     def processorArrangement(self):
         return np.array((self._num_processors, 1))
 
-    def compatible(self, tensor: Tensor) -> bool:
+    def compatible(self, tensor):
         for dim, dim_size in enumerate(tensor.shape):
             if dim_size % self._tile_size != 0:
                 print("Tile shape not divisible by tile size along dimension ", dim)
@@ -26,30 +25,25 @@ class TileDist(Dist):
 
         return True
 
-    def getProcessorMultiIndex(self, index: int):
+    def getProcessorMultiIndex(self, index):
         return np.array((index,))
 
-    def processorView(self, tensor: Tensor):
+    def processorView(self, tensor):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
         processor_view = np.zeros((*tensor.shape, self._num_processors), dtype=np.bool_)
         for i in range(tensor.size):
-            i_mi = tensor.getMultiIndex(i) + (None,)
-            processor_view[i_mi] = self.getIndexLocation(tensor, i_mi)
+            i_mi = tensor.getMultiIndex(i)
+            processor_view[tuple(i_mi) + (None,)] = self.getIndexLocation(tensor, i_mi)
 
         return processor_view
 
-    def getIndexLocation(
-        self, tensor: Tensor, index: int | tuple | np.ndarray
-    ) -> np.ndarray:
+    def getIndexLocation(self, tensor, index):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if isinstance(index, int):
-            index = tensor.getMultiIndex(index)
-
-        shrinked_index = np.array(index) // self._tile_size
+        shrinked_index = index // self._tile_size
         shrinked_shape = tensor.shape // self._tile_size
         shrinked_linear_index = multi2linearIndex(
             shrinked_shape, shrinked_index, order=np.arange(tensor.order)[::-1]

@@ -2,6 +2,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from matplotlib.axes import Axes
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.distributions.pmesh import PMeshDist
@@ -22,10 +23,10 @@ def drawColorBar(fig, axs, colors: np.ndarray):
     cbar.set_label("Processor index")
 
 
-def set2DTensorAxis(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
+def set2DTensorAxis(ax: Axes, shape: tuple | np.ndarray, color: str = "black") -> None:
     # Ticks
-    # ax.set_xticks(np.arange(0.0, shape[1], 1.0))
-    # ax.set_yticks(np.arange(0.0, shape[0], 1.0))
+    ax.set_xticks(np.arange(0.0, shape[1], 1.0))
+    ax.set_yticks(np.arange(0.0, shape[0], 1.0))
 
     ax.set_xticks(np.arange(-0.5, float(shape[1]) - 0.5, 1.0), minor=True)
     ax.set_yticks(np.arange(-0.5, float(shape[0]) - 0.5, 1.0), minor=True)
@@ -170,7 +171,7 @@ def plotTensor3D(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
     colors_hex = [rgba2hex(color) for color in colors]
     colors_edges = [rgba2hex(color * 0.8) for color in colors]
 
-    x, y, z = np.indices(np.array(tensor.shape))
+    x, y, z = np.indices(tuple(tensor.shape))
 
     # build up the numpy logo
     filled = np.ones(tensor.shape)
@@ -187,7 +188,8 @@ def plotTensor3D(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
     ecolors_2 = explode(edgecolors)
 
     # Shrink the gaps
-    x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2
+
+    x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2  # type: ignore
     x[0::2, :, :] += 0.1
     y[:, 0::2, :] += 0.1
     z[:, :, 0::2] += 0.1

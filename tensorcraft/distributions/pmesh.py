@@ -2,6 +2,7 @@ import numpy as np
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
+from tensorcraft.types import MIndex
 from tensorcraft.util import multi2linearIndex
 
 
@@ -33,10 +34,10 @@ class PMeshDist(Dist):
     def processorArrangement(self):
         return self._mesh.shape
 
-    def getProcessorMultiIndex(self, index: int):
+    def getProcessorMultiIndex(self, index):
         return self._mesh.getMultiIndex(index)
 
-    def processorView(self, tensor: Tensor):
+    def processorView(self, tensor):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
@@ -46,13 +47,13 @@ class PMeshDist(Dist):
             self._distributeDim(i, tensor.shape[i]) for i in range(tensor.order)
         ]
         for i in range(tensor.size):
-            m_idx = tensor.getMultiIndex(i)
+            m_idx = tuple(tensor.getMultiIndex(i)) + (None,)
             for j in range(tensor.order):
-                processor_view[m_idx + (None,)] &= dist_axis_list[j][m_idx[j], :]
+                processor_view[m_idx] &= dist_axis_list[j][m_idx[j], :]
 
         return processor_view
 
-    def getIndexLocation(self, tensor: Tensor, index: int | tuple | np.ndarray):
+    def getIndexLocation(self, tensor, index):
         if isinstance(index, int):
             index = tensor.getMultiIndex(index)
 
@@ -64,7 +65,7 @@ class PMeshDist(Dist):
 
         return p_list
 
-    def compatible(self, tensor: Tensor) -> bool:
+    def compatible(self, tensor):
         # Ensure that the tensor order and the number of dimensions in the distribution match
         if tensor.order != len(self._dims_mapping):
             print(
@@ -98,9 +99,7 @@ class PMeshDist(Dist):
 
         return True
 
-    def _dimIndexInProcessor(
-        self, dim: int, dim_idx: int, p_mi: tuple | np.ndarray
-    ) -> bool:
+    def _dimIndexInProcessor(self, dim: int, dim_idx: int, p_mi: MIndex) -> bool:
         mesh_dims_idx = self._dims_mapping[dim]
 
         if len(mesh_dims_idx) == 0:
