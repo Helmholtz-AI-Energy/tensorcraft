@@ -1,0 +1,76 @@
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project]
+name = "tensorcraft"
+version = "0.0.0"
+description = "A collection of tools for working and visualizing distributed tensors."
+authors = [
+    {name = "Gutiérrez Hermosillo Muriedas, Juan Pedro", email = "juanpedroghm@gmail.com"},
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["distributed", "tensors", "visualization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
+]
+
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "networkx",
+]
+
+[project.optional-dependencies]
+notebook = ["ipython", "ipyml"]
+
+[project.urls]
+Homepage = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
+# Documentation = "https://tensorcraft.readthedocs.io"
+Repository = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
+Issues = "https://github.com/Helmholtz-AI-Energy/tensorcraft/issues"
+Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/CHANGELOG.md"
+
+# PDM
+[tool.pdm]
+distribution = true
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest",
+    "ipykernel",
+    "pre-commit",
+    "python-semantic-release>=9.0.0",
+    "ipympl>=0.9.3",
+]
+
+# Ruff
+[tool.ruff]
+target-version = "py310"
+
+[tool.semantic_release]
+version_variables = [ "tensorcraft/__init__.py:__version__"]
+version_toml = ["pyproject.toml:project.version"]
+commit_message = "{version} [skip ci]"
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    '\d+\.\d+\.\d+ \[skip ci\]',
+]
+
+[tool.semantic_release.branches.test]
+match = "main"
+prerelease = true
+
+[tool.semantic_release.branches.release]
+match = "release"
+prerelease = false
