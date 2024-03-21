@@ -37,6 +37,10 @@ class BlockDist(Dist):
         self._block_size = block_size
 
     @property
+    def numProcessors(self):  # noqa: D102
+        return self._num_processors
+
+    @property
     def processorArrangement(self):  # noqa: D102
         return np.array((self._num_processors,))
 

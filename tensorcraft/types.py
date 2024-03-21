@@ -4,7 +4,7 @@ from typing import Tuple, TypeAlias
 
 import numpy as np
 
-MIndex: TypeAlias = np.ndarray[Tuple[int], np.dtype[np.int_]]
+MIndex: TypeAlias = np.ndarray[Tuple[int], np.dtype[np.int64]]
 """
 MIndex is a type alias representing a multi-dimensional index array.
 

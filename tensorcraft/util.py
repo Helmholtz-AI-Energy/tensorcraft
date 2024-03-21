@@ -48,29 +48,35 @@ def multi2linearIndex(
     Examples
     --------
     >>> dims = np.array([2, 3])
-    >>> indices = np.array([1, 2])
+    >>> indices = np.array([1, 1])
     >>> multi2linearIndex(dims, indices)
-    5
+    3
 
     >>> dims = np.array([2, 3])
-    >>> indices = np.array([1, 2])
+    >>> indices = np.array([1, 1])
     >>> order = np.array([1, 0])
     >>> multi2linearIndex(dims, indices, order)
-    3
+    4
 
     """
     if len(indices) != len(dims):
         raise ValueError("Indices must have the same length as the tensor's dimensions")
 
-    result = 0
     if order is None:
-        for i in range(len(indices)):
-            result += indices[i] * np.prod(dims[:i])
+        indices_reorderd = indices
+        dims_reorderd = dims
     else:
-        indices = indices[order]
-        dims = dims[order]
-        for i in range(len(indices)):
-            result += indices[i] * np.prod(dims[:i])
+        if len(order) == 0 or len(order) > len(dims):
+            raise ValueError("Invalid order dimensions")
+        indices_reorderd = indices[order]
+        dims_reorderd = dims[order]
+    
+    if not np.all(indices_reorderd >= 0) or not np.all(indices_reorderd < dims_reorderd):
+        raise ValueError("Indices out of bounds")
+
+    result = 0
+    for i in range(len(indices_reorderd)):
+        result += indices_reorderd[i] * np.prod(dims_reorderd[:i])
     return result
 
 

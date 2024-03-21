@@ -48,7 +48,30 @@ class Tensor:
         dims : npt.ArrayLike
             The dimensions of the tensor.
         """
-        self._dims: MIndex = np.array(dims)
+        if isinstance(dims, np.ndarray):
+            if not np.issubdtype(dims.dtype, np.integer):
+                raise ValueError("Dimensions must be integers")
+            if len(dims.shape) != 1:
+                raise ValueError("Must be a 1D array of dimensions")
+            if len(dims) == 0:
+                raise ValueError("Must have at least one dimension")
+            if not np.all(dims > 0):
+                raise ValueError("Dimensions must be positive")
+            self._dims: MIndex = dims.astype(np.int64)
+        elif isinstance(dims, (list, tuple)):
+            if len(dims) == 0:
+                raise ValueError("Must have at least one dimension")
+            if not all(isinstance(d, int) for d in dims):
+                raise ValueError("Dimensions must be integers")
+            if not all(d > 0 for d in dims):
+                raise ValueError("Dimensions must be positive")
+            self._dims = np.array(dims, dtype=np.int64)
+        elif isinstance(dims, int):
+            if dims < 1:
+                raise ValueError("Dimensions must be positive")
+            self._dims = np.array([dims], dtype=np.int64)
+        else:
+            raise ValueError("Invalid dimensions")
 
     @property
     def order(self) -> int:
@@ -86,7 +109,7 @@ class Tensor:
         """
         return np.prod(self._dims, dtype=int)
 
-    def getLinearIndex(self, indices: MIndex, order: str | MIndex = "R") -> int:
+    def getLinearIndex(self, indices: npt.ArrayLike, order: str | npt.ArrayLike = "R") -> int:
         """
         Obtain the multi-dimensional indices to a linear index.
 
@@ -109,19 +132,14 @@ class Tensor:
         ValueError
             If the order is invalid.
         """
-        if len(indices) != len(self._dims):
-            raise ValueError(
-                "Indices must have the same length as the tensor's dimensions"
-            )
         idx_array = np.array(indices)
-
         if order == "R":
             return multi2linearIndex(
                 self._dims, idx_array, order=np.arange(len(self._dims))[::-1]
             )
         elif order == "C":
             return multi2linearIndex(self._dims, idx_array)
-        elif isinstance(order, (list, tuple)):
+        elif isinstance(order, npt.ArrayLike):
             order_array = np.array(order)
             return multi2linearIndex(self._dims, idx_array, order_array)
         else:

@@ -1,42 +1,48 @@
 import numpy as np
 
 from tensorcraft.util import multi2linearIndex, order2npOrder
+from hypothesis import note, assume, given, strategies as st
+from hypothesis.extra.numpy import arrays, array_shapes, from_dtype
 
 
-def test_multi2linearIndex():
-    # Test case 1
-    dims = np.array([2, 3])
-    indices = np.array([1, 1])
-    expected_result = 3
-    assert multi2linearIndex(dims, indices) == expected_result
+from tensorcraft.types import MIndex
 
-    # Test case 2
-    dims = np.array([2, 3])
-    indices = np.array([1, 1])
-    order = np.array([1, 0])
-    expected_result = 4
-    assert multi2linearIndex(dims, indices, order) == expected_result
+@given(
+    dims=array_shapes(min_dims=1, max_dims=5, min_side=1, max_side=5),
+    use_order=st.booleans()
+)
+def test_multi2linearIndex(dims, use_order):
+    dims = np.array(dims)
+    nDims = len(dims)
+    if use_order:
+        order = np.arange(nDims)
+        np.random.shuffle(order)
+    else:
+        order = None
 
-    # Additional test cases...
-    # Test case 3
-    dims = np.array([3, 6])
-    indices = np.array([2, 4])
-    expected_result = 14
-    assert multi2linearIndex(dims, indices) == expected_result
+    a = np.random.random(size=dims)
+    
+    indices = np.array([np.random.randint(0, d) for d in dims])
 
-    # Test case 4
-    dims = np.array([3, 6])
-    indices = np.array([2, 4])
-    order = np.array([1, 0])
-    expected_result = 16
-    assert multi2linearIndex(dims, indices, order) == expected_result
+    if order is not None:
+        a_reorderd = a.transpose(order)
+        indices_reorderd = indices[order]
+    else:
+        a_reorderd = a
+        indices_reorderd = indices
+    a_flat = a_reorderd.flatten("F")
+    idx_flat = multi2linearIndex(dims, indices, order)
 
-    # Test case 5
-    dims = np.array([3, 6, 4, 7])
-    indices = np.array([2, 4, 3, 5])
-    order = np.array([1, 2, 0])
-    expected_result = 70
-    assert multi2linearIndex(dims, indices, order) == expected_result
+    note(f"Dimensions: {dims}")
+    note(f"Indices: {indices}")
+    note(f"Order: {order}")
+    note(f"Reordered array: {a_reorderd.shape}")
+    note(f"Reordered indices: {indices_reorderd}")
+    note(f"Linear index: {idx_flat}")
+    note(f"Wanted value: {a_reorderd.item(*indices_reorderd)}")
+    note(f"Obtained value: {a_flat.item(idx_flat)}")
+    assert a_flat.item(idx_flat) == a_reorderd.item(*indices_reorderd)
+
 
 
 def test_order2npOrder():

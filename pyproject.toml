@@ -51,6 +51,8 @@ dev = [
     "pre-commit",
     "python-semantic-release>=9.0.0",
     "ipympl>=0.9.3",
+    "hypothesis[numpy]>=6.99.11",
+    "pytest-coverage>=0.0",
 ]
 
 # Ruff
