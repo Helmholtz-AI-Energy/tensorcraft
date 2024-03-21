@@ -1,4 +1,4 @@
-"""Utility functions for tensorcraft"""
+"""Utility functions for tensorcraft."""
 
 from typing import Literal
 
@@ -14,7 +14,7 @@ def multi2linearIndex(
     indices: MIndex,
     order: MIndex | None = None,
 ) -> int:
-    """Converts a multi-dimensional index to a linear index
+    """Convert a multi-dimensional index to a linear index.
 
     This function takes a multi-dimensional index and converts it to a linear index
     based on the dimensions of the tensor. The linear index represents the position
@@ -95,18 +95,17 @@ def order2npOrder(order: str) -> Literal["C", "F"]:
 
     Examples
     --------
-    >>> order2npOrder('C')
+    >>> order2npOrder("C")
     'F'
 
-    >>> order2npOrder('R')
+    >>> order2npOrder("R")
     'C'
 
-    >>> order2npOrder('Z')
+    >>> order2npOrder("Z")
     Traceback (most recent call last):
         ...
     KeyError: 'Z is not a valid order string.'
     """
-
     if order not in _order2npOrder:
         raise ValueError(f"{order} is not a valid order string.")
     return _order2npOrder[order]

@@ -1,3 +1,5 @@
+"""Visualization module for tensorcraft."""
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -10,6 +12,22 @@ from tensorcraft.tensor import Tensor
 
 
 def drawColorBar(fig, axs, colors: np.ndarray):
+    """
+    Draw a color bar for the given colors.
+
+    Parameters
+    ----------
+    fig : Figure
+        The figure object.
+    axs : Axes
+        The axes object.
+    colors : ndarray
+        An array of colors.
+
+    Returns
+    -------
+    None
+    """
     cmap = mpl.colors.ListedColormap(colors)
     norm = mpl.colors.BoundaryNorm(np.arange(-0.5, len(colors), 1), cmap.N)
     cbar = fig.colorbar(
@@ -24,6 +42,22 @@ def drawColorBar(fig, axs, colors: np.ndarray):
 
 
 def set2DTensorAxis(ax: Axes, shape: tuple | np.ndarray, color: str = "black") -> None:
+    """
+    Set the axis ticks and labels for a 2D tensor plot.
+
+    Parameters
+    ----------
+    ax : Axes
+        The axes object.
+    shape : tuple or ndarray
+        The shape of the tensor.
+    color : str, optional
+        The color of the axis ticks (default is "black").
+
+    Returns
+    -------
+    None
+    """
     # Ticks
     ax.set_xticks(np.arange(0.0, shape[1], 1.0))
     ax.set_yticks(np.arange(0.0, shape[0], 1.0))
@@ -44,6 +78,22 @@ def set2DTensorAxis(ax: Axes, shape: tuple | np.ndarray, color: str = "black") -
 
 
 def plotProcessorView2D(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
+    """
+    Plot the processor view of a 2D tensor.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        The 2D tensor to plot.
+    distribution : Dist
+        The distribution of the tensor.
+    cbar : bool, optional
+        Whether to show the color bar (default is True).
+
+    Returns
+    -------
+    None
+    """
     if tensor.order > 2:
         raise ValueError(
             "Only 2D tensors are supported, please provide the dimensions to print"
@@ -94,6 +144,22 @@ def plotProcessorView2D(tensor: Tensor, distribution: Dist, cbar: bool = True) -
 
 
 def plotTensor2D(tensor: Tensor, distribution: PMeshDist, cbar: bool = True) -> None:
+    """
+    Plot a 2D tensor.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        The 2D tensor to plot.
+    distribution : PMeshDist
+        The distribution of the tensor.
+    cbar : bool, optional
+        Whether to show the color bar (default is True).
+
+    Returns
+    -------
+    None
+    """
     if tensor.order > 2:
         raise ValueError(
             "Only 2D tensors are supported, please provide the dimensions to print"
@@ -131,16 +197,56 @@ def plotTensor2D(tensor: Tensor, distribution: PMeshDist, cbar: bool = True) -> 
 
 
 def getNColors(n: int | np.int64, colormap: str = "viridis") -> np.ndarray:
+    """
+    Get an array of n colors from a colormap.
+
+    Parameters
+    ----------
+    n : int or np.int64
+        The number of colors.
+    colormap : str, optional
+        The name of the colormap (default is "viridis").
+
+    Returns
+    -------
+    ndarray
+        An array of n colors.
+    """
     return mpl.colormaps[colormap].resampled(n).colors
 
 
 def rgba2hex(rgba: np.ndarray) -> str:
+    """
+    Convert an RGBA color array to a hexadecimal color string.
+
+    Parameters
+    ----------
+    rgba : ndarray
+        The RGBA color array.
+
+    Returns
+    -------
+    str
+        The hexadecimal color string.
+    """
     RGBA = rgba * 255
     RGBA = RGBA.astype(np.uint8)
     return "#{:02x}{:02x}{:02x}{:02x}".format(*RGBA)
 
 
 def plot2DMesh(mesh: Tensor) -> None:
+    """
+    Plot a 2D mesh.
+
+    Parameters
+    ----------
+    mesh : Tensor
+        The 2D mesh to plot.
+
+    Returns
+    -------
+    None
+    """
     if mesh.order == 1:
         graph = nx.grid_2d_graph(mesh.size, 1)
     elif mesh.order == 2:
@@ -156,6 +262,19 @@ def plot2DMesh(mesh: Tensor) -> None:
 
 
 def explode(data: np.ndarray) -> np.ndarray:
+    """
+    Explode a 3D array by inserting zeros between each element.
+
+    Parameters
+    ----------
+    data : ndarray
+        The 3D array to explode.
+
+    Returns
+    -------
+    ndarray
+        The exploded 3D array.
+    """
     size = np.array(data.shape) * 2
     data_e = np.zeros(size - 1, dtype=data.dtype)
     data_e[::2, ::2, ::2] = data
@@ -163,6 +282,22 @@ def explode(data: np.ndarray) -> np.ndarray:
 
 
 def plotTensor3D(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
+    """
+    Plot a 3D tensor.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        The 3D tensor to plot.
+    distribution : Dist
+        The distribution of the tensor.
+    cbar : bool, optional
+        Whether to show the color bar (default is True).
+
+    Returns
+    -------
+    None
+    """
     if tensor.order != 3:
         raise ValueError("Only 3D tensors are supported")
 

@@ -56,10 +56,23 @@ dev = [
 # Ruff
 [tool.ruff]
 target-version = "py310"
+extend-include = ["*.ipynb"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "D"]
+ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+
+# Semantic release
 [tool.semantic_release]
 version_variables = [ "tensorcraft/__init__.py:__version__"]
 version_toml = ["pyproject.toml:project.version"]

@@ -1,3 +1,5 @@
+"""PMeshDist class."""
+
 import numpy as np
 
 from tensorcraft.distributions.dist import Dist
@@ -7,6 +9,67 @@ from tensorcraft.util import multi2linearIndex
 
 
 class PMeshDist(Dist):
+    """
+    Represents a distribution for a tensor on a processor mesh.
+
+    Each of the dimensions of the tensor is distributed across the assigned dimensions of a processor mesh.
+
+    Parameters
+    ----------
+    mesh : Tensor
+        The processor mesh.
+    dims_mapping : tuple[tuple]
+        The mapping of tensor dimensions to mesh dimensions.
+    block_sizes : tuple
+        The block sizes for each dimension.
+
+    Raises
+    ------
+    ValueError
+        If the number of dimensions and block sizes do not match.
+    ValueError
+        If the dimension mapping is out of bounds.
+    ValueError
+        If the block size is less than or equal to 0.
+
+    Attributes
+    ----------
+    _mesh : Tensor
+        The processor mesh.
+    _dims_mapping : tuple[tuple]
+        The mapping of tensor dimensions to mesh dimensions.
+    _block_sizes : np.array
+        The block sizes for each dimension.
+    _omit_replication : None
+        Placeholder attribute.
+
+    Properties
+    ----------
+    numProcessors : int
+        The number of processors in the mesh.
+    processorArrangement : tuple
+        The arrangement of processors in the mesh.
+
+    Methods
+    -------
+    getProcessorMultiIndex(index)
+        Returns the multi-index of the processor at the given index.
+    processorView(tensor)
+        Returns a boolean array indicating the processors that have access to each element of the tensor.
+    getIndexLocation(tensor, index)
+        Returns a boolean array indicating the processors that have access to the specified index of the tensor.
+    compatible(tensor)
+        Checks if the tensor is compatible with the distribution.
+
+    Private Methods
+    ---------------
+    _dimIndexInProcessor(dim, dim_idx, p_mi)
+        Checks if the given dimension index is in the specified processor.
+    _distributeDim(dim, dim_size)
+        Distributes a dimension across the processors.
+
+    """
+
     def __init__(
         self, mesh: Tensor, dims_mapping: tuple[tuple], block_sizes: tuple
     ) -> None:
@@ -27,17 +90,17 @@ class PMeshDist(Dist):
         self._omit_replication = None
 
     @property
-    def numProcessors(self):
+    def numProcessors(self):  # noqa: D102
         return self._mesh.size
 
     @property
-    def processorArrangement(self):
+    def processorArrangement(self):  # noqa: D102
         return self._mesh.shape
 
-    def getProcessorMultiIndex(self, index):
+    def getProcessorMultiIndex(self, index):  # noqa: D102
         return self._mesh.getMultiIndex(index)
 
-    def processorView(self, tensor):
+    def processorView(self, tensor):  # noqa: D102
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
@@ -53,7 +116,7 @@ class PMeshDist(Dist):
 
         return processor_view
 
-    def getIndexLocation(self, tensor, index):
+    def getIndexLocation(self, tensor, index):  # noqa: D102
         if isinstance(index, int):
             index = tensor.getMultiIndex(index)
 
@@ -65,7 +128,7 @@ class PMeshDist(Dist):
 
         return p_list
 
-    def compatible(self, tensor):
+    def compatible(self, tensor):  # noqa: D102
         # Ensure that the tensor order and the number of dimensions in the distribution match
         if tensor.order != len(self._dims_mapping):
             print(
