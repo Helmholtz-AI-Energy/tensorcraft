@@ -109,7 +109,9 @@ class Tensor:
         """
         return np.prod(self._dims, dtype=int)
 
-    def getLinearIndex(self, indices: npt.ArrayLike, order: str | npt.ArrayLike = "R") -> int:
+    def getLinearIndex(
+        self, indices: npt.ArrayLike, order: str | npt.ArrayLike = "R"
+    ) -> int:
         """
         Obtain the multi-dimensional indices to a linear index.
 
@@ -139,11 +141,12 @@ class Tensor:
             )
         elif order == "C":
             return multi2linearIndex(self._dims, idx_array)
-        elif isinstance(order, npt.ArrayLike):
-            order_array = np.array(order)
-            return multi2linearIndex(self._dims, idx_array, order_array)
         else:
-            raise ValueError("Invalid order")
+            try:
+                order_array = np.array(order)
+                return multi2linearIndex(self._dims, idx_array, order_array)
+            except ValueError:
+                raise ValueError("Invalid order")
 
     def getMultiIndex(self, index: int, order: str = "R") -> MIndex:
         """

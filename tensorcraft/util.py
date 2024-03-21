@@ -70,8 +70,10 @@ def multi2linearIndex(
             raise ValueError("Invalid order dimensions")
         indices_reorderd = indices[order]
         dims_reorderd = dims[order]
-    
-    if not np.all(indices_reorderd >= 0) or not np.all(indices_reorderd < dims_reorderd):
+
+    if not np.all(indices_reorderd >= 0) or not np.all(
+        indices_reorderd < dims_reorderd
+    ):
         raise ValueError("Indices out of bounds")
 
     result = 0

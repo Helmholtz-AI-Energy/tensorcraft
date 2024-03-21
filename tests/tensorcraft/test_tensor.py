@@ -1,8 +1,11 @@
-import pytest
 import numpy as np
+import pytest
+from hypothesis import given, note
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import array_shapes, arrays
+
 from tensorcraft.tensor import Tensor
-from hypothesis import given, note, strategies as st
-from hypothesis.extra.numpy import arrays, array_shapes, from_dtype
+
 
 @given(
     list_of_ints=st.one_of(
@@ -11,7 +14,10 @@ from hypothesis.extra.numpy import arrays, array_shapes, from_dtype
         st.floats(),
         st.lists(st.integers(min_value=-10000, max_value=10000)),
         st.tuples(st.integers(min_value=-10000, max_value=10000)),
-        arrays(dtype=np.number, shape=array_shapes(min_dims=1, max_dims=3, min_side=0, max_side=5))
+        arrays(
+            dtype=np.number,
+            shape=array_shapes(min_dims=1, max_dims=3, min_side=0, max_side=5),
+        ),
     )
 )
 def test_tensor_constructor(list_of_ints):
@@ -20,7 +26,7 @@ def test_tensor_constructor(list_of_ints):
         with pytest.raises(ValueError) as exc_info:
             tensor = Tensor(list_of_ints)
         assert "Invalid dimensions" in str(exc_info.value)
-        return 
+        return
     if isinstance(list_of_ints, int):
         if list_of_ints < 1:
             with pytest.raises(ValueError) as exc_info:
@@ -71,28 +77,47 @@ def test_tensor_constructor(list_of_ints):
             return
         else:
             tensor = Tensor(list_of_ints)
+            assert np.all(tensor.shape == list_of_ints)
 
-@given(list_of_ints=st.lists(st.integers(min_value=1, max_value=100), min_size=1, max_size=5))
+
+@given(
+    list_of_ints=st.lists(
+        st.integers(min_value=1, max_value=100), min_size=1, max_size=5
+    )
+)
 def test_order(list_of_ints):
     tensor = Tensor(list_of_ints)
     expected_result = len(list_of_ints)
     assert tensor.order == expected_result
 
-@given(list_of_ints=st.lists(st.integers(min_value=1, max_value=100), min_size=1, max_size=5))
+
+@given(
+    list_of_ints=st.lists(
+        st.integers(min_value=1, max_value=100), min_size=1, max_size=5
+    )
+)
 def test_shape(list_of_ints):
     tensor = Tensor(list_of_ints)
     expected_result = np.array(list_of_ints, dtype=np.int_)
     assert np.all(tensor.shape == expected_result)
 
-@given(list_of_ints=st.lists(st.integers(min_value=1, max_value=100), min_size=1, max_size=5))
+
+@given(
+    list_of_ints=st.lists(
+        st.integers(min_value=1, max_value=100), min_size=1, max_size=5
+    )
+)
 def test_size(list_of_ints):
     tensor = Tensor(list_of_ints)
     expected_result = np.prod(np.array(list_of_ints), dtype=int)
     assert tensor.size == expected_result
 
+
 @given(
-    list_of_ints=st.lists(st.integers(min_value=1, max_value=100), min_size=1, max_size=5),
-    row_order=st.booleans()
+    list_of_ints=st.lists(
+        st.integers(min_value=1, max_value=100), min_size=1, max_size=5
+    ),
+    row_order=st.booleans(),
 )
 def test_index_tranformations(list_of_ints, row_order):
     tensor = Tensor(list_of_ints)
@@ -115,4 +140,3 @@ def test_index_tranformations(list_of_ints, row_order):
     linear_index = tensor.getLinearIndex(mindex, order)
     note(f"Resulting linear index: {linear_index}")
     assert linear_index == idx
-

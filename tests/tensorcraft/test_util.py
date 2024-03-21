@@ -1,15 +1,14 @@
 import numpy as np
+from hypothesis import given, note
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import array_shapes
 
 from tensorcraft.util import multi2linearIndex, order2npOrder
-from hypothesis import note, assume, given, strategies as st
-from hypothesis.extra.numpy import arrays, array_shapes, from_dtype
 
-
-from tensorcraft.types import MIndex
 
 @given(
     dims=array_shapes(min_dims=1, max_dims=5, min_side=1, max_side=5),
-    use_order=st.booleans()
+    use_order=st.booleans(),
 )
 def test_multi2linearIndex(dims, use_order):
     dims = np.array(dims)
@@ -21,7 +20,7 @@ def test_multi2linearIndex(dims, use_order):
         order = None
 
     a = np.random.random(size=dims)
-    
+
     indices = np.array([np.random.randint(0, d) for d in dims])
 
     if order is not None:
@@ -42,7 +41,6 @@ def test_multi2linearIndex(dims, use_order):
     note(f"Wanted value: {a_reorderd.item(*indices_reorderd)}")
     note(f"Obtained value: {a_flat.item(idx_flat)}")
     assert a_flat.item(idx_flat) == a_reorderd.item(*indices_reorderd)
-
 
 
 def test_order2npOrder():
