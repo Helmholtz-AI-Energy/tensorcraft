@@ -1,12 +1,14 @@
-import numpy as np
+"""2D tensor visualization functions."""
+
 import matplotlib.pyplot as plt
+import numpy as np
 
-from tensorcraft.tensor import Tensor
 from tensorcraft.distributions import Dist
-from tensorcraft.viz import getNColors, drawColorBar, draw2DGrid
+from tensorcraft.tensor import Tensor
+from tensorcraft.viz import draw2DGrid, drawColorBar, getNColors
 
 
-def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
+def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
     """
     Plot a 2D tensor.
 
@@ -58,7 +60,8 @@ def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
 
     plt.show()
 
-def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
+
+def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
     """
     Plot the processor view of a 2D tensor.
 
@@ -100,7 +103,6 @@ def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = True) -
     fig, axs = plt.subplots(
         nrows=subplot_x,
         ncols=subplot_y,
-        figsize=(subplot_x, subplot_y),
         sharex=True,
         sharey=True,
     )
@@ -122,4 +124,3 @@ def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = True) -
         drawColorBar(fig, axs, colors)
 
     plt.show()
-

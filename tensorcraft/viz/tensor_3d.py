@@ -1,11 +1,14 @@
-import numpy as np
+"""3D tensor visualization."""
+
 import matplotlib.pyplot as plt
+import numpy as np
 
-from tensorcraft.tensor import Tensor
 from tensorcraft.distributions import Dist
-from tensorcraft.viz import getNColors, rgba2hex, explode, drawColorBar
+from tensorcraft.tensor import Tensor
+from tensorcraft.viz import drawColorBar, explode, getNColors, rgba2hex
 
-def draw3DTensor(tensor: Tensor, distribution: Dist, cbar: bool = True) -> None:
+
+def draw3DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
     """
     Plot a 3D tensor.
 
