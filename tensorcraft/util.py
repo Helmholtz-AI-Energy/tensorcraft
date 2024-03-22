@@ -1,28 +1,36 @@
-"""Utility functions for tensorcraft"""
+"""Utility functions for tensorcraft."""
+
+from typing import Literal
 
 import numpy as np
 
-_order2npOrder = {"C": "F", "R": "C"}
+from tensorcraft.types import MIndex
+
+_order2npOrder: dict[str, Literal["C", "F"]] = {"C": "F", "R": "C"}
 
 
 def multi2linearIndex(
-    dims: np.ndarray, indices: np.ndarray, order: np.ndarray | None = None
+    dims: MIndex,
+    indices: MIndex,
+    order: MIndex | None = None,
 ) -> int:
-    """Converts a multi-dimensional index to a linear index
+    """Convert a multi-dimensional index to a linear index.
 
     This function takes a multi-dimensional index and converts it to a linear index
     based on the dimensions of the tensor. The linear index represents the position
     of the element in a flattened version of the tensor.
 
+    Uses a column mayor indexing scheme by default.
+
     Parameters
     ----------
-    dims : np.ndarray
+    dims : tuple | np.ndarray
         An array containing the dimensions of the tensor.
 
-    indices : np.ndarray
+    indices : tuple | np.ndarray
         An array containing the multi-dimensional index.
 
-    order : np.ndarray | None, optional
+    order : tuple | np.ndarray | None, optional
         An array specifying the order in which the dimensions should be considered
         when calculating the linear index. If None, the dimensions are considered
         in the default order, which is the same as the input order.
@@ -40,33 +48,41 @@ def multi2linearIndex(
     Examples
     --------
     >>> dims = np.array([2, 3])
-    >>> indices = np.array([1, 2])
+    >>> indices = np.array([1, 1])
     >>> multi2linearIndex(dims, indices)
-    5
+    3
 
     >>> dims = np.array([2, 3])
-    >>> indices = np.array([1, 2])
+    >>> indices = np.array([1, 1])
     >>> order = np.array([1, 0])
     >>> multi2linearIndex(dims, indices, order)
-    3
+    4
 
     """
     if len(indices) != len(dims):
         raise ValueError("Indices must have the same length as the tensor's dimensions")
 
-    result: int = 0
     if order is None:
-        for i in range(len(indices)):
-            result += indices[i] * np.prod(dims[:i])
+        indices_reorderd = indices
+        dims_reorderd = dims
     else:
-        indices = indices[order]
-        dims = dims[order]
-        for i in range(len(indices)):
-            result += indices[i] * np.prod(dims[:i])
+        if len(order) == 0 or len(order) > len(dims):
+            raise ValueError("Invalid order dimensions")
+        indices_reorderd = indices[order]
+        dims_reorderd = dims[order]
+
+    if not np.all(indices_reorderd >= 0) or not np.all(
+        indices_reorderd < dims_reorderd
+    ):
+        raise ValueError("Indices out of bounds")
+
+    result = 0
+    for i in range(len(indices_reorderd)):
+        result += indices_reorderd[i] * np.prod(dims_reorderd[:i])
     return result
 
 
-def order2npOrder(order: str) -> str:
+def order2npOrder(order: str) -> Literal["C", "F"]:
     """
     Convert the order of dimensions from a given order string to the corresponding NumPy order string.
 
@@ -87,15 +103,17 @@ def order2npOrder(order: str) -> str:
 
     Examples
     --------
-    >>> order2npOrder('C')
+    >>> order2npOrder("C")
     'F'
 
-    >>> order2npOrder('R')
+    >>> order2npOrder("R")
     'C'
 
-    >>> order2npOrder('Z')
+    >>> order2npOrder("Z")
     Traceback (most recent call last):
         ...
     KeyError: 'Z is not a valid order string.'
     """
+    if order not in _order2npOrder:
+        raise ValueError(f"{order} is not a valid order string.")
     return _order2npOrder[order]

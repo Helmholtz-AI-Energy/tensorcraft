@@ -51,12 +51,30 @@ dev = [
     "pre-commit",
     "python-semantic-release>=9.0.0",
     "ipympl>=0.9.3",
+    "hypothesis[numpy]>=6.99.11",
+    "pytest-coverage>=0.0",
 ]
 
 # Ruff
 [tool.ruff]
 target-version = "py310"
+extend-include = ["*.ipynb"]
 
+[tool.ruff.lint]
+select = ["E", "F", "I", "D"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+
+# Semantic release
 [tool.semantic_release]
 version_variables = [ "tensorcraft/__init__.py:__version__"]
 version_toml = ["pyproject.toml:project.version"]
@@ -68,9 +86,13 @@ exclude_commit_patterns = [
 ]
 
 [tool.semantic_release.branches.test]
-match = "main"
+match = "release-test"
 prerelease = true
 
 [tool.semantic_release.branches.release]
 match = "release"
 prerelease = false
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
