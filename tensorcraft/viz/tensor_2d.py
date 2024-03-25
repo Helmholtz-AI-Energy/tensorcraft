@@ -5,7 +5,7 @@ import numpy as np
 
 from tensorcraft.distributions import Dist
 from tensorcraft.tensor import Tensor
-from tensorcraft.viz import draw2DGrid, drawColorBar, getNColors
+from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
 
 
 def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:

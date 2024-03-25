@@ -5,7 +5,7 @@ import networkx as nx
 import numpy as np
 
 from tensorcraft.tensor import Tensor
-from tensorcraft.viz import getNColors, meshGrid, rgba2hex
+from tensorcraft.viz.util import getNColors, meshGrid, rgba2hex
 
 
 def draw2DMesh(mesh: Tensor) -> None:

@@ -5,7 +5,7 @@ import numpy as np
 
 from tensorcraft.distributions import Dist
 from tensorcraft.tensor import Tensor
-from tensorcraft.viz import drawColorBar, explode, getNColors, rgba2hex
+from tensorcraft.viz.util import drawColorBar, explode, getNColors, rgba2hex
 
 
 def draw3DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
