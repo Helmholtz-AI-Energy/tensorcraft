@@ -4,7 +4,6 @@ import numpy as np
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
-from tensorcraft.types import MIndex
 from tensorcraft.util import multi2linearIndex
 
 
@@ -162,20 +161,6 @@ class PMeshDist(Dist):
 
         return True
 
-    def _dimIndexInProcessor(self, dim: int, dim_idx: int, p_mi: MIndex) -> bool:
-        mesh_dims_idx = self._dims_mapping[dim]
-
-        if len(mesh_dims_idx) == 0:
-            return True
-
-        mesh_dims = self._mesh.shape[mesh_dims_idx]
-        block_size = self._block_sizes[dim]
-
-        t_mi = multi2linearIndex(self._mesh.shape, p_mi, order=np.array(mesh_dims_idx))
-        u = np.prod(mesh_dims)
-        # print(f"{p_mi} : {dim_idx} / {block_size}  == {t_mi} (% {u}) -> {np.floor(dim_idx / block_size) % u} == {t_mi % u}")
-        return np.floor(dim_idx / block_size) % u == (t_mi % u)
-
     def _distributeDim(self, dim: int, dim_size: int) -> np.ndarray:
         mesh_dims_idx = self._dims_mapping[dim]
         num_process = self._mesh.size
@@ -184,9 +169,17 @@ class PMeshDist(Dist):
             return np.ones((dim_size, num_process), dtype=np.bool_)
 
         dim_distribution = np.ones((dim_size, num_process), dtype=np.bool_)
+        mesh_dims = self._mesh.shape[mesh_dims_idx]
+        block_size = self._block_sizes[dim]
         for i in range(dim_size):
+            left_eq = np.floor(i / block_size) % np.prod(
+                mesh_dims
+            )  # Left hand side of the equation
             for j in range(num_process):
                 p_mi = np.array(self._mesh.getMultiIndex(j))
-                dim_distribution[i, j] = self._dimIndexInProcessor(dim, i, p_mi)
+                right_eq = multi2linearIndex(
+                    self._mesh.shape, p_mi, order=np.array(mesh_dims_idx)
+                ) % np.prod(mesh_dims)  # Right hand side of the equation
+                dim_distribution[i, j] = left_eq == right_eq
 
         return dim_distribution
