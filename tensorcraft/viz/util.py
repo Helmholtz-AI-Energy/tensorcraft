@@ -80,7 +80,7 @@ def draw2DGrid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
     ax.set_ylabel("Axis 0")
 
 
-def drawColorBar(fig, axs, colors: np.ndarray):
+def drawColorBar(fig, axs, colors: np.ndarray, shrink=1.0):
     """
     Draw a color bar for the given colors.
 
@@ -103,8 +103,10 @@ def drawColorBar(fig, axs, colors: np.ndarray):
         mpl.cm.ScalarMappable(cmap=cmap, norm=norm),
         ax=axs,
         orientation="horizontal",
+        shrink=shrink,
         ticks=np.arange(0, len(colors), 1),
         location="bottom",
+        panchor=(0.5, 0.5),
     )
     cbar.ax.set_xticklabels(np.arange(0, len(colors), 1))
     cbar.set_label("Processor index")

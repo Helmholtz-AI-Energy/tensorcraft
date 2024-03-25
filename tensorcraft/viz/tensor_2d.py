@@ -2,13 +2,16 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 
 from tensorcraft.distributions import Dist
 from tensorcraft.tensor import Tensor
 from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
 
 
-def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
+def draw2DTensor(
+    axis: Axes, tensor: Tensor, distribution: Dist, cbar: bool = False
+) -> None:
     """
     Plot a 2D tensor.
 
@@ -27,7 +30,7 @@ def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None
     """
     if tensor.order > 2:
         raise ValueError(
-            "Only 2D tensors are supported, please provide the dimensions to print"
+            f"Only 2D tensors are supported, the provided tensor has {tensor.order}"
         )
 
     if len(distribution.processorArrangement) > 2:
@@ -48,8 +51,6 @@ def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None
             np.argmax(processor_view[m_idx[0], m_idx[1], :])
         ]
 
-    plt.figure()
-    axis = plt.gca()
     axis.imshow(img[::-1], origin="lower", aspect="equal")
 
     # Ticks
@@ -57,8 +58,6 @@ def draw2DTensor(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None
 
     if cbar:
         drawColorBar(plt.gcf(), axis, colors)
-
-    plt.show()
 
 
 def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
