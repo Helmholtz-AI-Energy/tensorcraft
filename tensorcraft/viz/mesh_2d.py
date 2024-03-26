@@ -1,14 +1,14 @@
 """2D mesh visualization module."""
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from matplotlib.figure import Figure
 
 from tensorcraft.tensor import Tensor
 from tensorcraft.viz.util import getNColors, meshGrid, rgba2hex
 
 
-def draw2DMesh(mesh: Tensor) -> None:
+def draw2DMesh(fig: Figure, mesh: Tensor) -> None:
     """
     Plot a 2D mesh.
 
@@ -26,17 +26,19 @@ def draw2DMesh(mesh: Tensor) -> None:
     else:
         raise ValueError("Only 1D and 2D meshes are supported")
 
+    axis = fig.add_subplot(111)
+
     colors = getNColors(mesh.size)
     hexColors = [rgba2hex(color) for color in colors]
     pos = meshGrid(mesh)
     offset = np.array([0.15 / dim for dim in mesh.shape])
     labelPos = {key: pos + offset for key, pos in pos.items()}
 
-    nx.draw(graph, pos, node_color=hexColors)
+    nx.draw(graph, pos, node_color=hexColors, ax=axis)
     nx.draw_networkx_labels(
         graph,
         labelPos,
         font_size=8,
         bbox={"boxstyle": "circle", "x": 1.0, "y": 1.0, "alpha": 0.0},
+        ax=axis,
     )
-    plt.show()

@@ -1,14 +1,14 @@
 """3D mesh visualization module."""
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from matplotlib.figure import Figure
 
 from tensorcraft.tensor import Tensor
 from tensorcraft.viz.util import getNColors, meshGrid, rgba2hex
 
 
-def draw3DMesh(mesh: Tensor) -> None:
+def draw3DMesh(fig: Figure, mesh: Tensor) -> None:
     """
     Draw a 3D mesh using matplotlib.
 
@@ -29,6 +29,7 @@ def draw3DMesh(mesh: Tensor) -> None:
     if mesh.order != 3:
         raise ValueError("Must provide a 3D mesh")
 
+    axis = fig.add_subplot(111, projection="3d")
     graph = nx.grid_graph(dim=tuple(mesh.shape[::-1]))
     colors = getNColors(mesh.size)
     hexColors = [rgba2hex(color) for color in colors]
@@ -37,16 +38,13 @@ def draw3DMesh(mesh: Tensor) -> None:
     node_xyz = np.array([pos[v] for v in graph.nodes()])
     edge_xyz = np.array([[pos[u], pos[v]] for u, v in graph.edges()])
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
+    axis.projection = "3d"
 
-    ax.scatter(*node_xyz.T, c=hexColors, s=100, alpha=1.0)
+    axis.scatter(*node_xyz.T, c=hexColors, s=100, alpha=1.0)
     for node, node_pos in zip(graph.nodes(), node_xyz):
-        ax.text(*node_pos, f"{node}", fontsize=8, ha="right", va="bottom")
+        axis.text(*node_pos, f"{node}", fontsize=8, ha="right", va="bottom")
     for edge in edge_xyz:
-        ax.plot(*edge.T, c="black", alpha=0.5, linewidth=0.5)
+        axis.plot(*edge.T, c="black", alpha=0.5, linewidth=0.5)
 
-    fig.tight_layout()
-    ax.set_axis_off()
-    plt.grid(False)
-    plt.show()
+    axis.set_axis_off()
+    axis.grid(False)

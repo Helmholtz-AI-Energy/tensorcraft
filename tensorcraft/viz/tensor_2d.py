@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from tensorcraft.distributions import Dist
 from tensorcraft.tensor import Tensor
@@ -10,7 +10,7 @@ from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
 
 
 def draw2DTensor(
-    axis: Axes, tensor: Tensor, distribution: Dist, cbar: bool = False
+    fig: Figure, tensor: Tensor, distribution: Dist, cbar: bool = False
 ) -> None:
     """
     Plot a 2D tensor.
@@ -36,6 +36,8 @@ def draw2DTensor(
     if len(distribution.processorArrangement) > 2:
         raise ValueError("Only 2D meshes are supported")
 
+    axis = fig.add_subplot(111)
+
     processor_view = distribution.processorView(tensor)
 
     if tensor.order == 1:
@@ -57,10 +59,12 @@ def draw2DTensor(
     draw2DGrid(axis, img_shape)
 
     if cbar:
-        drawColorBar(plt.gcf(), axis, colors)
+        drawColorBar(fig, axis, colors)
 
 
-def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = False) -> None:
+def draw2DProcessorView(
+    fig: Figure, tensor: Tensor, distribution: Dist, cbar: bool = False
+) -> None:
     """
     Plot the processor view of a 2D tensor.
 
@@ -99,9 +103,8 @@ def draw2DProcessorView(tensor: Tensor, distribution: Dist, cbar: bool = False) 
     )
 
     colors = getNColors(distribution.numProcessors)
-    fig, axs = plt.subplots(
-        nrows=subplot_x,
-        ncols=subplot_y,
+    gs = fig.add_gridspec(nrows=subplot_x, ncols=subplot_y)
+    axs = gs.subplots(
         sharex=True,
         sharey=True,
     )
