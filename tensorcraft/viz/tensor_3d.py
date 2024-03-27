@@ -1,6 +1,5 @@
 """3D tensor visualization."""
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axis import Axis
 
@@ -63,15 +62,17 @@ def draw3DTensor(
     z[:, :, 1::2] += 0.9
 
     axes.voxels(x, y, z, filled_2, facecolors=fcolors_2, edgecolors=ecolors_2)
+
     axes.view_init(25, -135, 0)
     axes.set_proj_type("persp")
-    axes.set_xlabel("Axis 0")
-    axes.set_ylabel("Axis 1")
-    axes.set_zlabel("Axis 2")
+    axes.set_xticklabels(labels=[])
+    axes.set_yticklabels(labels=[])
+    axes.set_zticklabels(labels=[])
+    axes.set_xlabel("Axis 0", labelpad=-15)
+    axes.set_ylabel("Axis 1", labelpad=-15)
+    axes.set_zlabel("Axis 2", labelpad=-15)
     axes.set_aspect("equal")
     axes.grid(False)
 
     if cbar:
         drawColorBar(axes.get_figure(), axes, colors)
-
-    plt.show()

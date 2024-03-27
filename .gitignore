@@ -162,3 +162,4 @@ cython_debug/
 .pdm-build
 pdm.lock
 .ruff_cache
+notebooks/plots
