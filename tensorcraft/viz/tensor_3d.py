@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.figure import Figure
+from matplotlib.axis import Axis
 
 from tensorcraft.distributions import Dist
 from tensorcraft.tensor import Tensor
@@ -10,7 +10,7 @@ from tensorcraft.viz.util import drawColorBar, explode, getNColors, rgba2hex
 
 
 def draw3DTensor(
-    fig: Figure, tensor: Tensor, distribution: Dist, cbar: bool = False
+    axes: Axis, tensor: Tensor, distribution: Dist, cbar: bool = False
 ) -> None:
     """
     Plot a 3D tensor.
@@ -62,17 +62,16 @@ def draw3DTensor(
     y[:, 1::2, :] += 0.9
     z[:, :, 1::2] += 0.9
 
-    ax = fig.add_subplot(111, projection="3d")
-    ax.voxels(x, y, z, filled_2, facecolors=fcolors_2, edgecolors=ecolors_2)
-    ax.view_init(25, -135, 0)
-    ax.set_proj_type("persp")
-    ax.set_xlabel("Axis 0")
-    ax.set_ylabel("Axis 1")
-    ax.set_zlabel("Axis 2")
-    ax.set_aspect("equal")
-    ax.grid(False)
+    axes.voxels(x, y, z, filled_2, facecolors=fcolors_2, edgecolors=ecolors_2)
+    axes.view_init(25, -135, 0)
+    axes.set_proj_type("persp")
+    axes.set_xlabel("Axis 0")
+    axes.set_ylabel("Axis 1")
+    axes.set_zlabel("Axis 2")
+    axes.set_aspect("equal")
+    axes.grid(False)
 
     if cbar:
-        drawColorBar(plt.gcf(), ax, colors)
+        drawColorBar(axes.get_figure(), axes, colors)
 
     plt.show()

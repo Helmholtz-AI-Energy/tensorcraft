@@ -1,8 +1,7 @@
 """2D tensor visualization functions."""
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 from tensorcraft.distributions import Dist
 from tensorcraft.tensor import Tensor
@@ -10,7 +9,7 @@ from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
 
 
 def draw2DTensor(
-    fig: Figure, tensor: Tensor, distribution: Dist, cbar: bool = False
+    axes: Axes, tensor: Tensor, distribution: Dist, cbar: bool = False
 ) -> None:
     """
     Plot a 2D tensor.
@@ -36,8 +35,6 @@ def draw2DTensor(
     if len(distribution.processorArrangement) > 2:
         raise ValueError("Only 2D meshes are supported")
 
-    axis = fig.add_subplot(111)
-
     processor_view = distribution.processorView(tensor)
 
     if tensor.order == 1:
@@ -53,17 +50,17 @@ def draw2DTensor(
             np.argmax(processor_view[m_idx[0], m_idx[1], :])
         ]
 
-    axis.imshow(img[::-1], origin="lower", aspect="equal")
+    axes.imshow(img[::-1], origin="lower", aspect="equal")
 
     # Ticks
-    draw2DGrid(axis, img_shape)
+    draw2DGrid(axes, img_shape)
 
     if cbar:
-        drawColorBar(fig, axis, colors)
+        drawColorBar(axes.get_figure(), axes, colors)
 
 
 def draw2DProcessorView(
-    fig: Figure, tensor: Tensor, distribution: Dist, cbar: bool = False
+    axes: Axes, tensor: Tensor, distribution: Dist, processor: int, cbar: bool = False
 ) -> None:
     """
     Plot the processor view of a 2D tensor.
@@ -96,33 +93,21 @@ def draw2DProcessorView(
     else:
         img_shape = tensor.shape
 
-    processorArragement = distribution.processorArrangement
-    subplot_x = processorArragement[0]
-    subplot_y = (
-        processorArragement[1] if len(distribution.processorArrangement) > 1 else 1
-    )
-
     colors = getNColors(distribution.numProcessors)
-    gs = fig.add_gridspec(nrows=subplot_x, ncols=subplot_y)
-    axs = gs.subplots(
-        sharex=True,
-        sharey=True,
+
+    p_midx = distribution.getProcessorMultiIndex(processor)
+
+    img = np.apply_along_axis(
+        lambda a: colors[processor] if a[processor] else [0.0, 0.0, 0.0, 0.0],
+        -1,
+        processor_view,
     )
+    axes.imshow(img, origin="upper", aspect="equal")
+    draw2DGrid(axes, img_shape)
 
-    for p in range(distribution.numProcessors):
-        p_midx = distribution.getProcessorMultiIndex(p)
-
-        img = np.apply_along_axis(
-            lambda a: colors[p] if a[p] else [0.0, 0.0, 0.0, 0.0], -1, processor_view
-        )
-        axs[p_midx[0], p_midx[1]].imshow(img, origin="upper", aspect="equal")
-        draw2DGrid(axs[p_midx[0], p_midx[1]], img_shape)
-
-        axs[p_midx[0], p_midx[1]].title.set_text(f"P {p_midx}")
+    axes.title.set_text(f"P {p_midx}")
 
     ## Add discrete colorbar with the processor index and colors
 
     if cbar:
-        drawColorBar(fig, axs, colors)
-
-    plt.show()
+        drawColorBar(axes.get_figure(), axes, colors)
