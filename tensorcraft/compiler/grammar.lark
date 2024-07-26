@@ -1,0 +1,63 @@
+start: tensorexp+
+
+tensorexp: tensor "=" tensorop
+
+tensorop: tensorproduct
+            | tensorop "+" tensorproduct -> add
+            | tensorop "-" tensorproduct -> sub
+
+tensorproduct: operand
+        | tensorproduct "*" operand -> prod
+        | tensorproduct "/" operand -> div
+        | tensorproduct "==" operand -> equal
+        | tensorproduct "!=" operand -> nequal
+        | tensorproduct "&&" operand -> and
+        | tensorproduct "||" operand -> or
+
+operand: signed_tensor
+         | signed_idxvar
+         | SIGNED_NUMBER
+         | "(" tensorop ")"
+
+signed_tensor: tensor
+                | "-" tensor
+
+tensor: TENSORVAR
+        | TENSORVAR "[" multiidxop "]"
+
+TENSORVAR: /[A-Z]/
+
+idxassignment: "[" multiidxop "]"
+
+multiidxop: idxop
+            | multiidxop "," idxop
+
+
+idxop: idxproduct
+    | idxop "+" idxproduct   -> idxadd
+    | idxop "-" idxproduct   -> idxsub
+
+idxproduct: idx
+    | idxproduct "*" idx  -> idxmul
+    | idxproduct "/" idx  -> idxdiv
+
+idx: NUMBER           -> scalar
+     | INDEXVAR        -> indexvar
+     | "-" idx         -> neg
+     | "(" idxop ")"
+
+signed_idxvar: INDEXVAR
+                | "-" INDEXVAR -> neg_indexvar
+INDEXVAR : /[a-z]/
+
+_NL: /(\r?\n)+\s*/
+
+%import common.SIGNED_NUMBER
+%import common.NUMBER
+%import common.WS
+
+
+COMMENT: /\s*/ "#" /[^\n]/*
+
+%ignore WS
+%ignore COMMENT

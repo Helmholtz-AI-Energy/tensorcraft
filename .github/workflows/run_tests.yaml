@@ -23,8 +23,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          pip install pdm
-          pdm install
+          pip install .[dev]
       - name: Test with pytest and cmdline commands
         run: |
-          pdm run pytest
+          pytest
