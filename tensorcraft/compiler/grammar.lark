@@ -13,6 +13,10 @@ tensorproduct: operand
         | tensorproduct "!=" operand -> nequal
         | tensorproduct "&&" operand -> and
         | tensorproduct "||" operand -> or
+        | tensorproduct ">" operand -> gt
+        | tensorproduct "<" operand -> lt
+        | tensorproduct ">=" operand -> ge
+        | tensorproduct "<=" operand -> le
 
 operand: signed_tensor
          | signed_idxvar
