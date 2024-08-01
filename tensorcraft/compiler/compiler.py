@@ -46,7 +46,7 @@ class Compiler:
         return ast
 
 
-class ProgrammTransformer(lark.Transformer):
+class ProgramTransformer(lark.Transformer):
     """
     Transformer class for converting tensor expressions into a directed graph.
 
@@ -103,12 +103,13 @@ class ProgrammTransformer(lark.Transformer):
         """
         G = nx.DiGraph()
 
-        current_variable: dict[str, int] = {}
+        current_variable: dict[str, str | int] = {}
 
         input_variables = set(self._variables.keys()) - self._derived_variables
 
         for var in input_variables:
-            current_variable[var] = -1
+            self._variables[var].lines.insert(0, -1)
+            current_variable[var] = var
             G.add_node(var)
 
         for op in tensor_ops:
