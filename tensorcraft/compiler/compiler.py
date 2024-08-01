@@ -2,11 +2,12 @@
 
 import importlib.resources
 import logging
-from typing import Any
 
 import lark
 import lark.ast_utils
 import networkx as nx
+
+from tensorcraft.compiler.model import Program, TensorExpression, TensorVariable
 
 log = logging.getLogger("tensorcraft")
 
@@ -45,9 +46,11 @@ class Compiler:
         return ast
 
 
-class DataGraphTransformer(lark.Transformer):
+class ProgrammTransformer(lark.Transformer):
     """
     Transformer class for converting tensor expressions into a directed graph.
+
+    It processes the tree from left to right, bottom to top.
 
     Parameters
     ----------
@@ -58,59 +61,68 @@ class DataGraphTransformer(lark.Transformer):
     ----------
     _code : list
         The code split into lines.
-    _current_variables : list
-        The current variables being processed.
+    _current_tensor_index_vars : list
+        The current tensor index variables.
+    _current_exp_variables : list
+        The current tensor expression variables.
+    _current_exp_index_vars : list
+        The current tensor expression index variables.
+    _variables : dict
+        The variables in the code.
     _derived_variables : set
-        The set of derived variables.
-    _all_variables : set
-        The set of all variables.
-
+        The derived variables in the code.
     """
 
     def __init__(self, code: str):
         super().__init__()
         self._code = code.split("\n")
-        self._current_variables: list[Any] = []
-        self._derived_variables: set[Any] = set()
-        self._all_variables: set[Any] = set()
 
-    def start(self, tensor_expressions: list[lark.Tree]):
+        self._current_tensor_index_vars: list[str] = []
+
+        self._current_exp_variables: list[str] = []
+        self._current_exp_index_vars: list[list[str]] = []
+
+        self._variables: dict[str, TensorVariable] = {}
+
+        self._derived_variables: set[str] = set()
+
+    def start(self, tensor_ops: list[TensorExpression]) -> Program:
         """
         Convert the tensor expressions into a directed graph.
 
         Parameters
         ----------
-        tensor_expressions : list
+        tensor_expressions : list[TensorExpression]
             The list of tensor expressions.
 
         Returns
         -------
-        G : networkx.DiGraph
-            The directed graph representing the tensor expressions.
+        Programm
+            The program containing the tensor expressions and variable information.
 
         """
         G = nx.DiGraph()
 
-        current_variable: dict[str, str] = {}
+        current_variable: dict[str, int] = {}
 
-        input_variables = self._all_variables - self._derived_variables
+        input_variables = set(self._variables.keys()) - self._derived_variables
+
         for var in input_variables:
-            current_variable[var] = var
+            current_variable[var] = -1
             G.add_node(var)
 
-        for tensor_expression in tensor_expressions:
-            exp = tensor_expression[0]
-            output = tensor_expression[1]
-            deps = tensor_expression[2]
+        for op in tensor_ops:
+            G.add_node(op.line, op=op)
+            for input, _ in op.inputs:
+                G.add_edge(current_variable[input], op.line)
 
-            G.add_node(exp)
-            for dep in deps:
-                G.add_edge(current_variable[dep], exp)
+            current_variable[op.output[0]] = op.line
 
-            current_variable[output] = exp
-            print(current_variable)
+        ops_dict = {op.line: op for op in tensor_ops}
 
-        return G
+        program = Program(G, ops_dict, self._variables, list(input_variables))
+
+        return program
 
     @lark.v_args(meta=True)
     def tensorexp(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
@@ -126,20 +138,37 @@ class DataGraphTransformer(lark.Transformer):
 
         Returns
         -------
-        deps : tuple
+        TensorExpression
             The dependencies of the tensor expression.
 
         """
-        deps = (
+        self._derived_variables.add(self._current_exp_variables[0])
+
+        for var in set(self._current_exp_variables):
+            self._variables[var].lines.append(meta.line)
+
+        unique_idx_vars = set()
+
+        for idx_vars in self._current_exp_index_vars:
+            unique_idx_vars.update(idx_vars)
+
+        op = TensorExpression(
+            meta.line,
             self._code[int(meta.line) - 1],
-            self._current_variables[0],
-            set(self._current_variables[1:]),
+            [
+                (var, idx_tuple)
+                for var, idx_tuple in zip(
+                    self._current_exp_variables[1:], self._current_exp_index_vars[1:]
+                )
+            ],
+            (self._current_exp_variables[0], self._current_exp_index_vars[0]),
+            loop_count=len(unique_idx_vars),
+            op_count=len(self._current_exp_variables) - 1,
         )
 
-        self._derived_variables.add(self._current_variables[0])
-        self._all_variables.update(self._current_variables)
-        self._current_variables = []
-        return deps
+        self._current_exp_variables = []
+        self._current_exp_index_vars = []
+        return op
 
     def tensor(self, children: list[lark.Tree]):
         """
@@ -151,4 +180,31 @@ class DataGraphTransformer(lark.Transformer):
             The children of the tensor.
 
         """
-        self._current_variables.append(children[0])
+        name = children[0].value
+        order = len(self._current_tensor_index_vars)
+
+        if name in self._variables:
+            prev_order = self._variables[name].order
+            if prev_order != order:
+                raise ValueError(
+                    f"Variable {name} has different order. Previous {prev_order} != {order}."
+                )
+        else:
+            self._variables[name] = TensorVariable(name, order, [])
+
+        self._current_exp_index_vars.append(self._current_tensor_index_vars)
+        self._current_tensor_index_vars = []
+
+        self._current_exp_variables.append(name)
+
+    def indexvar(self, children: list[lark.Token]):
+        """
+        Process an index variable and adds it to the current tensor index variables.
+
+        Parameters
+        ----------
+        children : list
+            The children of the index variable.
+
+        """
+        self._current_tensor_index_vars.append(children[0].value)
