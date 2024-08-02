@@ -100,7 +100,7 @@ def _position_nodes(program: Program) -> dict[Any, list[float]]:
         for node in sorted(nodes):
             if level not in x_offset:
                 x_offset[level] = (
-                    -2.5 * elemens_per_level[level] + 0 if level % 2 == 0 else -2.5
+                    -2.5 * elemens_per_level[level] if level % 2 == 0 else -2.5
                 )
                 x = x_offset[level]
             else:
