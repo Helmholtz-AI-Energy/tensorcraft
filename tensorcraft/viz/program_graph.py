@@ -151,14 +151,14 @@ def _color_nodes_by_loops(program: Program) -> list[str]:
     dict[Any, str]
         The colors of the nodes in the graph.
     """
-    colors = getNColors(program.max_loop_depth[0], colormap="plasma")
+    colors = getNColors(program.max_loop_depth[0] + 1, colormap="plasma")
 
     color_list = []
     for node in program.graph:
         if node in program.input_variables:
             color_list.append("gray")
         else:
-            color = colors[program.tensor_expressions[node].loop_count - 1]
+            color = colors[program.tensor_expressions[node].loop_count]
             color_list.append(rgba2hex(color))
     return color_list
 
