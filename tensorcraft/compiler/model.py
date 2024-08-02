@@ -40,5 +40,6 @@ class Program:
 
     graph: nx.DiGraph
     tensor_expressions: dict[int, TensorExpression]
+    max_loop_depth: tuple[int, int]  # (max_loop_depth, line_number)
     variables: dict[str, TensorVariable]
     input_variables: list[str]

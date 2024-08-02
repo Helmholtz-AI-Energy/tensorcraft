@@ -6,8 +6,10 @@ import networkx as nx
 
 from tensorcraft.compiler import Program
 
+from .util import getNColors, rgba2hex
 
-def draw_program_graph(program: Program):
+
+def draw_program_graph(program: Program, color_by="loops") -> None:
     """Draw the program graph using networkx.
 
     Parameters
@@ -16,11 +18,11 @@ def draw_program_graph(program: Program):
         Object containing the program graph.
     """
     node_pos = _position_nodes(program)
-    node_colors = _color_nodes(program, by="type")
+    node_colors = _color_nodes(program, color_by=color_by)
     nx.draw(
         program.graph,
         node_pos,
-        node_color=node_colors.values(),
+        node_color=node_colors,
         with_labels=True,
         font_weight="bold",
     )
@@ -112,14 +114,14 @@ def _position_nodes(program: Program) -> dict[Any, list[float]]:
     return positions
 
 
-def _color_nodes(program: Program, by: str = "type") -> dict[Any, str]:
+def _color_nodes(program: Program, color_by: str = "type") -> list[str]:
     """Color the nodes in the graph.
 
     Parameters
     ----------
     program : Program
         The program containing the tensor expressions and variable information.
-    by : str
+    color_by : str
         The attribute to use for coloring the nodes.
 
     Returns
@@ -127,14 +129,41 @@ def _color_nodes(program: Program, by: str = "type") -> dict[Any, str]:
     dict[Any, str]
         The colors of the nodes in the graph.
     """
-    match by:
+    match color_by:
         case "type":
             return _color_nodes_by_type(program)
+        case "loops":
+            return _color_nodes_by_loops(program)
         case _:
-            raise ValueError(f"Invalid value for 'by': {by}.")
+            raise ValueError(f"Invalid value for 'color_by': {color_by}.")
 
 
-def _color_nodes_by_type(program: Program) -> dict[Any, str]:
+def _color_nodes_by_loops(program: Program) -> list[str]:
+    """Color the nodes in the graph by the number of loops they are in.
+
+    Parameters
+    ----------
+    program : Program
+        The program containing the tensor expressions and variable information.
+
+    Returns
+    -------
+    dict[Any, str]
+        The colors of the nodes in the graph.
+    """
+    colors = getNColors(program.max_loop_depth[0], colormap="plasma")
+
+    color_list = []
+    for node in program.graph:
+        if node in program.input_variables:
+            color_list.append("gray")
+        else:
+            color = colors[program.tensor_expressions[node].loop_count - 1]
+            color_list.append(rgba2hex(color))
+    return color_list
+
+
+def _color_nodes_by_type(program: Program) -> list[str]:
     """Color the nodes in the graph by type.
 
     Parameters
@@ -147,11 +176,11 @@ def _color_nodes_by_type(program: Program) -> dict[Any, str]:
     dict[Any, str]
         The colors of the nodes in the
     """
-    node_colors = {}
+    node_colors = []
     for node in program.graph.nodes:
         if node in program.input_variables:
-            node_colors[node] = "green"
+            node_colors.append("green")
         else:
-            node_colors[node] = "blue"
+            node_colors.append("blue")
 
     return node_colors

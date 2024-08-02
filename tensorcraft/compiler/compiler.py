@@ -112,7 +112,14 @@ class ProgramTransformer(lark.Transformer):
             current_variable[var] = var
             G.add_node(var)
 
+        max_loop_depth = 0
+        max_loop_depth_line = 0
+
         for op in tensor_ops:
+            if max_loop_depth < op.loop_count:
+                max_loop_depth_line = op.line
+                max_loop_depth = op.loop_count
+
             G.add_node(op.line, op=op)
             for input, _ in op.inputs:
                 G.add_edge(current_variable[input], op.line)
@@ -121,7 +128,13 @@ class ProgramTransformer(lark.Transformer):
 
         ops_dict = {op.line: op for op in tensor_ops}
 
-        program = Program(G, ops_dict, self._variables, list(input_variables))
+        program = Program(
+            G,
+            ops_dict,
+            (max_loop_depth, max_loop_depth_line),
+            self._variables,
+            list(input_variables),
+        )
 
         return program
 
