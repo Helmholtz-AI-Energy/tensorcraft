@@ -134,6 +134,8 @@ def _color_nodes(program: Program, color_by: str = "type") -> list[str]:
             return _color_nodes_by_type(program)
         case "loops":
             return _color_nodes_by_loops(program)
+        case "opcount":
+            return _color_nodes_by_opcount(program)
         case _:
             raise ValueError(f"Invalid value for 'color_by': {color_by}.")
 
@@ -151,7 +153,7 @@ def _color_nodes_by_loops(program: Program) -> list[str]:
     dict[Any, str]
         The colors of the nodes in the graph.
     """
-    colors = getNColors(program.max_loop_depth[0] + 1, colormap="plasma")
+    colors = getNColors(program._max_loop_depth[0] + 1, colormap="plasma")
 
     color_list = []
     for node in program.graph:
@@ -159,6 +161,31 @@ def _color_nodes_by_loops(program: Program) -> list[str]:
             color_list.append("gray")
         else:
             color = colors[program.tensor_expressions[node].loop_count]
+            color_list.append(rgba2hex(color))
+    return color_list
+
+
+def _color_nodes_by_opcount(program: Program) -> list[str]:
+    """Color the nodes in the graph by the number of basic operations that take place on each loop.
+
+    Parameters
+    ----------
+    program : Program
+        The program containing the tensor expressions and variable information.
+
+    Returns
+    -------
+    dict[Any, str]
+        The colors of the nodes in the graph.
+    """
+    colors = getNColors(program._max_op_count[0] + 1, colormap="plasma")
+
+    color_list = []
+    for node in program.graph:
+        if node in program.input_variables:
+            color_list.append("gray")
+        else:
+            color = colors[program.tensor_expressions[node].op_count]
             color_list.append(rgba2hex(color))
     return color_list
 

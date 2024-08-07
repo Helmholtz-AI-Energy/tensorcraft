@@ -2,26 +2,24 @@ start: tensorexp+
 
 tensorexp: tensor "=" tensorop
 
-tensorop: tensorproduct
-            | tensorop "+" tensorproduct -> add
-            | tensorop "-" tensorproduct -> sub
-
-tensorproduct: operand
-        | tensorproduct "*" operand -> prod
-        | tensorproduct "/" operand -> div
-        | tensorproduct "==" operand -> equal
-        | tensorproduct "!=" operand -> nequal
-        | tensorproduct "&&" operand -> and
-        | tensorproduct "||" operand -> or
-        | tensorproduct ">" operand -> gt
-        | tensorproduct "<" operand -> lt
-        | tensorproduct ">=" operand -> ge
-        | tensorproduct "<=" operand -> le
+tensorop: operand
+        | tensorop "+" operand -> add
+        | tensorop "-" operand -> sub
+        | tensorop "*" operand -> prod
+        | tensorop "/" operand -> div
+        | tensorop "==" operand -> equal
+        | tensorop "!=" operand -> nequal
+        | tensorop "&&" operand -> bool_and
+        | tensorop "||" operand -> bool_or
+        | tensorop ">" operand -> gt
+        | tensorop "<" operand -> lt
+        | tensorop ">=" operand -> ge
+        | tensorop "<=" operand -> le
 
 operand: signed_tensor
          | signed_idxvar
          | SIGNED_NUMBER
-         | "(" tensorop ")"
+         | "(" tensorop ")" -> parenthesis
 
 signed_tensor: tensor
                 | "-" tensor
