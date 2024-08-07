@@ -2,7 +2,7 @@
 
 from tensorcraft.viz.mesh_2d import draw2DMesh
 from tensorcraft.viz.mesh_3d import draw3DMesh
-from tensorcraft.viz.program_graph import draw_program_graph
+from tensorcraft.viz.program_graph import draw_expression_graph, draw_program_graph
 from tensorcraft.viz.tensor_2d import draw2DProcessorView, draw2DTensor
 from tensorcraft.viz.tensor_3d import draw3DTensor
 from tensorcraft.viz.util import (
@@ -29,4 +29,5 @@ __all__ = [
     "draw2DTensor",
     "draw3DTensor",
     "draw_program_graph",
+    "draw_expression_graph",
 ]

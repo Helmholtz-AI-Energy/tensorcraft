@@ -22,13 +22,13 @@ class TensorVariable:
 class TensorExpression:
     """A class representing an operation in a tensor expression."""
 
-    line: int
-    raw: str
-    inputs: list[tuple[str, list[str]]]
-    output: tuple[str, list[str]]
-    loop_count: int
-    op_graph: nx.DiGraph
-    op_count: int
+    line: int  # Line number in the program
+    raw: str  # Raw string of the expression
+    inputs: list[tuple[str, list[str]]]  # List of input variables and their shapes
+    output: tuple[str, list[str]]  # Output variable and its shape
+    loop_count: int  # Number of loops in the expression
+    op_graph: nx.DiGraph  # Graph representing the expression
+    op_count: int  # Number of operations in the expression
 
     def __str__(self):
         """Return the string representation of the tensor expression."""

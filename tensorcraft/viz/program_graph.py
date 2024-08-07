@@ -4,7 +4,7 @@ from typing import Any
 
 import networkx as nx
 
-from tensorcraft.compiler import Program
+from tensorcraft.compiler import Program, TensorExpression
 
 from .util import getNColors, rgba2hex
 
@@ -17,7 +17,7 @@ def draw_program_graph(program: Program, color_by="loops") -> None:
     program : Program
         Object containing the program graph.
     """
-    node_pos = _position_nodes(program)
+    node_pos = _position_nodes(program.graph, program.input_variables)
     node_colors = _color_nodes(program, color_by=color_by)
     nx.draw(
         program.graph,
@@ -28,7 +28,27 @@ def draw_program_graph(program: Program, color_by="loops") -> None:
     )
 
 
-def _position_nodes(program: Program) -> dict[Any, list[float]]:
+def draw_expression_graph(tensor_expressoin: TensorExpression) -> None:
+    """Draw the expression graph using networkx.
+
+    Parameters
+    ----------
+    tensor_expressoin : TensorExpression
+        Object containing the tensor expression graph.
+    """
+    inputs = [name for name, shape in tensor_expressoin.inputs]
+    node_pos = _position_nodes(tensor_expressoin.op_graph, inputs)
+    nx.draw(
+        tensor_expressoin.op_graph,
+        node_pos,
+        with_labels=True,
+        font_weight="bold",
+    )
+
+
+def _position_nodes(
+    G: nx.DiGraph, input_variables: list[str]
+) -> dict[Any, list[float]]:
     """
     Position the nodes in the graph.
 
@@ -45,16 +65,15 @@ def _position_nodes(program: Program) -> dict[Any, list[float]]:
     """
     print("Positioning nodes")
     positions = {}
-    G = program.graph
 
     # Root nodes on level 0
-    assigned_levels = {node: 0 for node in program.input_variables}
-    assigned_nodes: dict[int, list[Any]] = {0: program.input_variables, 1: []}
-    elemens_per_level: dict[int, int] = {0: len(program.input_variables), 1: 0}
+    assigned_levels = {node: 0 for node in input_variables}
+    assigned_nodes: dict[int, list[Any]] = {0: input_variables, 1: []}
+    elemens_per_level: dict[int, int] = {0: len(input_variables), 1: 0}
 
     # Add successors of root nodes to open_nodes
     open_nodes = []
-    for node in program.input_variables:
+    for node in input_variables:
         open_nodes.extend([s for s in G.successors(node) if s not in open_nodes])
 
     # Find other nodes without predecessors, and add their successors to open_nodes
