@@ -42,7 +42,11 @@ class Compiler:
         """
         log.info(f"Compiling code:\n{code}")
 
-        ast = self._parser.parse(code)
+        try:
+            ast = self._parser.parse(code)
+        except Exception as e:
+            log.error(f"Invalid program: {e}")
+            raise ValueError(f"Invalid program: {e}")
         program = ProgramTransformer(code).transform(ast)
         return program
 

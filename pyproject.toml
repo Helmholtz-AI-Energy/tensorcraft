@@ -105,3 +105,6 @@ addopts = "--cov --cov-report term"
 
 [tool.coverage.run]
 source = ["tensorcraft"]
+
+[tool.coverage.report]
+format = "markdown"
