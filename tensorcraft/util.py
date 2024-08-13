@@ -82,6 +82,33 @@ def multi2linearIndex(
     return result
 
 
+def linear2multiIndex(index: int, dims: MIndex, order="R") -> MIndex:
+    """
+    Convert a linear index to multi-dimensional indices.
+
+    Parameters
+    ----------
+    index : int
+        The linear index.
+    order : str, optional
+        The order of the multi-dimensional indices. Defaults to "R" (row-major order).
+
+    Returns
+    -------
+    MIndex
+        The multi-dimensional indices corresponding to the given linear index.
+
+    Raises
+    ------
+    ValueError
+        If the index is out of bounds.
+    """
+    if index < 0 or index >= np.prod(dims, dtype=int):
+        raise ValueError("Index out of bounds")
+
+    return np.array(np.unravel_index(index, dims, order=order2npOrder(order)))
+
+
 def order2npOrder(order: str) -> Literal["C", "F"]:
     """
     Convert the order of dimensions from a given order string to the corresponding NumPy order string.

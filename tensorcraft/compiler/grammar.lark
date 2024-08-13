@@ -21,8 +21,8 @@ operand: signed_tensor
          | SIGNED_NUMBER
          | "(" tensorop ")" -> parenthesis
 
-signed_tensor: tensor
-                | "-" tensor
+signed_tensor: tensor -> pos_tensor
+                | "-" tensor -> neg_tensor
 
 tensor: TENSORVAR
         | TENSORVAR "[" multiidxop "]"
@@ -48,7 +48,7 @@ idx: NUMBER           -> scalar
     //  | "-" idx         -> neg
     //  | "(" idxop ")"
 
-signed_idxvar: INDEXVAR
+signed_idxvar: INDEXVAR -> pos_indexvar
                 | "-" INDEXVAR -> neg_indexvar
 INDEXVAR : /[a-z]/
 

@@ -289,8 +289,26 @@ class ProgramTransformer(lark.Transformer):
 
         """
         if isinstance(children[0], lark.Tree):
-            operand_name = children[0].children[0]
-            self._op_graph.add_node(operand_name)
+            if children[0].data == "pos_tensor":
+                var_name = children[0].children[0][0]
+
+                index_vars = ",".join(children[0].children[0][1])
+                operand_name = f"{var_name}[{index_vars}]"
+
+                neg = False
+            elif children[0].data == "neg_tensor":
+                var_name = children[0].children[0][0]
+
+                index_vars = ",".join(children[0].children[0][1])
+                operand_name = f"{var_name}[{index_vars}]"
+                neg = True
+            elif children[0].data == "pos_indexvar":
+                operand_name = children[0].children[0]
+                neg = False
+            elif children[0].data == "neg_indexvar":
+                operand_name = f"{children[0].children[0]}"
+                neg = True
+            self._op_graph.add_node(operand_name, neg=neg)
         elif isinstance(children[0], lark.Token):
             operand_name = children[0].value
             self._op_graph.add_node(operand_name)
@@ -324,7 +342,7 @@ class ProgramTransformer(lark.Transformer):
 
         self._current_exp_variables.append(name)
 
-        return name
+        return name, self._current_exp_index_vars[-1]
 
     def indexvar(self, children: list[lark.Token]):
         """
@@ -337,3 +355,4 @@ class ProgramTransformer(lark.Transformer):
 
         """
         self._current_tensor_index_vars.append(children[0].value)
+        return children[0].value

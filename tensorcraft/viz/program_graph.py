@@ -28,7 +28,7 @@ def draw_program_graph(program: Program, color_by="loops") -> None:
     )
 
 
-def draw_expression_graph(tensor_expressoin: TensorExpression) -> None:
+def draw_expression_graph(tensor_expression: TensorExpression) -> None:
     """Draw the expression graph using networkx.
 
     Parameters
@@ -36,13 +36,21 @@ def draw_expression_graph(tensor_expressoin: TensorExpression) -> None:
     tensor_expressoin : TensorExpression
         Object containing the tensor expression graph.
     """
-    inputs = [name for name, shape in tensor_expressoin.inputs]
-    node_pos = _position_nodes(tensor_expressoin.op_graph, inputs)
+    inputs = [f'{name}[{",".join(shape)}]' for name, shape in tensor_expression.inputs]
+    node_pos = _position_nodes(tensor_expression.op_graph, inputs)
+    neg_attributes = nx.get_node_attributes(tensor_expression.op_graph, "neg")
+    node_labels = {
+        node: f"-{node}"
+        if node in neg_attributes and neg_attributes[node]
+        else str(node)
+        for node in tensor_expression.op_graph.nodes
+    }
     nx.draw(
-        tensor_expressoin.op_graph,
+        tensor_expression.op_graph,
         node_pos,
         with_labels=True,
         font_weight="bold",
+        labels=node_labels,
     )
 
 
@@ -121,7 +129,7 @@ def _position_nodes(
         for node in sorted(nodes):
             if level not in x_offset:
                 x_offset[level] = (
-                    -2.5 * elemens_per_level[level] if level % 2 == 0 else -2.5
+                    -2.5 * elemens_per_level[level] if level % 2 == 0 else -5
                 )
                 x = x_offset[level]
             else:

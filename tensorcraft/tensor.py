@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 from tensorcraft.types import MIndex
-from tensorcraft.util import multi2linearIndex, order2npOrder
+from tensorcraft.util import linear2multiIndex, multi2linearIndex, order2npOrder
 
 
 class Tensor:
@@ -169,10 +169,7 @@ class Tensor:
         ValueError
             If the index is out of bounds.
         """
-        if index < 0 or index >= self.size:
-            raise ValueError("Index out of bounds")
-
-        return np.array(np.unravel_index(index, self._dims, order=order2npOrder(order)))
+        return linear2multiIndex(index, self._dims, order=order2npOrder(order))
 
     def info(self) -> None:
         """Print information about the tensor."""
