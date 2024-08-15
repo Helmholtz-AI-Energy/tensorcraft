@@ -1,5 +1,6 @@
 """Module for visualizing the program graph using networkx."""
 
+import math
 from typing import Any
 
 import networkx as nx
@@ -128,12 +129,20 @@ def _position_nodes(
     for level, nodes in assigned_nodes.items():
         for node in sorted(nodes):
             if level not in x_offset:
-                x_offset[level] = (
-                    -2.5 * elemens_per_level[level] if level % 2 == 0 else -5
+                base_offset = -2.5 * elemens_per_level[level] * math.sqrt(level + 1)
+                even_odd_offset = (
+                    2.5
+                    if len(elemens_per_level) % 2 == 1
+                    else 2.5 * math.sqrt(level + 1)
                 )
+                even_odd_offset = (
+                    -even_odd_offset if level % 2 == 0 else even_odd_offset
+                )
+                x_offset[level] = base_offset + even_odd_offset
+
                 x = x_offset[level]
             else:
-                x_offset[level] += 5
+                x_offset[level] += 5 * math.sqrt(level + 1)
                 x = x_offset[level]
 
             positions[node] = [x, -5 * level]

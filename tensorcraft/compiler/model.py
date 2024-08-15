@@ -23,17 +23,29 @@ class TensorVariable:
         return f"{self.name} {self.order} {self.lines}"
 
 
-@dataclass
 class TensorExpression:
     """A class representing an operation in a tensor expression."""
 
-    line: int  # Line number in the program
-    raw: str  # Raw string of the expression
-    inputs: list[tuple[str, list[str]]]  # List of input variables and their shapes
-    output: tuple[str, list[str]]  # Output variable and its shape
-    loop_count: int  # Number of loops in the expression
-    op_graph: nx.DiGraph  # Graph representing the expression
-    op_count: int  # Number of operations in the expression
+    def __init__(
+        self,
+        line: int,
+        raw: str,
+        inputs: list[tuple[str, list[str]]],
+        output: tuple[str, list[str]],
+        loop_count: int,
+        op_graph: nx.DiGraph,
+        op_count: int,
+    ):
+        self.line = line  # Line number in the program
+        self.raw = raw  # Raw string of the expression
+        self.inputs = inputs  # List of input variables and their shapes
+        self.output = output  # Output variable and its shape
+        self.loop_count = loop_count  # Number of loops in the expression
+        self.op_graph = op_graph  # Graph representing the expression
+        self.op_count = op_count  # Number of operations in the expression
+        self._index_variables: list[
+            str
+        ] = []  # List of indexed variables used in the model
 
     def __str__(self):
         """Return the string representation of the tensor expression."""
@@ -57,7 +69,7 @@ class TensorExpression:
                     vars.add(idx_var)
             for idx_var in self.output[1]:
                 vars.add(idx_var)
-            self._index_variables: list[str] = list(vars)
+            self._index_variables = list(vars)
 
         return self._index_variables
 
@@ -87,46 +99,70 @@ class TensorExpression:
             if len(inputs[input_name].shape) != len(input_shape):
                 raise ValueError(f"Input {input_name} has a wrong order.")
             for idx_var, size in zip(input_shape, inputs[input_name].shape):
-                if index_variables_sizes == 0:
+                if index_variables_sizes[idx_var] == 0:
                     index_variables_sizes[idx_var] = size
                 elif index_variables_sizes[idx_var] != size:
                     raise ValueError("Input variables have non-compatile shapes.")
 
-        if output_shape is not None:
-            if len(output_shape) != len(self.output[1]):
-                raise ValueError("Output has a wrong order.")
-            for idx_var, size in zip(self.output[1], output_shape):
-                if index_variables_sizes == 0:
-                    index_variables_sizes[idx_var] = size
-                elif index_variables_sizes[idx_var] != size:
+        if self.output[0] in inputs:
+            for idx_var, size in zip(self.output[1], inputs[self.output[0]].shape):
+                if index_variables_sizes[idx_var] != size:
                     raise ValueError("Output has a non-compatible shape.")
+
+            output_array = inputs[self.output[0]]
         else:
-            output_shape = np.array(
-                [index_variables_sizes[idx_var] for idx_var in self.output[1]]
-            )
+            if output_shape is not None:
+                if len(output_shape) != len(self.output[1]):
+                    raise ValueError("Output has a wrong order.")
+                for idx_var, size in zip(self.output[1], output_shape):
+                    if index_variables_sizes[idx_var] == 0:
+                        index_variables_sizes[idx_var] = size
+                    elif index_variables_sizes[idx_var] != size:
+                        raise ValueError("Output has a non-compatible shape.")
+            else:
+                output_shape = np.array(
+                    [index_variables_sizes[idx_var] for idx_var in self.output[1]]
+                )
 
-        # Check that all index variables have a size
-        for idx_var in self.index_variables:
-            if index_variables_sizes[idx_var] == 0:
-                raise ValueError(f"Index variable {idx_var} has no size.")
+            # Check that all index variables have a size
+            for idx_var in self.index_variables:
+                if index_variables_sizes[idx_var] == 0:
+                    raise ValueError(f"Index variable {idx_var} has no size.")
 
-        # Initialize the output array
-        output_array = np.zeros(output_shape)
+            # Initialize the output array
+            output_array = np.zeros(output_shape)
 
         # Loop over the index_variables
-        index_vars_names = self.index_variables
+        index_var_names = self.index_variables
         index_var_dims = np.array(
-            [index_variables_sizes[idx_var] for idx_var in index_vars_names]
+            [index_variables_sizes[idx_var] for idx_var in index_var_names]
         )
+        var_idx_masks = {
+            f"{var}[{','.join(idxs)}]": (var, [index_var_names.index(i) for i in idxs])
+            for (var, idxs) in self.inputs
+        }
+        output_index_mask = [index_var_names.index(i) for i in self.output[1]]
 
         # Prep the string for evaluations
 
         for i in range(np.prod(index_var_dims)):
+            # Read elements from input arrays, write them on the operation string and evaluate
             loop_mindex = linear2multiIndex(i, index_var_dims)
-            print(loop_mindex)
+            op_string = self.raw.split("=")[1].strip()
+            for var_id, (var_name, mask) in var_idx_masks.items():
+                idxs = tuple(loop_mindex[mask])
+                value = inputs[var_name][idxs]
+                op_string = op_string.replace(var_id, str(value))
 
-            # Read elements from input arrays
-            # input_values = {}
+            for index_var in index_var_names:
+                op_string = op_string.replace(
+                    index_var, str(loop_mindex[index_var_names.index(index_var)])
+                )
+
+            value = eval(op_string)
+            output_index = tuple(loop_mindex[output_index_mask])
+
+            output_array[output_index] += value
 
         return output_array
 
