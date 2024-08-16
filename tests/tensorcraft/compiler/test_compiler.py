@@ -1,4 +1,6 @@
+import hypothesis.extra.numpy as npst
 import networkx as nx
+import numpy as np
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -61,3 +63,59 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
 
     # Check if the operation count is correct
     assert program.tensor_expressions[1].op_count == op_count
+
+
+@given(
+    data=st.data(),
+    op=st.one_of(
+        st.just(("+", np.add)),
+        st.just(("-", np.subtract)),
+        st.just(("*", np.multiply)),
+        st.just(("/", np.divide)),
+    ),
+    dtype=st.one_of(npst.floating_dtypes(), npst.integer_dtypes()),
+)
+def test_scalar_ops(data, op: tuple[str, callable], dtype: np.dtype):
+    a = data.draw(npst.from_dtype(dtype))
+    b = data.draw(npst.from_dtype(dtype))
+    expected = op[1](a, b)
+
+    program = tc.compile(f"C = A {op[0]} B")
+    result = program.tensor_expressions[1]({"A": a, "B": b})
+    assert result == expected
+
+
+def test_boolean_ops():
+    pass
+
+
+def test_vector_scalar_ops():
+    pass
+
+
+def test_vector_elementwise_ops():
+    pass
+
+
+def test_vector_dot():
+    pass
+
+
+def test_matrix_scalar_ops():
+    pass
+
+
+def test_matrix_vector_ops():
+    pass
+
+
+def test_matrix_elementwise_ops():
+    pass
+
+
+def test_matrix_dot():
+    pass
+
+
+def test_tensor_scalar_ops():
+    pass

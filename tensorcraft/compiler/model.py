@@ -1,5 +1,6 @@
 """A module containing classes for representing a tensor expression and a program."""
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -8,6 +9,8 @@ import numpy as np
 
 from tensorcraft.types import MIndex
 from tensorcraft.util import linear2multiIndex
+
+log = logging.getLogger("tensorcraft")
 
 
 @dataclass
@@ -195,8 +198,39 @@ class Program:
         1) Variables should keep a consistent shape throughout the program.
         2) The graph should be acyclic.
         3) Each expression should be acyclic.
-
         """
+        for line, tensor_expression in self.tensor_expressions.items():
+            for var_name, var_shape in tensor_expression.inputs:
+                if var_name not in self.variables:
+                    log.error(
+                        f"Variable {var_name} in {line} not found in the program."
+                    )
+                    return False
+                if self.variables[var_name].order != len(var_shape):
+                    log.error(
+                        f"Variable {var_name} in {line} has an incompatible order."
+                    )
+                    return False
+            if tensor_expression.output[0] not in self.variables:
+                log.error(f"Variable {var_name} in {line} not found in the program.")
+                return False
+
+            if self.variables[tensor_expression.output[0]].order != len(
+                tensor_expression.output[1]
+            ):
+                log.error(f"Variable {var_name} in {line} has an incompatible order.")
+                return False
+
+        if not nx.is_directed_acyclic_graph(self.graph):
+            log.error("The graph is not acyclic.")
+            return False
+
+        for tensor_expression in self.tensor_expressions.values():
+            if not nx.is_directed_acyclic_graph(tensor_expression.op_graph):
+                log.error(
+                    f"Expression graph for {tensor_expression.line} is not acyclic."
+                )
+                return False
         return True
 
     @property
