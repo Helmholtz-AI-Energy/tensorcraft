@@ -157,9 +157,11 @@ class TensorExpression:
                     )
 
             # Initialize the output array
-            output_array = np.zeros(
-                output_shape, dtype=np.result_type(*input_data.values())
-            )
+            if len(input_data) == 0:
+                output_array = np.zeros(output_shape, dtype=np.float64)
+            else:
+                dtype = np.result_type(*input_data.values())
+                output_array = np.zeros(output_shape, dtype=dtype)
 
         # Loop over the index_variables
         index_var_names = self.index_variables
