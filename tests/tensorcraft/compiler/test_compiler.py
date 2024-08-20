@@ -4,7 +4,7 @@ import hypothesis.extra.numpy as npst
 import networkx as nx
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import given, note
 from hypothesis import strategies as st
 
 import tensorcraft as tc
@@ -31,6 +31,8 @@ _operations = [
     ("Zeros[i,j,k] = 0", 0, 3),  # Zero tensor
     # "Min[j] = (Dist[j,k] < Min[j]) * (Dist[j,k] - Min[j])", # Minimum value
 ]
+
+index_names = ["i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
 
 
 @given(program=st.text())
@@ -67,6 +69,7 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
     assert program.tensor_expressions[1].op_count == op_count
 
 
+@pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
     data=st.data(),
     op=st.one_of(
@@ -86,47 +89,190 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
 def test_scalar_ops(data, op: tuple[str, Callable], dtype: np.dtype):
     a = data.draw(npst.from_dtype(dtype, allow_nan=False, allow_infinity=False))
     b = data.draw(npst.from_dtype(dtype, allow_nan=False, allow_infinity=False))
-    if b == 0:
+    if op[0] == "/" and b == 0:
         b = 1
     expected = op[1](a, b)
 
     program = tc.compile(f"C = A {op[0]} B")
+    note(f"Expected: {expected}")
     result = program.tensor_expressions[1]({"A": a, "B": b})
-    print(f"{a} {op[0]} {b} = {op[1](a,b)} / {expected} / {result}")
+    note(f"Result: {result}")
     assert result == expected
 
 
-def test_boolean_ops():
-    pass
+@pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
+@given(
+    op=st.one_of(
+        st.just(("+", np.add)),
+        st.just(("-", np.subtract)),
+        st.just(("*", np.multiply)),
+        st.just(("/", np.divide)),
+        st.just(("<", np.less)),
+        st.just(("<=", np.less_equal)),
+        st.just(("==", np.equal)),
+        st.just(("!=", np.not_equal)),
+        st.just((">", np.greater)),
+        st.just((">=", np.greater_equal)),
+    ),
+    vector=npst.arrays(
+        dtype=np.dtype("float32"),
+        shape=npst.array_shapes(min_dims=1, max_dims=5),
+        elements=npst.from_dtype(
+            np.dtype("float32"), allow_nan=False, allow_infinity=False, max_value=1000
+        ),
+    ),
+    scalar=npst.from_dtype(
+        np.dtype("float32"), allow_nan=False, allow_infinity=False, max_value=1000
+    ),
+)
+def test_tensor_scalar_ops(op, vector, scalar):
+    if op[0] == "/" and scalar == 0:
+        scalar = 1
+
+    expected = op[1](vector, scalar)
+    note(f"Expected: {expected}")
+
+    idx_str = ",".join([index_names[i] for i in range(len(vector.shape))])
+    note(f"Index string: {idx_str}")
+
+    program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B")
+    result = program.tensor_expressions[1]({"A": vector, "B": scalar})
+    note(f"Result: {result}")
+    assert np.all(result == expected)
 
 
-def test_vector_scalar_ops():
-    pass
+@pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
+@given(
+    data=st.data(),
+    op=st.one_of(
+        st.just(("+", np.add)),
+        st.just(("-", np.subtract)),
+        st.just(("*", np.multiply)),
+        st.just(("/", np.divide)),
+        st.just(("<", np.less)),
+        st.just(("<=", np.less_equal)),
+        st.just(("==", np.equal)),
+        st.just(("!=", np.not_equal)),
+        st.just((">", np.greater)),
+        st.just((">=", np.greater_equal)),
+    ),
+    shape=npst.array_shapes(min_dims=1, max_dims=4, min_side=1, max_side=5),
+)
+def test_tensor_elementwise_ops(data, op, shape):
+    a = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=shape,
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                max_value=1000,
+            ),
+        )
+    )
+    b = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=shape,
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                max_value=1000,
+            ),
+        )
+    )
+
+    if op[0] == "/" and np.any(b == 0):
+        b[b == 0] = 1
+    expected = op[1](a, b)
+
+    idx_str = ",".join([index_names[i] for i in range(len(a.shape))])
+
+    program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B[{idx_str}]")
+    result = program.tensor_expressions[1]({"A": a, "B": b})
+    assert np.all(result == expected)
 
 
-def test_vector_elementwise_ops():
-    pass
+@pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
+@given(
+    data=st.data(),
+    shape=npst.array_shapes(min_dims=1, max_dims=1),
+)
+def test_vector_dot(data, shape):
+    a = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=shape,
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-1000,
+                max_value=1000,
+            ),
+        )
+    )
+    b = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=shape,
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-1000,
+                max_value=1000,
+            ),
+        )
+    )
+    expected = a @ b
+    note(f"Expected: {expected}")
+
+    program = tc.compile("C = A[i] * B[i]")
+    result = program.tensor_expressions[1]({"A": a, "B": b})
+    note(f"Result: {result}")
+    assert np.isclose(result, expected)
 
 
-def test_vector_dot():
-    pass
+@pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
+@given(
+    data=st.data(),
+    shape=npst.array_shapes(min_dims=3, max_dims=3, min_side=2),
+)
+def test_matrix_dot(data, shape):
+    A = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=(shape[0], shape[1]),
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-1000,
+                max_value=1000,
+            ),
+        )
+    )
+    B = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=(shape[1], shape[2]),
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-1000,
+                max_value=1000,
+            ),
+        )
+    )
 
+    expected = A @ B
+    note(f"Expected: {expected}")
 
-def test_matrix_scalar_ops():
-    pass
-
-
-def test_matrix_vector_ops():
-    pass
-
-
-def test_matrix_elementwise_ops():
-    pass
-
-
-def test_matrix_dot():
-    pass
-
-
-def test_tensor_scalar_ops():
-    pass
+    program = tc.compile("C[i,j] = A[i,k] * B[k,j]")
+    result = program.tensor_expressions[1]({"A": A, "B": B})
+    note(f"Result: {result}")
+    assert np.allclose(result, expected)

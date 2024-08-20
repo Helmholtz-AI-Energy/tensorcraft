@@ -157,7 +157,9 @@ class TensorExpression:
                     )
 
             # Initialize the output array
-            output_array = np.zeros(output_shape)
+            output_array = np.zeros(
+                output_shape, dtype=np.result_type(*input_data.values())
+            )
 
         # Loop over the index_variables
         index_var_names = self.index_variables
