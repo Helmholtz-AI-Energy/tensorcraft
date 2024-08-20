@@ -7,7 +7,8 @@ from typing import Optional
 import networkx as nx
 import numpy as np
 
-from tensorcraft.types import MIndex
+from tensorcraft.compiler.util import _opGraph2Func
+from tensorcraft.types import MIndex, TensorType, is_scalar_type
 from tensorcraft.util import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
@@ -77,8 +78,10 @@ class TensorExpression:
         return self._index_variables
 
     def __call__(
-        self, inputs: dict[str, np.ndarray], output_shape: Optional[MIndex] = None
-    ) -> np.ndarray:
+        self,
+        input_data: dict[str, TensorType],
+        output_shape_hint: Optional[MIndex] = None,
+    ) -> TensorType:
         """Evaluate the tensor expression.
 
         Parameters
@@ -97,48 +100,69 @@ class TensorExpression:
         index_variables_sizes = {idx_var: 0 for idx_var in self.index_variables}
 
         for input_name, input_shape in self.inputs:
-            if input_name not in inputs:
+            if input_name not in input_data:
                 raise ValueError(f"Input {input_name} is missing.")
-            if len(inputs[input_name].shape) != len(input_shape):
+
+            if is_scalar_type(input_data[input_name]):
+                data_shape: list[int] = []
+                data_order = 0
+            else:
+                data_shape = input_data[input_name].shape  # type: ignore
+                data_order = len(data_shape)
+
+            if data_order != len(input_shape):
                 raise ValueError(f"Input {input_name} has a wrong order.")
-            for idx_var, size in zip(input_shape, inputs[input_name].shape):
+            for idx_var, size in zip(input_shape, data_shape):
                 if index_variables_sizes[idx_var] == 0:
                     index_variables_sizes[idx_var] = size
                 elif index_variables_sizes[idx_var] != size:
                     raise ValueError("Input variables have non-compatile shapes.")
 
-        if self.output[0] in inputs:
-            for idx_var, size in zip(self.output[1], inputs[self.output[0]].shape):
+        if self.output[0] in input_data:
+            if is_scalar_type(input_data[self.output[0]]):
+                output_shape: MIndex = tuple([])
+                output_order = 0
+            else:
+                output_shape = input_data[self.output[0]].shape  # type: ignore
+                output_order = len(output_shape)
+
+            if output_order != len(self.output[1]):
+                raise ValueError("Output data has a wrong order.")
+
+            for idx_var, size in zip(self.output[1], output_shape):  # type: ignore
                 if index_variables_sizes[idx_var] != size:
                     raise ValueError("Output has a non-compatible shape.")
 
-            output_array = inputs[self.output[0]]
+            output_array = input_data[self.output[0]]
         else:
-            if output_shape is not None:
-                if len(output_shape) != len(self.output[1]):
+            if output_shape_hint is not None:
+                if len(output_shape_hint) != len(self.output[1]):
                     raise ValueError("Output has a wrong order.")
-                for idx_var, size in zip(self.output[1], output_shape):
+                for idx_var, size in zip(self.output[1], output_shape_hint):  # type: ignore
                     if index_variables_sizes[idx_var] == 0:
                         index_variables_sizes[idx_var] = size
                     elif index_variables_sizes[idx_var] != size:
                         raise ValueError("Output has a non-compatible shape.")
+                output_shape = output_shape_hint
             else:
-                output_shape = np.array(
+                output_shape = tuple(
                     [index_variables_sizes[idx_var] for idx_var in self.output[1]]
                 )
 
             # Check that all index variables have a size
             for idx_var in self.index_variables:
                 if index_variables_sizes[idx_var] == 0:
-                    raise ValueError(f"Index variable {idx_var} has no size.")
+                    raise ValueError(
+                        f"Index variable {idx_var} has no size. Please provide an output shape."
+                    )
 
             # Initialize the output array
             output_array = np.zeros(output_shape)
 
         # Loop over the index_variables
         index_var_names = self.index_variables
-        index_var_dims = np.array(
-            [index_variables_sizes[idx_var] for idx_var in index_var_names]
+        index_var_dims = tuple(
+            index_variables_sizes[idx_var] for idx_var in index_var_names
         )
         var_idx_masks = {
             f"{var}[{','.join(idxs)}]": (var, [index_var_names.index(i) for i in idxs])
@@ -146,26 +170,42 @@ class TensorExpression:
         }
         output_index_mask = [index_var_names.index(i) for i in self.output[1]]
 
-        # Prep the string for evaluations
+        op_func = _opGraph2Func(self.op_graph)
 
-        for i in range(np.prod(index_var_dims)):
-            # Read elements from input arrays, write them on the operation string and evaluate
-            loop_mindex = linear2multiIndex(i, index_var_dims)
-            op_string = self.raw.split("=")[1].strip()
+        # If there are no index variables, evaluate the expression directly, it is a scalar operation
+        if len(index_var_names) == 0:
+            elementwise_inputs = {}
             for var_id, (var_name, mask) in var_idx_masks.items():
-                idxs = tuple(loop_mindex[mask])
-                value = inputs[var_name][idxs]
-                op_string = op_string.replace(var_id, str(value))
+                value = input_data[var_name]
+                elementwise_inputs[var_id] = value
 
-            for index_var in index_var_names:
-                op_string = op_string.replace(
-                    index_var, str(loop_mindex[index_var_names.index(index_var)])
-                )
+            value = op_func(**elementwise_inputs)
+            output_array = value
 
-            value = eval(op_string)
-            output_index = tuple(loop_mindex[output_index_mask])
+        else:
+            for i in range(np.prod(index_var_dims)):
+                # Read elements from input arrays, write them on the operation string and evaluate
+                loop_mindex = np.array(linear2multiIndex(i, index_var_dims))
+                elementwise_inputs = {}
 
-            output_array[output_index] += value
+                for var_id, (var_name, mask) in var_idx_masks.items():
+                    idxs = tuple(loop_mindex[mask])
+                    if is_scalar_type(input_data[var_name]):
+                        value = input_data[var_name]
+                    else:
+                        value = input_data[var_name][idxs]  # type: ignore
+                    elementwise_inputs[var_id] = value
+
+                for index_var in index_var_names:
+                    elementwise_inputs[index_var] = loop_mindex[
+                        index_var_names.index(index_var)
+                    ]
+
+                value = op_func(**elementwise_inputs)
+
+                output_index = tuple(loop_mindex[output_index_mask])
+
+                output_array[output_index] += value  # type: ignore
 
         return output_array
 

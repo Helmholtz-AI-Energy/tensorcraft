@@ -65,8 +65,8 @@ class TileDist(Dist):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        shrinked_index = index // self._tile_size
-        shrinked_shape = tensor.shape // self._tile_size
+        shrinked_index = np.array(index) // self._tile_size
+        shrinked_shape = np.array(tensor.shape) // self._tile_size
         shrinked_linear_index = multi2linearIndex(
             shrinked_shape, shrinked_index, order=np.arange(tensor.order)[::-1]
         )

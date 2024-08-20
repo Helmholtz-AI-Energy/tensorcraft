@@ -269,7 +269,7 @@ class ProgramTransformer(lark.Transformer):
         else:
             self._op_count_dict[op] += 1
 
-        node_name = f"{op}{self._op_count_dict[op]}"
+        node_name = f"{op} {self._op_count_dict[op]}"
 
         self._op_graph.add_node(node_name)
 

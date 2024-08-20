@@ -35,7 +35,7 @@ def draw3DTensor(
     colors_hex = [rgba2hex(color) for color in colors]
     colors_edges = [rgba2hex(color * 0.8) for color in colors]
 
-    x, y, z = np.indices(tuple(tensor.shape))
+    x, y, z = np.indices(tensor.shape)  # type: ignore
 
     # build up the numpy logo
     filled = np.ones(tensor.shape)

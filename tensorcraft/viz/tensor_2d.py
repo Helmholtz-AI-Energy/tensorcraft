@@ -38,9 +38,9 @@ def draw2DTensor(
     processor_view = distribution.processorView(tensor)
 
     if tensor.order == 1:
-        img_shape = tensor.shape.reshape(-1, 1)
+        img_shape = np.array(tensor.shape).reshape(-1, 1)
     else:
-        img_shape = tensor.shape
+        img_shape = np.array(tensor.shape)
 
     colors = getNColors(distribution.numProcessors)
     img = np.zeros((*img_shape, 4))
@@ -89,9 +89,9 @@ def draw2DProcessorView(
     processor_view = distribution.processorView(tensor)
 
     if tensor.order == 1:
-        img_shape = tensor.shape.reshape(-1, 1)
+        img_shape = np.array(tensor.shape).reshape(-1, 1)
     else:
-        img_shape = tensor.shape
+        img_shape = np.array(tensor.shape)
 
     colors = getNColors(distribution.numProcessors)
 
@@ -105,7 +105,7 @@ def draw2DProcessorView(
     axes.imshow(img, origin="upper", aspect="equal")
     draw2DGrid(axes, img_shape)
 
-    axes.title.set_text(f"P {p_midx}")
+    axes.title.set_text(f"P {[int(x) for x in p_midx]}")
 
     ## Add discrete colorbar with the processor index and colors
 

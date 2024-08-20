@@ -1,3 +1,5 @@
+from typing import Callable
+
 import hypothesis.extra.numpy as npst
 import networkx as nx
 import numpy as np
@@ -72,16 +74,25 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
         st.just(("-", np.subtract)),
         st.just(("*", np.multiply)),
         st.just(("/", np.divide)),
+        st.just(("<", np.less)),
+        st.just(("<=", np.less_equal)),
+        st.just(("==", np.equal)),
+        st.just(("!=", np.not_equal)),
+        st.just((">", np.greater)),
+        st.just((">=", np.greater_equal)),
     ),
     dtype=st.one_of(npst.floating_dtypes(), npst.integer_dtypes()),
 )
-def test_scalar_ops(data, op: tuple[str, callable], dtype: np.dtype):
-    a = data.draw(npst.from_dtype(dtype))
-    b = data.draw(npst.from_dtype(dtype))
+def test_scalar_ops(data, op: tuple[str, Callable], dtype: np.dtype):
+    a = data.draw(npst.from_dtype(dtype, allow_nan=False, allow_infinity=False))
+    b = data.draw(npst.from_dtype(dtype, allow_nan=False, allow_infinity=False))
+    if b == 0:
+        b = 1
     expected = op[1](a, b)
 
     program = tc.compile(f"C = A {op[0]} B")
     result = program.tensor_expressions[1]({"A": a, "B": b})
+    print(f"{a} {op[0]} {b} = {op[1](a,b)} / {expected} / {result}")
     assert result == expected
 
 

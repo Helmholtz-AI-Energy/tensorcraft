@@ -1,15 +1,55 @@
 """Type aliases for TensorCraft."""
 
-from typing import Tuple, TypeAlias
+from typing import Literal, Tuple, TypeAlias, TypeGuard
 
 import numpy as np
 
-MIndex: TypeAlias = np.ndarray[Tuple[int], np.dtype[np.int64]]
+MemLayoutNP = Literal["C", "F"]
+MemLayout = Literal["R", "C"]
+
+MIndex: TypeAlias = Tuple[np.int_ | int, ...]
 """
 MIndex is a type alias representing a multi-dimensional index array.
 
-It is defined as a 1-D numpy ndarray integers, and a data type of np.int_.
+It is defined as a tuple of integers, and a data type of int.
 
 Example usage:
-    index: MIndex = np.array((1, 2, 3))
+    index: MIndex = (1, 2, 3)
 """
+
+TensorType: TypeAlias = np.ndarray | np.number | int | float
+
+
+def is_tensor_type(value: TensorType) -> TypeGuard[TensorType]:
+    """Check if the value is a tensor type.
+
+    Parameters
+    ----------
+    value : TensorType
+        The value to check.
+
+    Returns
+    -------
+    TypeGuard[TensorType]
+    True if the value is a tensor type, False otherwise.
+    """
+    return isinstance(value, (np.ndarray, np.number, int, float))
+
+
+ScalarType: TypeAlias = np.number | int | float
+
+
+def is_scalar_type(value: TensorType) -> TypeGuard[ScalarType]:
+    """Check if the value is a scalar type.
+
+    Parameters
+    ----------
+    value : ScalarType
+        The value to check.
+
+    Returns
+    -------
+    TypeGuard[ScalarType]
+        True if the value is a scalar type, False otherwise.
+    """
+    return isinstance(value, (np.number, int, float))
