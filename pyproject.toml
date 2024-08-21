@@ -18,11 +18,17 @@ keywords = ["distributed", "tensors", "visualization", "optimization", "algorith
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: System :: Distributed Computing",
+    "Typing :: Typed"
 ]
 
 requires-python = ">=3.10"
@@ -58,7 +64,7 @@ Homepage = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
 # Documentation = "https://tensorcraft.readthedocs.io"
 Repository = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
 Issues = "https://github.com/Helmholtz-AI-Energy/tensorcraft/issues"
-Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/CHANGELOG.md"
+Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/blob/main/CHANGELOG.md"
 
 # Ruff
 [tool.ruff]
