@@ -18,8 +18,10 @@ class Compiler:
     def __init__(self):
         """Initialize the Compiler class."""
         try:
-            self._grammar = importlib.resources.read_text(
-                "tensorcraft.compiler", "grammar.lark"
+            self._grammar = (
+                importlib.resources.files("tensorcraft.compiler")
+                .joinpath("grammar.lark")
+                .read_text()
             )
         except FileNotFoundError:
             log.error("Grammar file not found.")

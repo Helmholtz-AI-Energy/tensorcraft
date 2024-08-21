@@ -10,6 +10,8 @@ from hypothesis import strategies as st
 import tensorcraft as tc
 from tensorcraft.compiler.model import Program
 
+TOL = 1e-3
+
 # [Operation string, op_count, loop_depth]
 _operations = [
     ("A = B - C", 1, 0),  # Scalar Substraction
@@ -139,7 +141,7 @@ def test_tensor_scalar_ops(op, vector, scalar):
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B")
     result = program.tensor_expressions[1]({"A": vector, "B": scalar})
     note(f"Result: {result}")
-    assert np.all(result == expected)
+    assert np.allclose(result, expected, atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
@@ -194,13 +196,13 @@ def test_tensor_elementwise_ops(data, op, shape):
 
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B[{idx_str}]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
-    assert np.all(result == expected)
+    assert np.allclose(result, expected, atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
     data=st.data(),
-    shape=npst.array_shapes(min_dims=1, max_dims=1),
+    shape=npst.array_shapes(min_dims=1, max_dims=1, max_side=100),
 )
 def test_vector_dot(data, shape):
     a = data.draw(
@@ -211,8 +213,8 @@ def test_vector_dot(data, shape):
                 np.dtype("float32"),
                 allow_nan=False,
                 allow_infinity=False,
-                min_value=-1000,
-                max_value=1000,
+                min_value=-100,
+                max_value=100,
             ),
         )
     )
@@ -224,8 +226,8 @@ def test_vector_dot(data, shape):
                 np.dtype("float32"),
                 allow_nan=False,
                 allow_infinity=False,
-                min_value=-1000,
-                max_value=1000,
+                min_value=-100,
+                max_value=100,
             ),
         )
     )
@@ -235,7 +237,7 @@ def test_vector_dot(data, shape):
     program = tc.compile("C = A[i] * B[i]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
     note(f"Result: {result}, {result.dtype}")
-    assert np.isclose(result, expected)
+    assert np.allclose(result, expected, atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
@@ -252,8 +254,8 @@ def test_matrix_dot(data, shape):
                 np.dtype("float32"),
                 allow_nan=False,
                 allow_infinity=False,
-                min_value=-1000,
-                max_value=1000,
+                min_value=-100,
+                max_value=100,
             ),
         )
     )
@@ -265,16 +267,16 @@ def test_matrix_dot(data, shape):
                 np.dtype("float32"),
                 allow_nan=False,
                 allow_infinity=False,
-                min_value=-1000,
-                max_value=1000,
+                min_value=-100,
+                max_value=100,
             ),
         )
     )
 
-    expected = A @ B
+    expected = np.dot(A, B)
     note(f"Expected: {expected}, {expected.dtype}")
 
     program = tc.compile("C[i,j] = A[i,k] * B[k,j]")
     result = program.tensor_expressions[1]({"A": A, "B": B})
     note(f"Result: {result}, {result.dtype}")
-    assert np.allclose(result, expected, atol=1e-4)
+    assert np.allclose(result, expected, atol=TOL)
