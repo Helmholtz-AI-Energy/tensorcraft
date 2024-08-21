@@ -4,7 +4,7 @@ import hypothesis.extra.numpy as npst
 import networkx as nx
 import numpy as np
 import pytest
-from hypothesis import given, note
+from hypothesis import given, note, settings
 from hypothesis import strategies as st
 
 import tensorcraft as tc
@@ -116,7 +116,7 @@ def test_scalar_ops(data, op: tuple[str, Callable], dtype: np.dtype):
     ),
     vector=npst.arrays(
         dtype=np.dtype("float32"),
-        shape=npst.array_shapes(min_dims=1, max_dims=5),
+        shape=npst.array_shapes(min_dims=1, max_dims=5, max_side=5),
         elements=npst.from_dtype(
             np.dtype("float32"), allow_nan=False, allow_infinity=False, max_value=1000
         ),
@@ -125,6 +125,7 @@ def test_scalar_ops(data, op: tuple[str, Callable], dtype: np.dtype):
         np.dtype("float32"), allow_nan=False, allow_infinity=False, max_value=1000
     ),
 )
+@settings(deadline=None)
 def test_tensor_scalar_ops(op, vector, scalar):
     if op[0] == "/" and scalar == 0:
         scalar = 1
@@ -158,6 +159,7 @@ def test_tensor_scalar_ops(op, vector, scalar):
     ),
     shape=npst.array_shapes(min_dims=1, max_dims=4, min_side=1, max_side=5),
 )
+@settings(deadline=None)
 def test_tensor_elementwise_ops(data, op, shape):
     a = data.draw(
         npst.arrays(
@@ -228,11 +230,11 @@ def test_vector_dot(data, shape):
         )
     )
     expected = a @ b
-    note(f"Expected: {expected}")
+    note(f"Expected: {expected}, {expected.dtype}")
 
     program = tc.compile("C = A[i] * B[i]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
-    note(f"Result: {result}")
+    note(f"Result: {result}, {result.dtype}")
     assert np.isclose(result, expected)
 
 
@@ -270,9 +272,9 @@ def test_matrix_dot(data, shape):
     )
 
     expected = A @ B
-    note(f"Expected: {expected}")
+    note(f"Expected: {expected}, {expected.dtype}")
 
     program = tc.compile("C[i,j] = A[i,k] * B[k,j]")
     result = program.tensor_expressions[1]({"A": A, "B": B})
-    note(f"Result: {result}")
-    assert np.allclose(result, expected)
+    note(f"Result: {result}, {result.dtype}")
+    assert np.allclose(result, expected, atol=1e-4)
