@@ -88,10 +88,11 @@ class ProgramTransformer(lark.Transformer):
         self._op_count_dict: dict[str, int] = {}
         self._op_count = 0
 
-        self._current_tensor_index_vars: list[str] = []
+        self._current_tensor_multi_index: list[str] = []
 
         self._current_exp_variables: list[str] = []
-        self._current_exp_index_vars: list[list[str]] = []
+        self._current_exp_multi_idx_exp: list[list[str]] = []
+        self._current_exp_index_vars: set[str] = set()
 
         self._variables: dict[str, TensorVariable] = {}
 
@@ -180,29 +181,25 @@ class ProgramTransformer(lark.Transformer):
         for var in set(self._current_exp_variables):
             self._variables[var].lines.append(meta.line)
 
-        unique_idx_vars = set()
-
-        for idx_vars in self._current_exp_index_vars:
-            unique_idx_vars.update(idx_vars)
-
         op = TensorExpression(
             meta.line,
             self._code[int(meta.line) - 1],
             [
                 (var, idx_tuple)
                 for var, idx_tuple in zip(
-                    self._current_exp_variables[1:], self._current_exp_index_vars[1:]
+                    self._current_exp_variables[1:], self._current_exp_multi_idx_exp[1:]
                 )
             ],
-            (self._current_exp_variables[0], self._current_exp_index_vars[0]),
-            loop_count=len(unique_idx_vars),
+            (self._current_exp_variables[0], self._current_exp_multi_idx_exp[0]),
+            loop_count=len(self._current_exp_index_vars),
             op_graph=self._op_graph,
             op_count=self._op_count,
         )
 
         self._op_count = 0
         self._current_exp_variables = []
-        self._current_exp_index_vars = []
+        self._current_exp_multi_idx_exp = []
+        self._current_exp_index_vars = set()
         self._op_graph = nx.DiGraph()
         self._op_count_dict = {}
         return op
@@ -328,7 +325,7 @@ class ProgramTransformer(lark.Transformer):
 
         """
         name = children[0].value
-        order = len(self._current_tensor_index_vars)
+        order = len(self._current_tensor_multi_index)
 
         if name in self._variables:
             prev_order = self._variables[name].order
@@ -339,14 +336,14 @@ class ProgramTransformer(lark.Transformer):
         else:
             self._variables[name] = TensorVariable(name, order, [])
 
-        self._current_exp_index_vars.append(self._current_tensor_index_vars)
-        self._current_tensor_index_vars = []
+        self._current_exp_multi_idx_exp.append(self._current_tensor_multi_index)
+        self._current_tensor_multi_index = []
 
         self._current_exp_variables.append(name)
 
-        return name, self._current_exp_index_vars[-1]
+        return name, self._current_exp_multi_idx_exp[-1]
 
-    def indexvar(self, children: list[lark.Token]):
+    def var_idx(self, children: list[lark.Token]):
         """
         Process an index variable and adds it to the current tensor index variables.
 
@@ -356,5 +353,36 @@ class ProgramTransformer(lark.Transformer):
             The children of the index variable.
 
         """
-        self._current_tensor_index_vars.append(children[0].value)
+        result = children[0].value
+        self._current_exp_index_vars.update(result)
+        self._current_tensor_multi_index.append(result)
         return children[0].value
+
+    def scalar_idx(self, children: list[lark.Token]):
+        """
+        Process a scalar index and adds it to the current tensor index variables.
+
+        Parameters
+        ----------
+        children : list
+            The children of the scalar index.
+
+        """
+        result = children[0].value
+        self._current_tensor_multi_index.append(result)
+        return result
+
+    def joined_idx(self, children: list[lark.Token]):
+        """
+        Process a joined index and adds it to the current tensor index variables.
+
+        Parameters
+        ----------
+        children : list
+            The children of the joined index.
+
+        """
+        self._current_exp_index_vars.update(child.value for child in children)
+        result = "".join(child.value for child in children)
+        self._current_tensor_multi_index.append(result)
+        return result
