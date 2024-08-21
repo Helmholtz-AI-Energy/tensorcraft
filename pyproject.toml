@@ -1,59 +1,70 @@
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "tensorcraft"
-version = "0.0.0"
-description = "A collection of tools for working and visualizing distributed tensors."
+version = "0.0.1"
+description = "A collection of tools for optimizing and visualizing distributed tensor algorithms."
 authors = [
     {name = "Gutiérrez Hermosillo Muriedas, Juan Pedro", email = "juanpedroghm@gmail.com"},
 ]
+maintainers = [
+    {name = "Gutiérrez Hermosillo Muriedas, Juan Pedro", email = "juanpedroghm@gmail.com"}
+]
 readme = "README.md"
 license = {file = "LICENSE"}
-keywords = ["distributed", "tensors", "visualization"]
+keywords = ["distributed", "tensors", "visualization", "optimization", "algorithms", "mpi"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: System :: Distributed Computing",
+    "Typing :: Typed"
 ]
 
 requires-python = ">=3.10"
 
 dependencies = [
     "numpy",
+    "lark",
     "matplotlib",
     "networkx",
 ]
 
 [project.optional-dependencies]
 notebook = ["ipython", "ipyml"]
+dev = [
+    # Testing
+    "pytest",
+    "hypothesis[numpy]<6.100",
+    "pytest-coverage",
+
+    # QA
+    "pre-commit",
+
+    # Releases and changelogs
+    "python-semantic-release>=9.0.0",
+
+    # Interactive stuff
+    "ipykernel",
+    "ipympl",
+]
 
 [project.urls]
 Homepage = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
 # Documentation = "https://tensorcraft.readthedocs.io"
 Repository = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
 Issues = "https://github.com/Helmholtz-AI-Energy/tensorcraft/issues"
-Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/CHANGELOG.md"
-
-# PDM
-[tool.pdm]
-distribution = true
-
-[tool.pdm.dev-dependencies]
-dev = [
-    "pytest",
-    "ipykernel",
-    "pre-commit",
-    "python-semantic-release>=9.0.0",
-    "ipympl>=0.9.3",
-    "hypothesis[numpy]>=6.99.11",
-    "pytest-coverage>=0.0",
-]
+Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/blob/main/CHANGELOG.md"
 
 # Ruff
 [tool.ruff]
@@ -96,3 +107,10 @@ prerelease = false
 # Pytest
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov --cov-report term"
+
+[tool.coverage.run]
+source = ["tensorcraft"]
+
+[tool.coverage.report]
+format = "markdown"

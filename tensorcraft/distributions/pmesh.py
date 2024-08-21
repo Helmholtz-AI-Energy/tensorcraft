@@ -152,7 +152,7 @@ class PMeshDist(Dist):
         # Block size must ensure that each of the mesh dimensions has access to at least one block
         for dim, block_size in enumerate(self._block_sizes):
             mesh_dims_idx = self._dims_mapping[dim]
-            mesh_dims = self._mesh.shape[mesh_dims_idx]
+            mesh_dims = [self._mesh.shape[i] for i in mesh_dims_idx]
             if tensor.shape[dim] % block_size != 0:
                 print(
                     f"Maximum block size exceeded for dimension {dim}: {block_size} > {np.floor(tensor.shape[dim] / np.prod(mesh_dims))}"
@@ -169,14 +169,14 @@ class PMeshDist(Dist):
             return np.ones((dim_size, num_process), dtype=np.bool_)
 
         dim_distribution = np.ones((dim_size, num_process), dtype=np.bool_)
-        mesh_dims = self._mesh.shape[mesh_dims_idx]
+        mesh_dims = [self._mesh.shape[i] for i in mesh_dims_idx]
         block_size = self._block_sizes[dim]
         for i in range(dim_size):
             left_eq = np.floor(i / block_size) % np.prod(
                 mesh_dims
             )  # Left hand side of the equation
             for j in range(num_process):
-                p_mi = np.array(self._mesh.getMultiIndex(j))
+                p_mi = self._mesh.getMultiIndex(j)
                 right_eq = multi2linearIndex(
                     self._mesh.shape, p_mi, order=np.array(mesh_dims_idx)
                 ) % np.prod(mesh_dims)  # Right hand side of the equation

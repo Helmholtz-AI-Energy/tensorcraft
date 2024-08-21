@@ -1,18 +1,18 @@
 """Utility functions for tensorcraft."""
 
-from typing import Literal
+from typing import Optional
 
 import numpy as np
 
-from tensorcraft.types import MIndex
+from tensorcraft.types import MemLayout, MemLayoutNP, MIndex
 
-_order2npOrder: dict[str, Literal["C", "F"]] = {"C": "F", "R": "C"}
+_order2npOrder: dict[MemLayout, MemLayoutNP] = {"C": "F", "R": "C"}
 
 
 def multi2linearIndex(
     dims: MIndex,
     indices: MIndex,
-    order: MIndex | None = None,
+    order: Optional[np.ndarray] = None,
 ) -> int:
     """Convert a multi-dimensional index to a linear index.
 
@@ -47,14 +47,14 @@ def multi2linearIndex(
 
     Examples
     --------
-    >>> dims = np.array([2, 3])
-    >>> indices = np.array([1, 1])
+    >>> dims = (2, 3)
+    >>> indices = (1, 1)
     >>> multi2linearIndex(dims, indices)
     3
 
-    >>> dims = np.array([2, 3])
-    >>> indices = np.array([1, 1])
-    >>> order = np.array([1, 0])
+    >>> dims = (2, 3)
+    >>> indices = (1, 1)
+    >>> order = (1, 0)
     >>> multi2linearIndex(dims, indices, order)
     4
 
@@ -63,13 +63,13 @@ def multi2linearIndex(
         raise ValueError("Indices must have the same length as the tensor's dimensions")
 
     if order is None:
-        indices_reorderd = indices
-        dims_reorderd = dims
+        indices_reorderd = np.array(indices)
+        dims_reorderd = np.array(dims)
     else:
         if len(order) == 0 or len(order) > len(dims):
             raise ValueError("Invalid order dimensions")
-        indices_reorderd = indices[order]
-        dims_reorderd = dims[order]
+        indices_reorderd = np.array(indices)[order]
+        dims_reorderd = np.array(dims)[order]
 
     if not np.all(indices_reorderd >= 0) or not np.all(
         indices_reorderd < dims_reorderd
@@ -82,7 +82,34 @@ def multi2linearIndex(
     return result
 
 
-def order2npOrder(order: str) -> Literal["C", "F"]:
+def linear2multiIndex(index: int, dims: MIndex, order: MemLayout = "R") -> MIndex:
+    """
+    Convert a linear index to multi-dimensional indices.
+
+    Parameters
+    ----------
+    index : int
+        The linear index.
+    order : str, optional
+        The order of the multi-dimensional indices. Defaults to "R" (row-major order).
+
+    Returns
+    -------
+    MIndex
+        The multi-dimensional indices corresponding to the given linear index.
+
+    Raises
+    ------
+    ValueError
+        If the index is out of bounds.
+    """
+    if index < 0 or index >= np.prod(dims, dtype=int):  # type: ignore
+        raise ValueError("Index out of bounds")
+
+    return np.unravel_index(index, dims, order=order2npOrder(order))
+
+
+def order2npOrder(order: MemLayout) -> MemLayoutNP:
     """
     Convert the order of dimensions from a given order string to the corresponding NumPy order string.
 
@@ -114,6 +141,6 @@ def order2npOrder(order: str) -> Literal["C", "F"]:
         ...
     KeyError: 'Z is not a valid order string.'
     """
-    if order not in _order2npOrder:
+    if order not in _order2npOrder.keys():
         raise ValueError(f"{order} is not a valid order string.")
     return _order2npOrder[order]

@@ -125,8 +125,9 @@ def test_index_tranformations(list_of_ints, row_order):
 
     order = "R" if row_order else "C"
 
-    mindex = np.array([np.random.randint(0, d) for d in tensor.shape])
+    mindex = tuple(np.random.randint(0, d) for d in tensor.shape)
     note(f"Multi-index: {mindex}")
+    note(f"Order: {order}")
     linear_index = tensor.getLinearIndex(mindex, order)
     note(f"Linear index: {linear_index}")
     result_mindex = tensor.getMultiIndex(linear_index, order)

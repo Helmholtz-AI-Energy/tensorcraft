@@ -3,8 +3,8 @@
 import numpy as np
 import numpy.typing as npt
 
-from tensorcraft.types import MIndex
-from tensorcraft.util import multi2linearIndex, order2npOrder
+from tensorcraft.types import MemLayout, MIndex
+from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 
 class Tensor:
@@ -57,7 +57,7 @@ class Tensor:
                 raise ValueError("Must have at least one dimension")
             if not np.all(dims > 0):
                 raise ValueError("Dimensions must be positive")
-            self._dims: MIndex = dims.astype(np.int64)
+            self._dims: MIndex = tuple(dims.astype(np.int32))
         elif isinstance(dims, (list, tuple)):
             if len(dims) == 0:
                 raise ValueError("Must have at least one dimension")
@@ -65,11 +65,11 @@ class Tensor:
                 raise ValueError("Dimensions must be integers")
             if not all(d > 0 for d in dims):
                 raise ValueError("Dimensions must be positive")
-            self._dims = np.array(dims, dtype=np.int64)
-        elif isinstance(dims, int):
+            self._dims = dims if isinstance(dims, tuple) else tuple(dims)
+        elif isinstance(dims, (np.int_, int)):
             if dims < 1:
                 raise ValueError("Dimensions must be positive")
-            self._dims = np.array([dims], dtype=np.int64)
+            self._dims = (dims,)  # type: ignore
         else:
             raise ValueError("Invalid dimensions")
 
@@ -107,11 +107,9 @@ class Tensor:
         int
             The size of the tensor.
         """
-        return np.prod(self._dims, dtype=int)
+        return np.prod(self._dims, dtype=int)  # type: ignore
 
-    def getLinearIndex(
-        self, indices: npt.ArrayLike, order: str | npt.ArrayLike = "R"
-    ) -> int:
+    def getLinearIndex(self, indices: MIndex, order: MemLayout | MIndex = "R") -> int:
         """
         Obtain the multi-dimensional indices to a linear index.
 
@@ -134,21 +132,19 @@ class Tensor:
         ValueError
             If the order is invalid.
         """
-        idx_array = np.array(indices)
         if order == "R":
             return multi2linearIndex(
-                self._dims, idx_array, order=np.arange(len(self._dims))[::-1]
+                self._dims, indices, order=np.arange(len(self._dims))[::-1]
             )
         elif order == "C":
-            return multi2linearIndex(self._dims, idx_array)
+            return multi2linearIndex(self._dims, indices)
         else:
             try:
-                order_array = np.array(order)
-                return multi2linearIndex(self._dims, idx_array, order_array)
+                return multi2linearIndex(self._dims, indices, np.array(order))
             except ValueError:
                 raise ValueError("Invalid order")
 
-    def getMultiIndex(self, index: int, order: str = "R") -> MIndex:
+    def getMultiIndex(self, index: int, order: MemLayout = "R") -> MIndex:
         """
         Convert a linear index to multi-dimensional indices.
 
@@ -169,10 +165,7 @@ class Tensor:
         ValueError
             If the index is out of bounds.
         """
-        if index < 0 or index >= self.size:
-            raise ValueError("Index out of bounds")
-
-        return np.array(np.unravel_index(index, self._dims, order=order2npOrder(order)))
+        return linear2multiIndex(index, self._dims, order=order)
 
     def info(self) -> None:
         """Print information about the tensor."""
