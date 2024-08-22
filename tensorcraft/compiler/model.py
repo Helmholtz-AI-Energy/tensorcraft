@@ -1,13 +1,14 @@
 """A module containing classes for representing a tensor expression and a program."""
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 
 import networkx as nx
 import numpy as np
 
-from tensorcraft.compiler.util import _opGraph2Func
+from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
 from tensorcraft.types import MIndex, TensorType, is_scalar_type
 from tensorcraft.util import linear2multiIndex
 
@@ -70,9 +71,17 @@ class TensorExpression:
 
             for _, input_shape in self.inputs:
                 for idx_var in input_shape:
-                    vars.add(idx_var)
+                    if re.match(r"[a-z]{2,}", idx_var):
+                        for char in idx_var:
+                            vars.add(char)
+                    elif re.match(r"[a-z]", idx_var):
+                        vars.add(idx_var)
             for idx_var in self.output[1]:
-                vars.add(idx_var)
+                if re.match(r"[a-z]{2,}", idx_var):
+                    for char in idx_var:
+                        vars.add(char)
+                elif re.match(r"[a-z]", idx_var):
+                    vars.add(idx_var)
             self._index_variables = list(vars)
 
         return self._index_variables
@@ -96,58 +105,109 @@ class TensorExpression:
         np.ndarray
             The output array resulting from the evaluation of the expression.
         """
-        # Check if the given arrays match the input shapes
-        index_variables_sizes = {idx_var: 0 for idx_var in self.index_variables}
+        # If there are no index variables, evaluate the expression directly, it is a scalar operation
+        op_func = opGraph2Func(self.op_graph)
+        output_array: TensorType = 0
 
-        for input_name, input_shape in self.inputs:
-            if input_name not in input_data:
-                raise ValueError(f"Input {input_name} is missing.")
+        if len(self.index_variables) == 0:
+            elementwise_inputs = {}
+            var_id_name_dict = {
+                f"{var}[{','.join(idxs)}]": var for var, idxs in self.inputs
+            }
 
-            if is_scalar_type(input_data[input_name]):
-                data_shape: list[int] = []
-                data_order = 0
-            else:
-                data_shape = input_data[input_name].shape  # type: ignore
-                data_order = len(data_shape)
+            for var_id, var_name in var_id_name_dict.items():
+                value = input_data[var_name]
+                elementwise_inputs[var_id] = value
 
-            if data_order != len(input_shape):
-                raise ValueError(f"Input {input_name} has a wrong order.")
-            for idx_var, size in zip(input_shape, data_shape):
-                if index_variables_sizes[idx_var] == 0:
-                    index_variables_sizes[idx_var] = size
-                elif index_variables_sizes[idx_var] != size:
-                    raise ValueError("Input variables have non-compatile shapes.")
+            value = op_func(**elementwise_inputs)
+            output_array = value
 
-        if self.output[0] in input_data:
-            if is_scalar_type(input_data[self.output[0]]):
-                output_shape: MIndex = tuple([])
-                output_order = 0
-            else:
-                output_shape = input_data[self.output[0]].shape  # type: ignore
-                output_order = len(output_shape)
-
-            if output_order != len(self.output[1]):
-                raise ValueError("Output data has a wrong order.")
-
-            for idx_var, size in zip(self.output[1], output_shape):  # type: ignore
-                if index_variables_sizes[idx_var] != size:
-                    raise ValueError("Output has a non-compatible shape.")
-
-            output_array = input_data[self.output[0]]
         else:
-            if output_shape_hint is not None:
-                if len(output_shape_hint) != len(self.output[1]):
-                    raise ValueError("Output has a wrong order.")
-                for idx_var, size in zip(self.output[1], output_shape_hint):  # type: ignore
-                    if index_variables_sizes[idx_var] == 0:
-                        index_variables_sizes[idx_var] = size
-                    elif index_variables_sizes[idx_var] != size:
-                        raise ValueError("Output has a non-compatible shape.")
-                output_shape = output_shape_hint
+            # Check if the given arrays match the input shapes
+            index_variables_sizes = {idx_var: 0 for idx_var in self.index_variables}
+
+            for input_name, input_idx_exp in self.inputs:
+                if input_name not in input_data:
+                    raise ValueError(f"Input {input_name} is missing.")
+                if not idx_exp_compatible(
+                    input_name,
+                    input_idx_exp,
+                    input_data[input_name],
+                    index_variables_sizes,
+                ):
+                    raise ValueError(f"Input {input_name} has an incompatible shape.")
+
+            # If the output array is also an input array, check for consistency with between the two.
+            if self.output[0] in input_data:
+                if not idx_exp_compatible(
+                    self.output[0],
+                    self.output[1],
+                    input_data[self.output[0]],
+                    index_variables_sizes,
+                ):
+                    raise ValueError(
+                        f"Output {self.output[0]} has an incompatible shape."
+                    )
+
+                output_array = input_data[self.output[0]]
             else:
-                output_shape = tuple(
-                    [index_variables_sizes[idx_var] for idx_var in self.output[1]]
-                )
+                # If the output shape is provided, check the shape_hint for consistency and initialize the output array
+                if output_shape_hint is not None:
+                    # Initialize the output array
+                    if len(input_data) == 0:
+                        output_array = np.zeros(output_shape_hint, dtype=np.float64)
+                    else:
+                        dtype = np.result_type(*input_data.values())
+                        output_array = np.zeros(output_shape_hint, dtype=dtype)
+
+                    if not idx_exp_compatible(
+                        self.output[0],
+                        self.output[1],
+                        output_array,
+                        index_variables_sizes,
+                    ):
+                        raise ValueError(
+                            f"Output {self.output[0]} has an incompatible shape."
+                        )
+
+                else:
+                    output_shape: MIndex = tuple()
+                    for idx_var in self.output[1]:
+                        if re.match(r"\d+", idx_var):
+                            raise ValueError(
+                                "Writing on a slice of output variable that has not been provided as an input is not supported."
+                            )
+                        elif re.match(r"[a-z]{2,}", idx_var):
+                            size = 1
+                            for char in idx_var:
+                                if index_variables_sizes[char] == 0:
+                                    raise ValueError(
+                                        f"Index variable {char} has no size. Please provide an output shape."
+                                    )
+                                size *= index_variables_sizes[char]
+                            output_shape += (size,)
+                        elif re.match(r"[a-z]", idx_var):
+                            if index_variables_sizes[idx_var] == 0:
+                                raise ValueError(
+                                    f"Index variable {idx_var} has no size. Please provide an output shape."
+                                )
+                            output_shape += (index_variables_sizes[idx_var],)
+
+                    if len(input_data) == 0:
+                        output_array = np.zeros(output_shape, dtype=np.float64)
+                    else:
+                        dtype = np.result_type(*input_data.values())
+
+                    output_array = np.zeros(output_shape, dtype=dtype)
+                    if not idx_exp_compatible(
+                        self.output[0],
+                        self.output[1],
+                        output_array,
+                        index_variables_sizes,
+                    ):
+                        raise ValueError(
+                            f"Output {self.output[0]} has an incompatible shape."
+                        )
 
             # Check that all index variables have a size
             for idx_var in self.index_variables:
@@ -156,48 +216,31 @@ class TensorExpression:
                         f"Index variable {idx_var} has no size. Please provide an output shape."
                     )
 
-            # Initialize the output array
-            if len(input_data) == 0:
-                output_array = np.zeros(output_shape, dtype=np.float64)
-            else:
-                dtype = np.result_type(*input_data.values())
-                output_array = np.zeros(output_shape, dtype=dtype)
+            # Prep idx masks for each input and output variable
+            index_var_names = self.index_variables
+            index_var_dims = tuple(
+                index_variables_sizes[idx_var] for idx_var in index_var_names
+            )
+            var_idx_exp_dict = {
+                f"{var}[{','.join(idxs)}]": (var, idxs) for (var, idxs) in self.inputs
+            }
 
-        # Loop over the index_variables
-        index_var_names = self.index_variables
-        index_var_dims = tuple(
-            index_variables_sizes[idx_var] for idx_var in index_var_names
-        )
-        var_idx_masks = {
-            f"{var}[{','.join(idxs)}]": (var, [index_var_names.index(i) for i in idxs])
-            for (var, idxs) in self.inputs
-        }
-        output_index_mask = [index_var_names.index(i) for i in self.output[1]]
-
-        op_func = _opGraph2Func(self.op_graph)
-
-        # If there are no index variables, evaluate the expression directly, it is a scalar operation
-        if len(index_var_names) == 0:
-            elementwise_inputs = {}
-            for var_id, (var_name, mask) in var_idx_masks.items():
-                value = input_data[var_name]
-                elementwise_inputs[var_id] = value
-
-            value = op_func(**elementwise_inputs)
-            output_array = value
-
-        else:
             for i in range(np.prod(index_var_dims)):
                 # Read elements from input arrays, write them on the operation string and evaluate
                 loop_mindex = np.array(linear2multiIndex(i, index_var_dims))
                 elementwise_inputs = {}
 
-                for var_id, (var_name, mask) in var_idx_masks.items():
-                    idxs = tuple(loop_mindex[mask])
+                for var_id, (var_name, idx_exp_list) in var_idx_exp_dict.items():
                     if is_scalar_type(input_data[var_name]):
                         value = input_data[var_name]
                     else:
-                        value = input_data[var_name][idxs]  # type: ignore
+                        var_midx = idx_exp2multiIdx(
+                            idx_exp_list,  # type: ignore
+                            index_var_names,  # type: ignore
+                            loop_mindex,  # type: ignore
+                            index_var_dims,  # type: ignore
+                        )
+                        value = input_data[var_name][var_midx]  # type: ignore
                     elementwise_inputs[var_id] = value
 
                 for index_var in index_var_names:
@@ -207,9 +250,13 @@ class TensorExpression:
 
                 value = op_func(**elementwise_inputs)
 
-                output_index = tuple(loop_mindex[output_index_mask])
-
-                output_array[output_index] += value  # type: ignore
+                output_midx = idx_exp2multiIdx(
+                    self.output[1],  # type: ignore
+                    index_var_names,  # type: ignore
+                    loop_mindex,  # type: ignore
+                    index_var_dims,  # type: ignore
+                )
+                output_array[output_midx] += value  # type: ignore
 
         return output_array
 
