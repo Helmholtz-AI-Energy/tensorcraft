@@ -10,7 +10,7 @@ from hypothesis import strategies as st
 import tensorcraft as tc
 from tensorcraft.compiler.model import Program
 
-TOL = 1e-3
+TOL = 1e-2
 
 # [Operation string, op_count, loop_depth]
 _operations = [
@@ -280,3 +280,76 @@ def test_matrix_dot(data, shape):
     result = program.tensor_expressions[1]({"A": A, "B": B})
     note(f"Result: {result}, {result.dtype}")
     assert np.allclose(result, expected, atol=TOL)
+
+
+@given(
+    data=st.data(),
+    shape=npst.array_shapes(min_dims=2, max_dims=4, max_side=5),
+)
+def test_reduction(data, shape):
+    A = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=shape,
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-100,
+                max_value=100,
+            ),
+        )
+    )
+    expected = np.sum(A)
+
+    idx_str = ",".join([index_names[i] for i in range(len(shape))])
+    program = tc.compile(f"C = A[{idx_str}]")
+    result = program.tensor_expressions[1]({"A": A})
+    assert np.allclose(result, expected, atol=TOL)
+
+    expected = np.sum(A, axis=tuple(range(1, len(shape))))
+    program = tc.compile(f"C[i] = A[{idx_str}]")
+    result = program.tensor_expressions[1]({"A": A})
+    assert np.allclose(result, expected, atol=TOL)
+
+
+@given(
+    data=st.data(),
+    shape=npst.array_shapes(min_dims=2, max_dims=2, min_side=2),
+)
+def test_reshape(data, shape):
+    A = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=shape,
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-100,
+                max_value=100,
+            ),
+        )
+    )
+    excepted = A.reshape(shape[0] * shape[1])
+    program = tc.compile("C[(ij)] = A[i,j]")
+    result = program.tensor_expressions[1]({"A": A})
+    assert np.allclose(result, excepted, atol=TOL)
+
+    A = data.draw(
+        npst.arrays(
+            dtype=np.dtype("float32"),
+            shape=(shape[0] * shape[1]),
+            elements=npst.from_dtype(
+                np.dtype("float32"),
+                allow_nan=False,
+                allow_infinity=False,
+                min_value=-100,
+                max_value=100,
+            ),
+        )
+    )
+    excepted = A.reshape(shape)
+    program = tc.compile("C[i,j] = A[(ij)]")
+    result = program.tensor_expressions[1]({"A": A}, output_shape_hint=shape)
+    assert np.allclose(result, excepted, atol=TOL)

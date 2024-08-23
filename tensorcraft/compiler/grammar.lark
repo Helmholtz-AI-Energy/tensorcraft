@@ -25,30 +25,18 @@ signed_tensor: tensor -> pos_tensor
                 | "-" tensor -> neg_tensor
 
 tensor: TENSORVAR
-        | TENSORVAR "[" multiidxop "]"
+        | TENSORVAR "[" multiidx "]"
 
 TENSORVAR: /[A-Z][a-zA-Z0-9_]*/
 
-idxassignment: "[" multiidxop "]"
+multiidx: idx
+        | multiidx "," idx
 
-multiidxop: idx
-            | multiidxop "," idx
+idx: NUMBER              -> scalar_idx
+     | INDEXVAR          -> var_idx
+     | "(" INDEXVAR+ ")" -> joined_idx
 
-
-// idxop: idxproduct
-//     | idxop "+" idxproduct   -> idxadd
-//     | idxop "-" idxproduct   -> idxsub
-
-// idxproduct: idx
-//     | idxproduct "*" idx  -> idxmul
-//     | idxproduct "/" idx  -> idxdiv
-
-idx: NUMBER           -> scalar
-     | INDEXVAR        -> indexvar
-    //  | "-" idx         -> neg
-    //  | "(" idxop ")"
-
-signed_idxvar: INDEXVAR -> pos_indexvar
+signed_idxvar: INDEXVAR        -> pos_indexvar
                 | "-" INDEXVAR -> neg_indexvar
 INDEXVAR : /[a-z]/
 
