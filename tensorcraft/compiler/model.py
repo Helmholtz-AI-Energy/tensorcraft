@@ -1,5 +1,6 @@
 """A module containing classes for representing a tensor expression and a program."""
 
+import enum
 import logging
 import re
 from dataclasses import dataclass
@@ -13,6 +14,16 @@ from tensorcraft.types import MIndex, TensorType, is_scalar_type
 from tensorcraft.util import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
+
+
+class AssignmentType(enum.Enum):
+    """An enumeration of the different types of assignments in a tensor expression."""
+
+    ASSIGN = "="
+    ADD = "+="
+    SUB = "-="
+    MUL = "*="
+    DIV = "/="
 
 
 @dataclass
@@ -37,6 +48,7 @@ class TensorExpression:
         raw: str,
         inputs: list[tuple[str, list[str]]],
         output: tuple[str, list[str]],
+        assignment_type: AssignmentType,
         loop_count: int,
         op_graph: nx.DiGraph,
         op_count: int,
@@ -48,6 +60,7 @@ class TensorExpression:
         self.loop_count = loop_count  # Number of loops in the expression
         self.op_graph = op_graph  # Graph representing the expression
         self.op_count = op_count  # Number of operations in the expression
+        self.assignment_type = assignment_type  # Type of assignment
         self._index_variables: list[
             str
         ] = []  # List of indexed variables used in the model
@@ -197,8 +210,8 @@ class TensorExpression:
                         output_array = np.zeros(output_shape, dtype=np.float64)
                     else:
                         dtype = np.result_type(*input_data.values())
+                        output_array = np.zeros(output_shape, dtype=dtype)
 
-                    output_array = np.zeros(output_shape, dtype=dtype)
                     if not idx_exp_compatible(
                         self.output[0],
                         self.output[1],
@@ -225,6 +238,7 @@ class TensorExpression:
                 f"{var}[{','.join(idxs)}]": (var, idxs) for (var, idxs) in self.inputs
             }
 
+            print(f"Line: {self.raw}: index vars = {index_var_names}")
             for i in range(np.prod(index_var_dims)):
                 # Read elements from input arrays, write them on the operation string and evaluate
                 loop_mindex = np.array(linear2multiIndex(i, index_var_dims))
@@ -256,7 +270,18 @@ class TensorExpression:
                     loop_mindex,  # type: ignore
                     index_var_dims,  # type: ignore
                 )
-                output_array[output_midx] += value  # type: ignore
+
+                match self.assignment_type:
+                    case AssignmentType.ASSIGN:
+                        output_array[output_midx] = value  # type: ignore
+                    case AssignmentType.ADD:
+                        output_array[output_midx] += value  # type: ignore
+                    case AssignmentType.SUB:
+                        output_array[output_midx] -= value  # type: ignore
+                    case AssignmentType.MUL:
+                        output_array[output_midx] *= value  # type: ignore
+                    case AssignmentType.DIV:
+                        output_array[output_midx] /= value  # type: ignore
 
         return output_array
 
@@ -343,3 +368,57 @@ class Program:
     def tensor_expressions(self) -> dict[int, TensorExpression]:
         """Dictionary with tensor expressions in the program. Keys are line numbers."""
         return self._tensor_expressions
+
+    def execute(
+        self, inputs: dict[str, TensorType], shape_hints: dict[str, MIndex]
+    ) -> dict[str, TensorType]:
+        """Execute the program.
+
+        Parameters
+        ----------
+        inputs : dict[str, np.ndarray]
+            Dictionary containing the input arrays. Keys are the variable names.
+
+        Returns
+        -------
+        dict[str, np.ndarray]
+            Dictionary containing the output arrays. Keys are the variable names.
+        """
+        # 1. Check that all variable shapes are provided
+        for var_name, var_metadata in self.variables.items():
+            if var_name in self.input_variables:
+                if var_name not in inputs:
+                    raise ValueError(f"Input {var_name} is missing.")
+                if not is_scalar_type(inputs[var_name]):
+                    if var_metadata.order != len(inputs[var_name].shape):  # type: ignore
+                        raise ValueError(f"Input {var_name} has an incompatible order.")
+                else:
+                    if var_metadata.order != 0:
+                        raise ValueError(f"Input {var_name} has an incompatible order.")
+            else:
+                if var_name not in shape_hints:
+                    raise ValueError(f"Variable {var_name} has no shape hint.")
+                if var_metadata.order != len(shape_hints[var_name]):
+                    raise ValueError(f"Variable {var_name} has an incompatible order")
+
+        # 2. Execute the expressions
+        nodes = list(nx.topological_sort(self.graph))
+        outputs: dict[str, TensorType] = {}
+        for node in nodes:
+            if isinstance(node, int):
+                # Execute the expression
+                tensor_expression = self.tensor_expressions[node]
+                exp_output_var = tensor_expression.output[0]
+                exp_input = {
+                    exp_input_var: outputs[exp_input_var]
+                    for exp_input_var, _ in tensor_expression.inputs
+                }
+
+                output_shape_hint = shape_hints[exp_output_var]
+                outputTensor = tensor_expression(exp_input, output_shape_hint)
+                outputs[exp_output_var] = outputTensor
+            else:
+                # This is a an input variable, just get the value from the inputs
+                outputs[node] = inputs[node]
+
+        return outputs

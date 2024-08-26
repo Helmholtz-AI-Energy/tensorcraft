@@ -234,7 +234,7 @@ def test_vector_dot(data, shape):
     expected = a @ b
     note(f"Expected: {expected}, {expected.dtype}")
 
-    program = tc.compile("C = A[i] * B[i]")
+    program = tc.compile("C += A[i] * B[i]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
     note(f"Result: {result}, {result.dtype}")
     assert np.allclose(result, expected, atol=TOL)
@@ -276,7 +276,7 @@ def test_matrix_dot(data, shape):
     expected = np.dot(A, B)
     note(f"Expected: {expected}, {expected.dtype}")
 
-    program = tc.compile("C[i,j] = A[i,k] * B[k,j]")
+    program = tc.compile("C[i,j] += A[i,k] * B[k,j]")
     result = program.tensor_expressions[1]({"A": A, "B": B})
     note(f"Result: {result}, {result.dtype}")
     assert np.allclose(result, expected, atol=TOL)
@@ -303,12 +303,12 @@ def test_reduction(data, shape):
     expected = np.sum(A)
 
     idx_str = ",".join([index_names[i] for i in range(len(shape))])
-    program = tc.compile(f"C = A[{idx_str}]")
+    program = tc.compile(f"C += A[{idx_str}]")
     result = program.tensor_expressions[1]({"A": A})
     assert np.allclose(result, expected, atol=TOL)
 
     expected = np.sum(A, axis=tuple(range(1, len(shape))))
-    program = tc.compile(f"C[i] = A[{idx_str}]")
+    program = tc.compile(f"C[i] += A[{idx_str}]")
     result = program.tensor_expressions[1]({"A": A})
     assert np.allclose(result, expected, atol=TOL)
 

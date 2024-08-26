@@ -57,7 +57,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarType]:
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
                 results[node] = _numpy_ops[op_id](*op_inputs)
             else:
-                results[node] = float(node) if "." in node else int(node)
+                results[node] = np.float64(node) if "." in node else np.int64(node)
 
         return results[sorted_nodes[-1]]
 
