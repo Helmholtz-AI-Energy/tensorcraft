@@ -1,6 +1,10 @@
 start: tensorexp+
 
-tensorexp: tensor "=" tensorop
+tensorexp: tensor "=" tensorop -> assign
+        | tensor "+=" tensorop -> add_assign
+        | tensor "-=" tensorop -> sub_assign
+        | tensor "*=" tensorop -> prod_assign
+        | tensor "/=" tensorop -> div_assign
 
 tensorop: operand
         | tensorop "+" operand -> add

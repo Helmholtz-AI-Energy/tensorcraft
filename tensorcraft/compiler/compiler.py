@@ -7,7 +7,12 @@ import lark
 import lark.ast_utils
 import networkx as nx
 
-from tensorcraft.compiler.model import Program, TensorExpression, TensorVariable
+from tensorcraft.compiler.model import (
+    AssignmentType,
+    Program,
+    TensorExpression,
+    TensorVariable,
+)
 
 log = logging.getLogger("tensorcraft")
 
@@ -159,7 +164,33 @@ class ProgramTransformer(lark.Transformer):
         return program
 
     @lark.v_args(meta=True)
-    def tensorexp(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+    def assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+        """Process assignment tensor expression."""
+        return self._handle_tensor_exp(AssignmentType.ASSIGN, meta, expr)
+
+    @lark.v_args(meta=True)
+    def add_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+        """Process add and assign tensor expression."""
+        return self._handle_tensor_exp(AssignmentType.ADD, meta, expr)
+
+    @lark.v_args(meta=True)
+    def sub_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+        """Process substract and assign tensor expression."""
+        return self._handle_tensor_exp(AssignmentType.SUB, meta, expr)
+
+    @lark.v_args(meta=True)
+    def mul_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+        """Process multiply and assign tensor expression."""
+        return self._handle_tensor_exp(AssignmentType.MUL, meta, expr)
+
+    @lark.v_args(meta=True)
+    def div_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+        """Process divide and assign tensor expression."""
+        return self._handle_tensor_exp(AssignmentType.DIV, meta, expr)
+
+    def _handle_tensor_exp(
+        self, assign_op: AssignmentType, meta: lark.tree.Meta, expr: list[lark.Tree]
+    ) -> TensorExpression:
         """
         Process a tensor expression and returns its dependencies.
 
@@ -174,7 +205,6 @@ class ProgramTransformer(lark.Transformer):
         -------
         TensorExpression
             The dependencies of the tensor expression.
-
         """
         self._derived_variables.add(self._current_exp_variables[0])
 
@@ -191,6 +221,7 @@ class ProgramTransformer(lark.Transformer):
                 )
             ],
             (self._current_exp_variables[0], self._current_exp_multi_idx_exp[0]),
+            assign_op,
             loop_count=len(self._current_exp_index_vars),
             op_graph=self._op_graph,
             op_count=self._op_count,

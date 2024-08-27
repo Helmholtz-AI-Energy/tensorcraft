@@ -1,5 +1,6 @@
 """A module containing classes for representing a tensor expression and a program."""
 
+import enum
 import logging
 import re
 from dataclasses import dataclass
@@ -13,6 +14,16 @@ from tensorcraft.types import MIndex, TensorType, is_scalar_type
 from tensorcraft.util import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
+
+
+class AssignmentType(enum.Enum):
+    """An enumeration of the different types of assignments in a tensor expression."""
+
+    ASSIGN = "="
+    ADD = "+="
+    SUB = "-="
+    MUL = "*="
+    DIV = "/="
 
 
 @dataclass
@@ -37,6 +48,7 @@ class TensorExpression:
         raw: str,
         inputs: list[tuple[str, list[str]]],
         output: tuple[str, list[str]],
+        assignment_type: AssignmentType,
         loop_count: int,
         op_graph: nx.DiGraph,
         op_count: int,
@@ -48,6 +60,7 @@ class TensorExpression:
         self.loop_count = loop_count  # Number of loops in the expression
         self.op_graph = op_graph  # Graph representing the expression
         self.op_count = op_count  # Number of operations in the expression
+        self.assignment_type = assignment_type  # Type of assignment
         self._index_variables: list[
             str
         ] = []  # List of indexed variables used in the model
@@ -137,7 +150,7 @@ class TensorExpression:
                 ):
                     raise ValueError(f"Input {input_name} has an incompatible shape.")
 
-            # If the output array is also an input array, check for consistency with between the two.
+            # If the output array is also an input array, infer from inputs and idx variables
             if self.output[0] in input_data:
                 if not idx_exp_compatible(
                     self.output[0],
@@ -151,27 +164,8 @@ class TensorExpression:
 
                 output_array = input_data[self.output[0]]
             else:
-                # If the output shape is provided, check the shape_hint for consistency and initialize the output array
-                if output_shape_hint is not None:
-                    # Initialize the output array
-                    if len(input_data) == 0:
-                        output_array = np.zeros(output_shape_hint, dtype=np.float64)
-                    else:
-                        dtype = np.result_type(*input_data.values())
-                        output_array = np.zeros(output_shape_hint, dtype=dtype)
-
-                    if not idx_exp_compatible(
-                        self.output[0],
-                        self.output[1],
-                        output_array,
-                        index_variables_sizes,
-                    ):
-                        raise ValueError(
-                            f"Output {self.output[0]} has an incompatible shape."
-                        )
-
-                else:
-                    output_shape: MIndex = tuple()
+                if output_shape_hint is None:
+                    output_shape_hint = tuple()
                     for idx_var in self.output[1]:
                         if re.match(r"\d+", idx_var):
                             raise ValueError(
@@ -185,29 +179,30 @@ class TensorExpression:
                                         f"Index variable {char} has no size. Please provide an output shape."
                                     )
                                 size *= index_variables_sizes[char]
-                            output_shape += (size,)
+                            output_shape_hint += (size,)
                         elif re.match(r"[a-z]", idx_var):
                             if index_variables_sizes[idx_var] == 0:
                                 raise ValueError(
                                     f"Index variable {idx_var} has no size. Please provide an output shape."
                                 )
-                            output_shape += (index_variables_sizes[idx_var],)
+                            output_shape_hint += (index_variables_sizes[idx_var],)
 
-                    if len(input_data) == 0:
-                        output_array = np.zeros(output_shape, dtype=np.float64)
-                    else:
-                        dtype = np.result_type(*input_data.values())
+                # Initialize the output array
+                if len(input_data) == 0:
+                    output_array = np.zeros(output_shape_hint, dtype=np.float64)
+                else:
+                    dtype = np.result_type(*input_data.values())
+                    output_array = np.zeros(output_shape_hint, dtype=dtype)
 
-                    output_array = np.zeros(output_shape, dtype=dtype)
-                    if not idx_exp_compatible(
-                        self.output[0],
-                        self.output[1],
-                        output_array,
-                        index_variables_sizes,
-                    ):
-                        raise ValueError(
-                            f"Output {self.output[0]} has an incompatible shape."
-                        )
+                if not idx_exp_compatible(
+                    self.output[0],
+                    self.output[1],
+                    output_array,
+                    index_variables_sizes,
+                ):
+                    raise ValueError(
+                        f"Output {self.output[0]} has an incompatible shape."
+                    )
 
             # Check that all index variables have a size
             for idx_var in self.index_variables:
@@ -224,6 +219,30 @@ class TensorExpression:
             var_idx_exp_dict = {
                 f"{var}[{','.join(idxs)}]": (var, idxs) for (var, idxs) in self.inputs
             }
+
+            reduction_last = (self.assignment_type != AssignmentType.ASSIGN) and (
+                self.output[0] not in input_data
+            )
+
+            # Write directly on the output array, because there is no reduction or because it is also part of the input
+            if reduction_last:
+                reduced_idx_variables = list(
+                    set(index_var_names)
+                    - set([c for chars in self.output[1] for c in chars])
+                )
+                tmp_output_idx_expr = self.output[1] + reduced_idx_variables
+                tmp_output_idx_dims = output_array.shape + tuple(  # type: ignore
+                    [
+                        index_var_dims[index_var_names.index(c)]
+                        for c in reduced_idx_variables
+                    ]
+                )
+                tmp_output_array: TensorType = np.zeros(
+                    tmp_output_idx_dims,
+                    dtype=output_array.dtype,  # type: ignore
+                )
+            else:
+                tmp_output_array = output_array
 
             for i in range(np.prod(index_var_dims)):
                 # Read elements from input arrays, write them on the operation string and evaluate
@@ -250,13 +269,52 @@ class TensorExpression:
 
                 value = op_func(**elementwise_inputs)
 
-                output_midx = idx_exp2multiIdx(
-                    self.output[1],  # type: ignore
-                    index_var_names,  # type: ignore
-                    loop_mindex,  # type: ignore
-                    index_var_dims,  # type: ignore
-                )
-                output_array[output_midx] += value  # type: ignore
+                if reduction_last:
+                    output_midx = idx_exp2multiIdx(
+                        tmp_output_idx_expr,  # type: ignore
+                        index_var_names,  # type: ignore
+                        loop_mindex,  # type: ignore
+                        index_var_dims,  # type: ignore
+                    )
+                    tmp_output_array[output_midx] = value  # type: ignore
+                else:
+                    output_midx = idx_exp2multiIdx(
+                        self.output[1],  # type: ignore
+                        index_var_names,  # type: ignore
+                        loop_mindex,  # type: ignore
+                        index_var_dims,  # type: ignore
+                    )
+
+                    match self.assignment_type:
+                        case AssignmentType.ASSIGN:
+                            tmp_output_array[output_midx] = value  # type: ignore
+                        case AssignmentType.ADD:
+                            tmp_output_array[output_midx] += value  # type: ignore
+                        case AssignmentType.SUB:
+                            tmp_output_array[output_midx] -= value  # type: ignore
+                        case AssignmentType.MUL:
+                            tmp_output_array[output_midx] *= value  # type: ignore
+                        case AssignmentType.DIV:
+                            tmp_output_array[output_midx] /= value  # type: ignore
+
+            if reduction_last:
+                print("Reducing the classic way")
+                axis_tuple = tuple(range(len(self.output[1]), len(tmp_output_idx_expr)))
+                match self.assignment_type:
+                    case AssignmentType.ADD:
+                        output_array = np.add.reduce(tmp_output_array, axis=axis_tuple)
+                    case AssignmentType.SUB:
+                        output_array = np.subtract.reduce(
+                            tmp_output_array, axis=axis_tuple
+                        )
+                    case AssignmentType.MUL:
+                        output_array = np.multiply.reduce(
+                            tmp_output_array, axis=axis_tuple
+                        )
+                    case AssignmentType.DIV:
+                        output_array = np.divide.reduce(
+                            tmp_output_array, axis=axis_tuple
+                        )
 
         return output_array
 
@@ -343,3 +401,57 @@ class Program:
     def tensor_expressions(self) -> dict[int, TensorExpression]:
         """Dictionary with tensor expressions in the program. Keys are line numbers."""
         return self._tensor_expressions
+
+    def execute(
+        self, inputs: dict[str, TensorType], shape_hints: dict[str, MIndex]
+    ) -> dict[str, TensorType]:
+        """Execute the program.
+
+        Parameters
+        ----------
+        inputs : dict[str, np.ndarray]
+            Dictionary containing the input arrays. Keys are the variable names.
+
+        Returns
+        -------
+        dict[str, np.ndarray]
+            Dictionary containing the output arrays. Keys are the variable names.
+        """
+        # 1. Check that all variable shapes are provided
+        for var_name, var_metadata in self.variables.items():
+            if var_name in self.input_variables:
+                if var_name not in inputs:
+                    raise ValueError(f"Input {var_name} is missing.")
+                if not is_scalar_type(inputs[var_name]):
+                    if var_metadata.order != len(inputs[var_name].shape):  # type: ignore
+                        raise ValueError(f"Input {var_name} has an incompatible order.")
+                else:
+                    if var_metadata.order != 0:
+                        raise ValueError(f"Input {var_name} has an incompatible order.")
+            else:
+                if var_name not in shape_hints:
+                    raise ValueError(f"Variable {var_name} has no shape hint.")
+                if var_metadata.order != len(shape_hints[var_name]):
+                    raise ValueError(f"Variable {var_name} has an incompatible order")
+
+        # 2. Execute the expressions
+        nodes = list(nx.topological_sort(self.graph))
+        outputs: dict[str, TensorType] = {}
+        for node in nodes:
+            if isinstance(node, int):
+                # Execute the expression
+                tensor_expression = self.tensor_expressions[node]
+                exp_output_var = tensor_expression.output[0]
+                exp_input = {
+                    exp_input_var: outputs[exp_input_var]
+                    for exp_input_var, _ in tensor_expression.inputs
+                }
+
+                output_shape_hint = shape_hints[exp_output_var]
+                outputTensor = tensor_expression(exp_input, output_shape_hint)
+                outputs[exp_output_var] = outputTensor
+            else:
+                # This is a an input variable, just get the value from the inputs
+                outputs[node] = inputs[node]
+
+        return outputs
