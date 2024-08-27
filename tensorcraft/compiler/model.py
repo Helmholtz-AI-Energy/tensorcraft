@@ -150,7 +150,7 @@ class TensorExpression:
                 ):
                     raise ValueError(f"Input {input_name} has an incompatible shape.")
 
-            # If the output array is also an input array, check for consistency with between the two.
+            # If the output array is also an input array, infer from inputs and idx variables
             if self.output[0] in input_data:
                 if not idx_exp_compatible(
                     self.output[0],
@@ -164,27 +164,8 @@ class TensorExpression:
 
                 output_array = input_data[self.output[0]]
             else:
-                # If the output shape is provided, check the shape_hint for consistency and initialize the output array
-                if output_shape_hint is not None:
-                    # Initialize the output array
-                    if len(input_data) == 0:
-                        output_array = np.zeros(output_shape_hint, dtype=np.float64)
-                    else:
-                        dtype = np.result_type(*input_data.values())
-                        output_array = np.zeros(output_shape_hint, dtype=dtype)
-
-                    if not idx_exp_compatible(
-                        self.output[0],
-                        self.output[1],
-                        output_array,
-                        index_variables_sizes,
-                    ):
-                        raise ValueError(
-                            f"Output {self.output[0]} has an incompatible shape."
-                        )
-
-                else:
-                    output_shape: MIndex = tuple()
+                if output_shape_hint is None:
+                    output_shape_hint = tuple()
                     for idx_var in self.output[1]:
                         if re.match(r"\d+", idx_var):
                             raise ValueError(
@@ -198,29 +179,30 @@ class TensorExpression:
                                         f"Index variable {char} has no size. Please provide an output shape."
                                     )
                                 size *= index_variables_sizes[char]
-                            output_shape += (size,)
+                            output_shape_hint += (size,)
                         elif re.match(r"[a-z]", idx_var):
                             if index_variables_sizes[idx_var] == 0:
                                 raise ValueError(
                                     f"Index variable {idx_var} has no size. Please provide an output shape."
                                 )
-                            output_shape += (index_variables_sizes[idx_var],)
+                            output_shape_hint += (index_variables_sizes[idx_var],)
 
-                    if len(input_data) == 0:
-                        output_array = np.zeros(output_shape, dtype=np.float64)
-                    else:
-                        dtype = np.result_type(*input_data.values())
-                        output_array = np.zeros(output_shape, dtype=dtype)
+                # Initialize the output array
+                if len(input_data) == 0:
+                    output_array = np.zeros(output_shape_hint, dtype=np.float64)
+                else:
+                    dtype = np.result_type(*input_data.values())
+                    output_array = np.zeros(output_shape_hint, dtype=dtype)
 
-                    if not idx_exp_compatible(
-                        self.output[0],
-                        self.output[1],
-                        output_array,
-                        index_variables_sizes,
-                    ):
-                        raise ValueError(
-                            f"Output {self.output[0]} has an incompatible shape."
-                        )
+                if not idx_exp_compatible(
+                    self.output[0],
+                    self.output[1],
+                    output_array,
+                    index_variables_sizes,
+                ):
+                    raise ValueError(
+                        f"Output {self.output[0]} has an incompatible shape."
+                    )
 
             # Check that all index variables have a size
             for idx_var in self.index_variables:
@@ -238,7 +220,30 @@ class TensorExpression:
                 f"{var}[{','.join(idxs)}]": (var, idxs) for (var, idxs) in self.inputs
             }
 
-            print(f"Line: {self.raw}: index vars = {index_var_names}")
+            reduction_last = (self.assignment_type != AssignmentType.ASSIGN) and (
+                self.output[0] not in input_data
+            )
+
+            # Write directly on the output array, because there is no reduction or because it is also part of the input
+            if reduction_last:
+                reduced_idx_variables = list(
+                    set(index_var_names)
+                    - set([c for chars in self.output[1] for c in chars])
+                )
+                tmp_output_idx_expr = self.output[1] + reduced_idx_variables
+                tmp_output_idx_dims = output_array.shape + tuple(  # type: ignore
+                    [
+                        index_var_dims[index_var_names.index(c)]
+                        for c in reduced_idx_variables
+                    ]
+                )
+                tmp_output_array: TensorType = np.zeros(
+                    tmp_output_idx_dims,
+                    dtype=output_array.dtype,  # type: ignore
+                )
+            else:
+                tmp_output_array = output_array
+
             for i in range(np.prod(index_var_dims)):
                 # Read elements from input arrays, write them on the operation string and evaluate
                 loop_mindex = np.array(linear2multiIndex(i, index_var_dims))
@@ -264,24 +269,52 @@ class TensorExpression:
 
                 value = op_func(**elementwise_inputs)
 
-                output_midx = idx_exp2multiIdx(
-                    self.output[1],  # type: ignore
-                    index_var_names,  # type: ignore
-                    loop_mindex,  # type: ignore
-                    index_var_dims,  # type: ignore
-                )
+                if reduction_last:
+                    output_midx = idx_exp2multiIdx(
+                        tmp_output_idx_expr,  # type: ignore
+                        index_var_names,  # type: ignore
+                        loop_mindex,  # type: ignore
+                        index_var_dims,  # type: ignore
+                    )
+                    tmp_output_array[output_midx] = value  # type: ignore
+                else:
+                    output_midx = idx_exp2multiIdx(
+                        self.output[1],  # type: ignore
+                        index_var_names,  # type: ignore
+                        loop_mindex,  # type: ignore
+                        index_var_dims,  # type: ignore
+                    )
 
+                    match self.assignment_type:
+                        case AssignmentType.ASSIGN:
+                            tmp_output_array[output_midx] = value  # type: ignore
+                        case AssignmentType.ADD:
+                            tmp_output_array[output_midx] += value  # type: ignore
+                        case AssignmentType.SUB:
+                            tmp_output_array[output_midx] -= value  # type: ignore
+                        case AssignmentType.MUL:
+                            tmp_output_array[output_midx] *= value  # type: ignore
+                        case AssignmentType.DIV:
+                            tmp_output_array[output_midx] /= value  # type: ignore
+
+            if reduction_last:
+                print("Reducing the classic way")
+                axis_tuple = tuple(range(len(self.output[1]), len(tmp_output_idx_expr)))
                 match self.assignment_type:
-                    case AssignmentType.ASSIGN:
-                        output_array[output_midx] = value  # type: ignore
                     case AssignmentType.ADD:
-                        output_array[output_midx] += value  # type: ignore
+                        output_array = np.add.reduce(tmp_output_array, axis=axis_tuple)
                     case AssignmentType.SUB:
-                        output_array[output_midx] -= value  # type: ignore
+                        output_array = np.subtract.reduce(
+                            tmp_output_array, axis=axis_tuple
+                        )
                     case AssignmentType.MUL:
-                        output_array[output_midx] *= value  # type: ignore
+                        output_array = np.multiply.reduce(
+                            tmp_output_array, axis=axis_tuple
+                        )
                     case AssignmentType.DIV:
-                        output_array[output_midx] /= value  # type: ignore
+                        output_array = np.divide.reduce(
+                            tmp_output_array, axis=axis_tuple
+                        )
 
         return output_array
 

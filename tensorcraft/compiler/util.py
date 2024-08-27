@@ -12,6 +12,8 @@ from tensorcraft.util import multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
+TOL = 1e-11
+
 _numpy_ops: dict[str, Callable[..., np.number]] = {
     "+": np.add,
     "-": np.subtract,
@@ -55,7 +57,15 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarType]:
             elif re.match(r"[\+\-\*\>\/\<\=\!\&\|]{1,2}\s\d+", node):
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
-                results[node] = _numpy_ops[op_id](*op_inputs)
+                if np.any(
+                    [isinstance(x, np.floating) for x in op_inputs]
+                ) and op_id in ["==", "!="]:
+                    if op_id == "==":
+                        results[node] = np.abs(np.subtract(*op_inputs)) < TOL  # type: ignore
+                    elif op_id == "!=":
+                        results[node] = np.abs(np.subtract(*op_inputs)) >= TOL  # type: ignore
+                else:
+                    results[node] = _numpy_ops[op_id](*op_inputs)
             else:
                 results[node] = np.float64(node) if "." in node else np.int64(node)
 

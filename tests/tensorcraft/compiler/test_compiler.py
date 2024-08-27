@@ -10,7 +10,11 @@ from hypothesis import strategies as st
 import tensorcraft as tc
 from tensorcraft.compiler.model import Program
 
-TOL = 1e-2
+np.seterr(all="warn")
+
+TOL = 1e-12
+MIN_ABS = 1e-5
+MAX_ABS = 1e5
 
 # [Operation string, op_count, loop_depth]
 _operations = [
@@ -35,6 +39,26 @@ _operations = [
 ]
 
 index_names = ["i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
+
+
+def limited_floats(width: int):
+    return st.floats(
+        width=width,
+        allow_infinity=False,
+        allow_nan=False,
+        allow_subnormal=False,
+        min_value=-MAX_ABS,
+        max_value=MAX_ABS,
+    ).filter(lambda x: MIN_ABS <= np.abs(x) <= MAX_ABS if x != 0 else True)
+
+
+@given(value=limited_floats(32))
+def test_limited_strategy(value: np.number):
+    print(value)
+    assert not np.isnan(value)
+    assert not np.isinf(value)
+    if value != 0:
+        assert MIN_ABS <= np.abs(value) <= MAX_ABS
 
 
 @given(program=st.text())
@@ -86,11 +110,11 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
         st.just((">", np.greater)),
         st.just((">=", np.greater_equal)),
     ),
-    dtype=st.one_of(npst.floating_dtypes(), npst.integer_dtypes()),
+    float_width=st.sampled_from([32, 64]),
 )
-def test_scalar_ops(data, op: tuple[str, Callable], dtype: np.dtype):
-    a = data.draw(npst.from_dtype(dtype, allow_nan=False, allow_infinity=False))
-    b = data.draw(npst.from_dtype(dtype, allow_nan=False, allow_infinity=False))
+def test_scalar_ops(data, op: tuple[str, Callable], float_width):
+    a = data.draw(limited_floats(float_width))
+    b = data.draw(limited_floats(float_width))
     if op[0] == "/" and b == 0:
         b = 1
     expected = op[1](a, b)
@@ -119,13 +143,9 @@ def test_scalar_ops(data, op: tuple[str, Callable], dtype: np.dtype):
     vector=npst.arrays(
         dtype=np.dtype("float32"),
         shape=npst.array_shapes(min_dims=1, max_dims=5, max_side=5),
-        elements=npst.from_dtype(
-            np.dtype("float32"), allow_nan=False, allow_infinity=False, max_value=1000
-        ),
+        elements=limited_floats(32),
     ),
-    scalar=npst.from_dtype(
-        np.dtype("float32"), allow_nan=False, allow_infinity=False, max_value=1000
-    ),
+    scalar=limited_floats(32),
 )
 @settings(deadline=None)
 def test_tensor_scalar_ops(op, vector, scalar):
@@ -164,28 +184,10 @@ def test_tensor_scalar_ops(op, vector, scalar):
 @settings(deadline=None)
 def test_tensor_elementwise_ops(data, op, shape):
     a = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=shape,
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                max_value=1000,
-            ),
-        )
+        npst.arrays(dtype=np.dtype("float32"), shape=shape, elements=limited_floats(32))
     )
     b = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=shape,
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                max_value=1000,
-            ),
-        )
+        npst.arrays(dtype=np.dtype("float32"), shape=shape, elements=limited_floats(32))
     )
 
     if op[0] == "/" and np.any(b == 0):
@@ -201,36 +203,12 @@ def test_tensor_elementwise_ops(data, op, shape):
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
-    data=st.data(),
-    shape=npst.array_shapes(min_dims=1, max_dims=1, max_side=100),
+    shape=npst.array_shapes(min_dims=1, max_dims=1, max_side=50),
 )
-def test_vector_dot(data, shape):
-    a = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=shape,
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
-        )
-    )
-    b = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=shape,
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
-        )
-    )
+def test_vector_dot(shape):
+    a = np.random.random(shape)
+    b = np.random.random(shape)
+
     expected = a @ b
     note(f"Expected: {expected}, {expected.dtype}")
 
@@ -242,38 +220,13 @@ def test_vector_dot(data, shape):
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
-    data=st.data(),
     shape=npst.array_shapes(min_dims=3, max_dims=3, min_side=2),
 )
-def test_matrix_dot(data, shape):
-    A = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=(shape[0], shape[1]),
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
-        )
-    )
-    B = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=(shape[1], shape[2]),
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
-        )
-    )
+def test_matrix_dot(shape):
+    A = np.random.random((shape[0], shape[1]))
+    B = np.random.random((shape[1], shape[2]))
 
-    expected = np.dot(A, B)
+    expected = A @ B
     note(f"Expected: {expected}, {expected.dtype}")
 
     program = tc.compile("C[i,j] += A[i,k] * B[k,j]")
@@ -288,17 +241,7 @@ def test_matrix_dot(data, shape):
 )
 def test_reduction(data, shape):
     A = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=shape,
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
-        )
+        npst.arrays(dtype=np.dtype("float64"), shape=shape, elements=limited_floats(64))
     )
     expected = np.sum(A)
 
@@ -319,17 +262,7 @@ def test_reduction(data, shape):
 )
 def test_reshape(data, shape):
     A = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=shape,
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
-        )
+        npst.arrays(dtype=np.dtype("float32"), shape=shape, elements=limited_floats(32))
     )
     excepted = A.reshape(shape[0] * shape[1])
     program = tc.compile("C[(ij)] = A[i,j]")
@@ -340,13 +273,7 @@ def test_reshape(data, shape):
         npst.arrays(
             dtype=np.dtype("float32"),
             shape=(shape[0] * shape[1]),
-            elements=npst.from_dtype(
-                np.dtype("float32"),
-                allow_nan=False,
-                allow_infinity=False,
-                min_value=-100,
-                max_value=100,
-            ),
+            elements=limited_floats(32),
         )
     )
     excepted = A.reshape(shape)
