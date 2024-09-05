@@ -18,7 +18,7 @@ def draw2DTensor(
     ----------
     tensor : Tensor
         The 2D tensor to plot.
-    distribution : PMeshDist
+    distribution : MultiAxisDist
         The distribution of the tensor.
     cbar : bool, optional
         Whether to show the color bar (default is True).

@@ -1,4 +1,4 @@
-"""PMeshDist class."""
+"""MultiAxisDist class."""
 
 import numpy as np
 
@@ -7,7 +7,7 @@ from tensorcraft.tensor import Tensor
 from tensorcraft.util import multi2linearIndex
 
 
-class PMeshDist(Dist):
+class MultiAxisDist(Dist):
     """
     Represents a distribution for a tensor on a processor mesh.
 
