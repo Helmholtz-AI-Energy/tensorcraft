@@ -1,8 +1,11 @@
 """Tensor class."""
 
+from typing import Optional
+
 import numpy as np
 import numpy.typing as npt
 
+from tensorcraft.distributions.dist import Dist
 from tensorcraft.types import MemLayout, MIndex
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
@@ -172,3 +175,62 @@ class Tensor:
         print(f"Order: {self.order}")
         print(f"Shape: {self.shape}")
         print(f"Size: {self.size}")
+
+
+class DTensor(Tensor):
+    """
+    A distributed tensor class.
+
+    Parameters
+    ----------
+    dims : MIndex
+        The dimensions of the tensor.
+    n_procs : int
+        The number of processors.
+    dist : Dist, optional
+        The distribution of the tensor. Defaults to None.
+
+    Attributes
+    ----------
+    dist : Dist
+        The distribution of the tensor.
+    processor_view : np.ndarray
+        The processor view of the tensor.
+
+    """
+
+    def __init__(self, dims: npt.ArrayLike, n_procs: int, dist: Optional[Dist]) -> None:
+        super().__init__(dims)
+        self.dist = dist
+        self._n_procs = n_procs
+        self._processor_view: Optional[np.ndarray] = None
+
+    @property
+    def dist(self) -> Optional[Dist]:
+        """Get the distribution of the tensor."""
+        return self._dist
+
+    @dist.setter
+    def dist(self, new_dist: Optional[Dist]) -> None:
+        """Set the distribution of the tensor."""
+        if new_dist and not new_dist.compatible(self):
+            raise ValueError("Distribution is not compatible with tensor")
+        self._processor_view = None
+        self._dist = new_dist
+
+    @property
+    def processor_view(self) -> np.ndarray:
+        """Get the processor view of the tensor."""
+        if not self._processor_view:
+            if not self.dist:
+                self._processor_view = np.ones((*self.shape, self._n_procs), dtype=bool)
+            else:
+                self._processor_view = self.dist.processorView(self)
+        return self._processor_view
+
+    def getIndexLocation(self, index: MIndex) -> np.ndarray:
+        """Get the processors that hold a specific element of a tensor."""
+        processor_view = self.processor_view
+        if isinstance(index, int):
+            index = self.getMultiIndex(index)
+        return processor_view[index]
