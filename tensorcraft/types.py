@@ -7,7 +7,9 @@ import numpy as np
 MemLayoutNP = Literal["C", "F"]
 MemLayout = Literal["R", "C"]
 
-MIndex: TypeAlias = Tuple[np.int_ | int, ...]
+Index: TypeAlias = int | np.int_
+
+MIndex: TypeAlias = Tuple[Index, ...]
 """
 MIndex is a type alias representing a multi-dimensional index array.
 

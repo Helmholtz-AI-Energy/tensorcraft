@@ -4,6 +4,7 @@ import numpy as np
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
+from tensorcraft.types import Index
 from tensorcraft.util import multi2linearIndex
 
 
@@ -162,7 +163,7 @@ class MultiAxisDist(Dist):
 
         return True
 
-    def _distributeDim(self, dim: int, dim_size: int) -> np.ndarray:
+    def _distributeDim(self, dim: Index, dim_size: Index) -> np.ndarray:
         mesh_dims_idx = self._dims_mapping[dim]
         num_process = self._mesh.size
 
