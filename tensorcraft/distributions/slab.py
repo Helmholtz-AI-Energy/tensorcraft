@@ -64,33 +64,13 @@ class SlabDist(Dist):
     def getProcessorMultiIndex(self, index: int):
         return np.array((index,))
 
-    def _get_tile_dims(self, tensor: Tensor):
-        if self._block_size == 0:
-            tile_dims = np.zeros((self._num_processors,), dtype=np.int_)
-            chunk_size = tensor.shape[self._dim] // self._num_processors
-            remainder = tensor.shape[self._dim] % self._num_processors
-            tile_dims[:] = chunk_size
-            tile_dims[:remainder] += 1
-        else:
-            block_size = self._block_size
-
-            # Calculate the number of blocks
-            n_blocks = tensor.shape[self._dim] // block_size
-            if tensor.shape[self._dim] % block_size:
-                n_blocks += 1
-            tile_dims = np.zeros((n_blocks,), dtype=np.int_)
-
-            rest = tensor.shape[self._dim] % block_size
-            tile_dims[:-1] = block_size
-            tile_dims[-1] = block_size - rest
-        return tile_dims
-
     def processorView(self, tensor: Tensor):
         if not self.compatible(tensor):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        tile_dims = self._get_tile_dims(tensor)
-        tile_ends = np.cumsum(tile_dims)
+        _, tile_ends = self.axis_splits(
+            tensor.shape[self._dim], self._block_size, self._num_processors
+        )
 
         processor_view = np.zeros((*tensor.shape, self._num_processors), dtype=np.bool_)
 
@@ -112,8 +92,9 @@ class SlabDist(Dist):
         else:
             mindex = index
 
-        tile_map = self._get_tile_dims(tensor)
-        tile_ends = np.cumsum(tile_map)
+        _, tile_ends = self.axis_splits(
+            tensor.shape[self._dim], self._block_size, self._num_processors
+        )
         dim_index = mindex[self._dim]
         block_idx = np.where(dim_index < tile_ends)[0][0]
 

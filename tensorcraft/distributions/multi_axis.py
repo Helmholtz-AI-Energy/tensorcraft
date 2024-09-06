@@ -80,8 +80,8 @@ class MultiAxisDist(Dist):
                     raise ValueError("The dimension mapping is out of bounds")
 
         for block in block_sizes:
-            if block <= 0:
-                raise ValueError("The block size must be greater than 0")
+            if block < 0:
+                raise ValueError("The block size must be greater or equal 0")
 
         self._mesh = mesh
         self._dims_mapping = dims_mapping
@@ -121,9 +121,8 @@ class MultiAxisDist(Dist):
 
         p_list = np.ones((self._mesh.size,), dtype=np.bool_)
         for dim in range(tensor.order):
-            for p in range(self._mesh.size):
-                p_mi = self._mesh.getMultiIndex(p)
-                p_list[p] &= self._dimIndexInProcessor(dim, index[dim], p_mi)
+            distributed_dim = self._distributeDim(dim, tensor.shape[dim])
+            p_list &= distributed_dim[index[dim], :]
 
         return p_list
 
@@ -142,7 +141,7 @@ class MultiAxisDist(Dist):
                 for dim, (mapping, block) in enumerate(
                     zip(self._dims_mapping, self._block_sizes)
                 )
-                if len(mapping) > 0
+                if len(mapping) > 0 and block > 0
             ]
         ):
             raise ValueError(
@@ -153,7 +152,9 @@ class MultiAxisDist(Dist):
         for dim, block_size in enumerate(self._block_sizes):
             mesh_dims_idx = self._dims_mapping[dim]
             mesh_dims = [self._mesh.shape[i] for i in mesh_dims_idx]
-            if tensor.shape[dim] % block_size != 0:
+            if block_size == 0:
+                continue
+            elif tensor.shape[dim] % block_size != 0:
                 print(
                     f"Maximum block size exceeded for dimension {dim}: {block_size} > {np.floor(tensor.shape[dim] / np.prod(mesh_dims))}"
                 )
@@ -171,15 +172,17 @@ class MultiAxisDist(Dist):
         dim_distribution = np.ones((dim_size, num_process), dtype=np.bool_)
         mesh_dims = [self._mesh.shape[i] for i in mesh_dims_idx]
         block_size = self._block_sizes[dim]
-        for i in range(dim_size):
-            left_eq = np.floor(i / block_size) % np.prod(
-                mesh_dims
-            )  # Left hand side of the equation
+        _, axis_chunk_ends = self.axis_splits(dim_size, block_size, np.prod(mesh_dims))
+        start_idx = 0
+        for chunk_idx, end_idx in enumerate(axis_chunk_ends):
+            left_eq = chunk_idx % np.prod(mesh_dims)  # Left hand side of the equation
             for j in range(num_process):
                 p_mi = self._mesh.getMultiIndex(j)
                 right_eq = multi2linearIndex(
                     self._mesh.shape, p_mi, order=np.array(mesh_dims_idx)
                 ) % np.prod(mesh_dims)  # Right hand side of the equation
-                dim_distribution[i, j] = left_eq == right_eq
+                dim_distribution[start_idx:end_idx, j] = left_eq == right_eq
+
+            start_idx = end_idx
 
         return dim_distribution

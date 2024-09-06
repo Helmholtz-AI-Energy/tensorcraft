@@ -109,3 +109,41 @@ class Dist(ABC):
             True if the tensor is compatible, False otherwise.
         """
         pass
+
+    @staticmethod
+    def axis_splits(
+        axis_size: int | np.int_, block_size: int, num_procs: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Split an axis into blocks.
+
+        Parameters
+        ----------
+        axis_size : int
+            The size of the axis.
+        block_size : int
+            The size of the blocks.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            The split sizes and the end of each of the blocks.
+        """
+        if block_size == 0:
+            tile_dims = np.zeros((num_procs,), dtype=np.int_)
+            chunk_size = axis_size // num_procs
+            remainder = axis_size % num_procs
+            tile_dims[:] = chunk_size
+            tile_dims[:remainder] += 1
+        else:
+            # Calculate the number of blocks
+            n_blocks = axis_size // block_size
+            if axis_size % block_size:
+                n_blocks += 1
+            tile_dims = np.zeros((n_blocks,), dtype=np.int_)
+
+            rest = axis_size % block_size
+            tile_dims[:-1] = block_size
+            tile_dims[-1] = block_size - rest
+
+        return tile_dims, np.cumsum(tile_dims)
