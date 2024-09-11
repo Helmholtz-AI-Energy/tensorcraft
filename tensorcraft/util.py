@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 
-from tensorcraft.types import MemLayout, MemLayoutNP, IndexTuple
+from tensorcraft.types import IndexTuple, MemLayout, MemLayoutNP
 
 _order2npOrder: dict[MemLayout, MemLayoutNP] = {"C": "F", "R": "C"}
 
@@ -82,7 +82,9 @@ def multi2linearIndex(
     return result
 
 
-def linear2multiIndex(index: int, dims: IndexTuple, order: MemLayout = "R") -> IndexTuple:
+def linear2multiIndex(
+    index: int, dims: IndexTuple, order: MemLayout = "R"
+) -> IndexTuple:
     """
     Convert a linear index to multi-dimensional indices.
 

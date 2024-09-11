@@ -5,7 +5,7 @@ from typing import Literal, Tuple, TypeAlias, TypeGuard
 import numpy as np
 import numpy.typing as npt
 
-from tensorcraft.types import multi2linearIndex, linear2multiIndex
+from tensorcraft.types import linear2multiIndex, multi2linearIndex
 
 MemLayoutNP = Literal["C", "F"]
 MemLayout = Literal["R", "C"]
@@ -59,15 +59,16 @@ def is_scalar_type(value: TensorDataType) -> TypeGuard[ScalarDataType]:
     """
     return isinstance(value, (np.number, int, float))
 
-class Shape:    
+
+class Shape:
     """
     A class representing the shape of a tensor.
-    
+
     Parameters
     ----------
     dims : npt.ArrayLike
         The dimensions of the tensor.
-    
+
     Attributes
     ----------
     order : int
@@ -84,9 +85,9 @@ class Shape:
     getMultiIndex(index: int, order: MemLayout = "R") -> MIndex
         Convert a linear index to multi-dimensional indices.
     info() -> None
-        Print information about the tensor. 
+        Print information about the tensor.
     """
-    
+
     def __init__(self, dims: npt.ArrayLike) -> None:
         """
         Initialize a new instance of the Shape class.
@@ -157,7 +158,9 @@ class Shape:
         """
         return np.prod(self._dims, dtype=int)  # type: ignore
 
-    def getLinearIndex(self, indices: IndexTuple, order: MemLayout | IndexTuple = "R") -> int:
+    def getLinearIndex(
+        self, indices: IndexTuple, order: MemLayout | IndexTuple = "R"
+    ) -> int:
         """
         Obtain the multi-dimensional indices to a linear index.
 

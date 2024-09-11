@@ -5,20 +5,26 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
-from tensorcraft.types import Index, IndexTuple, Shape
 from tensorcraft.distributions.dist import Dist
-    
+from tensorcraft.types import Index, IndexTuple, Shape
+
 
 class Tensor:
     """
     A class representing a tensor with a given shape and distribution. This is purely an abstract representation and does not store any data.
     """
-    def __init__(self, dims: npt.ArrayLike | Shape, dist: Optional[Dist] = None, num_workers: int = 0) -> None:
+
+    def __init__(
+        self,
+        dims: npt.ArrayLike | Shape,
+        dist: Optional[Dist] = None,
+        num_workers: int = 0,
+    ) -> None:
         if isinstance(dims, Shape):
             self._shape = dims
         else:
             self._shape = Shape(dims)
-        
+
         self._dist = dist
         if not dist:
             self._n_procs = num_workers
@@ -26,12 +32,12 @@ class Tensor:
             self._n_procs = dist.numProcessors
 
         self._processor_view: Optional[np.ndarray] = None
-        
+
     @property
     def shape(self) -> IndexTuple:
         """Get the shape of the tensor."""
         return self._shape.shape
-    
+
     @property
     def dist(self) -> Optional[Dist]:
         """Get the distribution of the tensor."""
@@ -41,18 +47,18 @@ class Tensor:
     def num_workers(self) -> int:
         """Get the number of workers."""
         return self._n_procs
-    
+
     def getMultiIndex(self, index: Index) -> IndexTuple:
         return self._shape.getMultiIndex(index)
-    
+
     def getLinearIndex(self, index: IndexTuple) -> Index:
         return self._shape.getLinearIndex(index)
-        
+
     @property
     def size(self) -> int:
         """Get the size of the tensor."""
         return self._shape.size
-    
+
     @property
     def order(self) -> int:
         """Get the order of the tensor."""

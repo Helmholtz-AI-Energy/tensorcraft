@@ -7,9 +7,7 @@ from tensorcraft import DTensor
 from tensorcraft.viz.util import drawColorBar, explode, getNColors, rgba2hex
 
 
-def draw3DTensor(
-    axes: Axis, tensor: DTensor, cbar: bool = False
-) -> None:
+def draw3DTensor(axes: Axis, tensor: DTensor, cbar: bool = False) -> None:
     """
     Plot a 3D tensor.
 

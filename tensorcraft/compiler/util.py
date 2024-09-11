@@ -75,7 +75,10 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarDataType]:
 
 
 def idx_exp_compatible(
-    var_name: str, idx_exp: list[str], tensor: TensorDataType, idx_var_sizes: dict[str, int]
+    var_name: str,
+    idx_exp: list[str],
+    tensor: TensorDataType,
+    idx_var_sizes: dict[str, int],
 ) -> bool:
     """Check if an index expression is compatible with a tensor.
 

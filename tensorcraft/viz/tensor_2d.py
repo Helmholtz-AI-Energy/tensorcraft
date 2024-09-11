@@ -7,9 +7,7 @@ from tensorcraft import DTensor
 from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
 
 
-def draw2DTensor(
-    axes: Axes, tensor: DTensor, cbar: bool = False
-) -> None:
+def draw2DTensor(axes: Axes, tensor: DTensor, cbar: bool = False) -> None:
     """
     Plot a 2D tensor.
 
