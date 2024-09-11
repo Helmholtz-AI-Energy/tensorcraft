@@ -3,13 +3,12 @@
 import numpy as np
 from matplotlib.axes import Axes
 
-from tensorcraft.distributions import Dist
-from tensorcraft.tensor import Tensor
+from tensorcraft import DTensor
 from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
 
 
 def draw2DTensor(
-    axes: Axes, tensor: Tensor, distribution: Dist, cbar: bool = False
+    axes: Axes, tensor: DTensor, cbar: bool = False
 ) -> None:
     """
     Plot a 2D tensor.
@@ -32,17 +31,18 @@ def draw2DTensor(
             f"Only 2D tensors are supported, the provided tensor has {tensor.order}"
         )
 
-    if len(distribution.processorArrangement) > 2:
-        raise ValueError("Only 2D meshes are supported")
+    # if len(tensor.dist.processorArrangement) > 2:
+    #     raise ValueError("Only 2D meshes are supported")
 
-    processor_view = distribution.processorView(tensor)
+    processor_view = tensor.processor_view
+    dist = tensor.dist
 
     if tensor.order == 1:
         img_shape = np.array(tensor.shape).reshape(-1, 1)
     else:
         img_shape = np.array(tensor.shape)
 
-    colors = getNColors(distribution.numProcessors)
+    colors = getNColors(dist.numProcessors)
     img = np.zeros((*img_shape, 4))
     for i in range(tensor.size):
         m_idx = tensor.getMultiIndex(i)
@@ -60,7 +60,7 @@ def draw2DTensor(
 
 
 def draw2DProcessorView(
-    axes: Axes, tensor: Tensor, distribution: Dist, processor: int, cbar: bool = False
+    axes: Axes, tensor: DTensor, processor: int, cbar: bool = False
 ) -> None:
     """
     Plot the processor view of a 2D tensor.
@@ -83,19 +83,20 @@ def draw2DProcessorView(
             "Only 2D tensors are supported, please provide the dimensions to print"
         )
 
-    if len(distribution.processorArrangement) > 2:
+    dist = tensor.dist
+    if len(dist.processorArrangement) > 2:
         raise ValueError("Only 2D meshes are supported")
 
-    processor_view = distribution.processorView(tensor)
+    processor_view = tensor.processor_view
 
     if tensor.order == 1:
         img_shape = np.array(tensor.shape).reshape(-1, 1)
     else:
         img_shape = np.array(tensor.shape)
 
-    colors = getNColors(distribution.numProcessors)
+    colors = getNColors(dist.numProcessors)
 
-    p_midx = distribution.getProcessorMultiIndex(processor)
+    p_midx = dist.getProcessorMultiIndex(processor)
 
     img = np.apply_along_axis(
         lambda a: colors[processor] if a[processor] else [0.0, 0.0, 0.0, 0.0],

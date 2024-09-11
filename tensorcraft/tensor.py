@@ -5,205 +5,58 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
+from tensorcraft.types import Index, IndexTuple, Shape
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.types import MemLayout, MIndex
-from tensorcraft.util import linear2multiIndex, multi2linearIndex
-
+    
 
 class Tensor:
     """
-    A class representing a tensor with a given shape. This is purely an abstract representation and does not store any data.
-
-    Parameters
-    ----------
-    dims : npt.ArrayLike
-        The dimensions of the tensor.
-
-    Attributes
-    ----------
-    _dims : MIndex
-        The dimensions of the tensor.
-
-    Methods
-    -------
-    __init__(dims: npt.ArrayLike) -> None
-        Initializes a new instance of the Tensor class.
-    order() -> int
-        Returns the order of the tensor.
-    shape() -> MIndex
-        Returns the shape of the tensor.
-    size() -> int
-        Returns the size of the tensor.
-    linearIndex(indices: MIndex, order: str | MIndex = "R") -> int
-        Converts multi-dimensional indices to a linear index.
-    getMultiIndex(index: int, order: str = "R") -> MIndex
-        Converts a linear index to multi-dimensional indices.
-    info() -> None
-        Prints information about the tensor.
+    A class representing a tensor with a given shape and distribution. This is purely an abstract representation and does not store any data.
     """
-
-    def __init__(self, dims: npt.ArrayLike) -> None:
-        """
-        Initialize a new instance of the Tensor class.
-
-        Parameters
-        ----------
-        dims : npt.ArrayLike
-            The dimensions of the tensor.
-        """
-        if isinstance(dims, np.ndarray):
-            if not np.issubdtype(dims.dtype, np.integer):
-                raise ValueError("Dimensions must be integers")
-            if len(dims.shape) != 1:
-                raise ValueError("Must be a 1D array of dimensions")
-            if len(dims) == 0:
-                raise ValueError("Must have at least one dimension")
-            if not np.all(dims > 0):
-                raise ValueError("Dimensions must be positive")
-            self._dims: MIndex = tuple(dims.astype(np.int32))
-        elif isinstance(dims, (list, tuple)):
-            if len(dims) == 0:
-                raise ValueError("Must have at least one dimension")
-            if not all(isinstance(d, int) for d in dims):
-                raise ValueError("Dimensions must be integers")
-            if not all(d > 0 for d in dims):
-                raise ValueError("Dimensions must be positive")
-            self._dims = dims if isinstance(dims, tuple) else tuple(dims)
-        elif isinstance(dims, (np.int_, int)):
-            if dims < 1:
-                raise ValueError("Dimensions must be positive")
-            self._dims = (dims,)  # type: ignore
+    def __init__(self, dims: npt.ArrayLike | Shape, dist: Optional[Dist] = None, num_workers: int = 0) -> None:
+        if isinstance(dims, Shape):
+            self._shape = dims
         else:
-            raise ValueError("Invalid dimensions")
+            self._shape = Shape(dims)
+        
+        self._dist = dist
+        if not dist:
+            self._n_procs = num_workers
+        else:
+            self._n_procs = dist.numProcessors
+
+        self._processor_view: Optional[np.ndarray] = None
+        
+    @property
+    def shape(self) -> IndexTuple:
+        """Get the shape of the tensor."""
+        return self._shape.shape
+    
+    @property
+    def dist(self) -> Optional[Dist]:
+        """Get the distribution of the tensor."""
+        return self._dist
 
     @property
-    def order(self) -> int:
-        """
-        Returns the order of the tensor.
-
-        Returns
-        -------
-        int
-            The order of the tensor.
-        """
-        return len(self._dims)
-
-    @property
-    def shape(self) -> MIndex:
-        """
-        Returns the shape of the tensor.
-
-        Returns
-        -------
-        MIndex
-            The shape of the tensor.
-        """
-        return self._dims
-
+    def num_workers(self) -> int:
+        """Get the number of workers."""
+        return self._n_procs
+    
+    def getMultiIndex(self, index: Index) -> IndexTuple:
+        return self._shape.getMultiIndex(index)
+    
+    def getLinearIndex(self, index: IndexTuple) -> Index:
+        return self._shape.getLinearIndex(index)
+        
     @property
     def size(self) -> int:
-        """
-        Returns the size of the tensor.
-
-        Returns
-        -------
-        int
-            The size of the tensor.
-        """
-        return np.prod(self._dims, dtype=int)  # type: ignore
-
-    def getLinearIndex(self, indices: MIndex, order: MemLayout | MIndex = "R") -> int:
-        """
-        Obtain the multi-dimensional indices to a linear index.
-
-        Parameters
-        ----------
-        indices : MIndex
-            The multi-dimensional indices.
-        order : str or MIndex, optional
-            The order of the indices. Defaults to "R" (row-major order).
-
-        Returns
-        -------
-        int
-            The linear index corresponding to the given multi-dimensional indices.
-
-        Raises
-        ------
-        ValueError
-            If the length of the indices is not equal to the length of the tensor's dimensions.
-        ValueError
-            If the order is invalid.
-        """
-        if order == "R":
-            return multi2linearIndex(
-                self._dims, indices, order=np.arange(len(self._dims))[::-1]
-            )
-        elif order == "C":
-            return multi2linearIndex(self._dims, indices)
-        else:
-            try:
-                return multi2linearIndex(self._dims, indices, np.array(order))
-            except ValueError:
-                raise ValueError("Invalid order")
-
-    def getMultiIndex(self, index: int, order: MemLayout = "R") -> MIndex:
-        """
-        Convert a linear index to multi-dimensional indices.
-
-        Parameters
-        ----------
-        index : int
-            The linear index.
-        order : str, optional
-            The order of the multi-dimensional indices. Defaults to "R" (row-major order).
-
-        Returns
-        -------
-        MIndex
-            The multi-dimensional indices corresponding to the given linear index.
-
-        Raises
-        ------
-        ValueError
-            If the index is out of bounds.
-        """
-        return linear2multiIndex(index, self._dims, order=order)
-
-    def info(self) -> None:
-        """Print information about the tensor."""
-        print(f"Order: {self.order}")
-        print(f"Shape: {self.shape}")
-        print(f"Size: {self.size}")
-
-
-class DTensor(Tensor):
-    """
-    A distributed tensor class.
-
-    Parameters
-    ----------
-    dims : MIndex
-        The dimensions of the tensor.
-    n_procs : int
-        The number of processors.
-    dist : Dist, optional
-        The distribution of the tensor. Defaults to None.
-
-    Attributes
-    ----------
-    dist : Dist
-        The distribution of the tensor.
-    processor_view : np.ndarray
-        The processor view of the tensor.
-
-    """
-
-    def __init__(self, dims: npt.ArrayLike, n_procs: int, dist: Optional[Dist]) -> None:
-        super().__init__(dims)
-        self.dist = dist
-        self._n_procs = n_procs
-        self._processor_view: Optional[np.ndarray] = None
+        """Get the size of the tensor."""
+        return self._shape.size
+    
+    @property
+    def order(self) -> int:
+        """Get the order of the tensor."""
+        return self._shape.order
 
     @property
     def dist(self) -> Optional[Dist]:
@@ -228,7 +81,7 @@ class DTensor(Tensor):
                 self._processor_view = self.dist.processorView(self)
         return self._processor_view
 
-    def getIndexLocation(self, index: MIndex) -> np.ndarray:
+    def getIndexLocation(self, index: IndexTuple) -> np.ndarray:
         """Get the processors that hold a specific element of a tensor."""
         processor_view = self.processor_view
         if isinstance(index, int):

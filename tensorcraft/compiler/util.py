@@ -7,7 +7,7 @@ from typing import Callable
 import networkx as nx
 import numpy as np
 
-from tensorcraft.types import MIndex, ScalarType, TensorType, is_scalar_type
+from tensorcraft.types import IndexTuple, ScalarDataType, TensorDataType, is_scalar_type
 from tensorcraft.util import multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
@@ -30,7 +30,7 @@ _numpy_ops: dict[str, Callable[..., np.number]] = {
 }
 
 
-def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarType]:
+def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarDataType]:
     """Convert a directed graph of operations to a function.
 
     This function takes a directed graph of operations and converts it to a function
@@ -48,7 +48,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarType]:
     """
     sorted_nodes = list(nx.topological_sort(op_graph))
 
-    def compute(**kwargs: ScalarType) -> ScalarType:
+    def compute(**kwargs: ScalarDataType) -> ScalarDataType:
         results = {}
 
         for node in sorted_nodes:
@@ -75,7 +75,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarType]:
 
 
 def idx_exp_compatible(
-    var_name: str, idx_exp: list[str], tensor: TensorType, idx_var_sizes: dict[str, int]
+    var_name: str, idx_exp: list[str], tensor: TensorDataType, idx_var_sizes: dict[str, int]
 ) -> bool:
     """Check if an index expression is compatible with a tensor.
 
@@ -142,7 +142,7 @@ def idx_exp2multiIdx(
     idx_var_names: list[str],
     current_loop_midx: list[int],
     idx_var_sizes: list[int],
-) -> MIndex:
+) -> IndexTuple:
     """Convert an index expression to a multi-index.
 
     This function converts an index expression to a multi-index. The index expression

@@ -5,7 +5,7 @@ import numpy as np
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.tensor import Tensor
-from tensorcraft.types import MIndex
+from tensorcraft.types import IndexTuple
 
 
 class SlabDist(Dist):
@@ -86,7 +86,7 @@ class SlabDist(Dist):
             prev_idx = next_idx
         return processor_view
 
-    def getIndexLocation(self, tensor: Tensor, index: MIndex | int):
+    def getIndexLocation(self, tensor: Tensor, index: IndexTuple | int):
         if isinstance(index, int):
             mindex = tensor.getMultiIndex(index)
         else:

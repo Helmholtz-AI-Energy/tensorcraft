@@ -3,13 +3,12 @@
 import numpy as np
 from matplotlib.axis import Axis
 
-from tensorcraft.distributions import Dist
-from tensorcraft.tensor import Tensor
+from tensorcraft import DTensor
 from tensorcraft.viz.util import drawColorBar, explode, getNColors, rgba2hex
 
 
 def draw3DTensor(
-    axes: Axis, tensor: Tensor, distribution: Dist, cbar: bool = False
+    axes: Axis, tensor: DTensor, cbar: bool = False
 ) -> None:
     """
     Plot a 3D tensor.
@@ -30,8 +29,10 @@ def draw3DTensor(
     if tensor.order != 3:
         raise ValueError("Only 3D tensors are supported")
 
-    processorView = distribution.processorView(tensor)
-    colors = getNColors(distribution.numProcessors)
+    dist = tensor.dist
+
+    processorView = tensor.processor_view
+    colors = getNColors(dist.numProcessors)
     colors_hex = [rgba2hex(color) for color in colors]
     colors_edges = [rgba2hex(color * 0.8) for color in colors]
 

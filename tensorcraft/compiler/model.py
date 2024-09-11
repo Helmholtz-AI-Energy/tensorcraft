@@ -10,7 +10,7 @@ import networkx as nx
 import numpy as np
 
 from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
-from tensorcraft.types import MIndex, TensorType, is_scalar_type
+from tensorcraft.types import IndexTuple, TensorDataType, is_scalar_type
 from tensorcraft.util import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
@@ -101,9 +101,9 @@ class TensorExpression:
 
     def __call__(
         self,
-        input_data: dict[str, TensorType],
-        output_shape_hint: Optional[MIndex] = None,
-    ) -> TensorType:
+        input_data: dict[str, TensorDataType],
+        output_shape_hint: Optional[IndexTuple] = None,
+    ) -> TensorDataType:
         """Evaluate the tensor expression.
 
         Parameters
@@ -120,7 +120,7 @@ class TensorExpression:
         """
         # If there are no index variables, evaluate the expression directly, it is a scalar operation
         op_func = opGraph2Func(self.op_graph)
-        output_array: TensorType = 0
+        output_array: TensorDataType = 0
 
         if len(self.index_variables) == 0:
             elementwise_inputs = {}
@@ -237,7 +237,7 @@ class TensorExpression:
                         for c in reduced_idx_variables
                     ]
                 )
-                tmp_output_array: TensorType = np.zeros(
+                tmp_output_array: TensorDataType = np.zeros(
                     tmp_output_idx_dims,
                     dtype=output_array.dtype,  # type: ignore
                 )
@@ -403,8 +403,8 @@ class Program:
         return self._tensor_expressions
 
     def execute(
-        self, inputs: dict[str, TensorType], shape_hints: dict[str, MIndex]
-    ) -> dict[str, TensorType]:
+        self, inputs: dict[str, TensorDataType], shape_hints: dict[str, IndexTuple]
+    ) -> dict[str, TensorDataType]:
         """Execute the program.
 
         Parameters
@@ -436,7 +436,7 @@ class Program:
 
         # 2. Execute the expressions
         nodes = list(nx.topological_sort(self.graph))
-        outputs: dict[str, TensorType] = {}
+        outputs: dict[str, TensorDataType] = {}
         for node in nodes:
             if isinstance(node, int):
                 # Execute the expression
