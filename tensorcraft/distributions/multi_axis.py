@@ -3,7 +3,7 @@
 import numpy as np
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.tensor import Tensor
+from tensorcraft.shape import Shape
 from tensorcraft.types import Index
 from tensorcraft.util import multi2linearIndex
 
@@ -16,7 +16,7 @@ class MultiAxisDist(Dist):
 
     Parameters
     ----------
-    mesh : Tensor
+    mesh : Shape
         The processor mesh.
     dims_mapping : tuple[tuple]
         The mapping of tensor dimensions to mesh dimensions.
@@ -34,7 +34,7 @@ class MultiAxisDist(Dist):
 
     Attributes
     ----------
-    _mesh : Tensor
+    _mesh : Shape
         The processor mesh.
     _dims_mapping : tuple[tuple]
         The mapping of tensor dimensions to mesh dimensions.
@@ -54,12 +54,12 @@ class MultiAxisDist(Dist):
     -------
     getProcessorMultiIndex(index)
         Returns the multi-index of the processor at the given index.
-    processorView(tensor)
+    processorView(shape)
         Returns a boolean array indicating the processors that have access to each element of the tensor.
-    getIndexLocation(tensor, index)
+    getIndexLocation(shape, index)
         Returns a boolean array indicating the processors that have access to the specified index of the tensor.
-    compatible(tensor)
-        Checks if the tensor is compatible with the distribution.
+    compatible(shape)
+        Checks if the shape is compatible with the distribution.
 
     Private Methods
     ---------------
@@ -71,7 +71,7 @@ class MultiAxisDist(Dist):
     """
 
     def __init__(
-        self, mesh: Tensor, dims_mapping: tuple[tuple], block_sizes: tuple
+        self, mesh: Shape, dims_mapping: tuple[tuple], block_sizes: tuple
     ) -> None:
         if len(dims_mapping) != len(block_sizes):
             raise ValueError("The number of dimensions and block sizes must match")
@@ -95,50 +95,49 @@ class MultiAxisDist(Dist):
 
     @property
     def processorArrangement(self):  # noqa: D102
-        return self._mesh.shape
+        return self._mesh
 
     def getProcessorMultiIndex(self, index):  # noqa: D102
         return self._mesh.getMultiIndex(index)
 
-    def processorView(self, tensor):  # noqa: D102
-        if not self.compatible(tensor):
+    def processorView(self, shape):  # noqa: D102
+        if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        processor_view = np.ones((*tensor.shape, self._mesh.size), dtype=np.bool_)
+        processor_view = np.ones((*shape.asTuple(), self._mesh.size), dtype=np.bool_)
+        print(processor_view.shape)
 
-        dist_axis_list = [
-            self._distributeDim(i, tensor.shape[i]) for i in range(tensor.order)
-        ]
-        for i in range(tensor.size):
-            m_idx = tuple(tensor.getMultiIndex(i)) + (None,)
-            for j in range(tensor.order):
+        dist_axis_list = [self._distributeDim(i, shape[i]) for i in range(shape.order)]
+        for i in range(shape.size):
+            m_idx = tuple(shape.getMultiIndex(i)) + (None,)
+            for j in range(shape.order):
                 processor_view[m_idx] &= dist_axis_list[j][m_idx[j], :]
 
         return processor_view
 
-    def getIndexLocation(self, tensor, index):  # noqa: D102
+    def getIndexLocation(self, shape, index):  # noqa: D102
         if isinstance(index, int):
-            index = tensor.getMultiIndex(index)
+            index = shape.getMultiIndex(index)
 
         p_list = np.ones((self._mesh.size,), dtype=np.bool_)
-        for dim in range(tensor.order):
-            distributed_dim = self._distributeDim(dim, tensor.shape[dim])
+        for dim in range(shape.order):
+            distributed_dim = self._distributeDim(dim, shape[dim])
             p_list &= distributed_dim[index[dim], :]
 
         return p_list
 
-    def compatible(self, tensor):  # noqa: D102
+    def compatible(self, shape):  # noqa: D102
         # Ensure that the tensor order and the number of dimensions in the distribution match
-        if tensor.order != len(self._dims_mapping):
+        if shape.order != len(self._dims_mapping):
             print(
-                f"Tensor order and the number of dimensions in the distribution must match: {tensor.order} != {len(self._dims_mapping)}"
+                f"Tensor order and the number of dimensions in the distribution must match: {shape.order} != {len(self._dims_mapping)}"
             )
             return False
 
         # Ensure that the tensor dimensions are divisible by the block sizes
         if not all(
             [
-                tensor.shape[dim] % block == 0
+                shape[dim] % block == 0
                 for dim, (mapping, block) in enumerate(
                     zip(self._dims_mapping, self._block_sizes)
                 )
@@ -152,12 +151,12 @@ class MultiAxisDist(Dist):
         # Block size must ensure that each of the mesh dimensions has access to at least one block
         for dim, block_size in enumerate(self._block_sizes):
             mesh_dims_idx = self._dims_mapping[dim]
-            mesh_dims = [self._mesh.shape[i] for i in mesh_dims_idx]
+            mesh_dims = [self._mesh[i] for i in mesh_dims_idx]
             if block_size == 0:
                 continue
-            elif tensor.shape[dim] % block_size != 0:
+            elif shape[dim] % block_size != 0:
                 print(
-                    f"Maximum block size exceeded for dimension {dim}: {block_size} > {np.floor(tensor.shape[dim] / np.prod(mesh_dims))}"
+                    f"Maximum block size exceeded for dimension {dim}: {block_size} > {np.floor(shape[dim] / np.prod(mesh_dims))}"
                 )
                 return False
 
@@ -171,17 +170,17 @@ class MultiAxisDist(Dist):
             return np.ones((dim_size, num_process), dtype=np.bool_)
 
         dim_distribution = np.ones((dim_size, num_process), dtype=np.bool_)
-        mesh_dims = [self._mesh.shape[i] for i in mesh_dims_idx]
+        mesh_dims = [self._mesh[i] for i in mesh_dims_idx]
         block_size = self._block_sizes[dim]
-        _, axis_chunk_ends = self.axis_splits(dim_size, block_size, np.prod(mesh_dims))
+        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, np.prod(mesh_dims))  # type: ignore
         start_idx = 0
         for chunk_idx, end_idx in enumerate(axis_chunk_ends):
-            left_eq = chunk_idx % np.prod(mesh_dims)  # Left hand side of the equation
+            left_eq = chunk_idx % np.prod(mesh_dims)  # type: ignore
             for j in range(num_process):
                 p_mi = self._mesh.getMultiIndex(j)
                 right_eq = multi2linearIndex(
-                    self._mesh.shape, p_mi, order=np.array(mesh_dims_idx)
-                ) % np.prod(mesh_dims)  # Right hand side of the equation
+                    self._mesh.asTuple(), p_mi, order=np.array(mesh_dims_idx)
+                ) % np.prod(mesh_dims)  # type: ignore
                 dim_distribution[start_idx:end_idx, j] = left_eq == right_eq
 
             start_idx = end_idx

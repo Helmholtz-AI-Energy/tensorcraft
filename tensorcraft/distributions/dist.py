@@ -5,14 +5,15 @@ from abc import ABC, abstractmethod
 import numpy as np
 import numpy.typing as npt
 
-from tensorcraft import MIndex, Tensor
+from tensorcraft.shape import Shape
+from tensorcraft.types import IndexTuple
 
 
 class Dist(ABC):
     """Abstract base class for distributions."""
 
     @abstractmethod
-    def processorView(self, tensor: Tensor) -> np.ndarray:
+    def processorView(self, shape: Shape) -> np.ndarray:
         """
         Get the processor view of a tensor.
 
@@ -45,7 +46,7 @@ class Dist(ABC):
 
     @property
     @abstractmethod
-    def processorArrangement(self) -> npt.NDArray[np.int_]:
+    def processorArrangement(self) -> Shape:
         """
         Get the arrangement of processors.
 
@@ -57,7 +58,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def getProcessorMultiIndex(self, index: int) -> MIndex:
+    def getProcessorMultiIndex(self, index: int) -> IndexTuple:
         """
         Get the multi-index of a processor.
 
@@ -68,13 +69,15 @@ class Dist(ABC):
 
         Returns
         -------
-        MIndex
+        IndexTuple
             The multi-index of the processor.
         """
         pass
 
     @abstractmethod
-    def getIndexLocation(self, tensor: Tensor, index: MIndex) -> npt.NDArray[np.bool_]:
+    def getIndexLocation(
+        self, shape: Shape, index: IndexTuple
+    ) -> npt.NDArray[np.bool_]:
         """
         Get the processors that hold a specific element of a tensor.
 
@@ -82,7 +85,7 @@ class Dist(ABC):
         ----------
         tensor : Tensor
             The input tensor.
-        index : MIndex
+        index : IndexTuple
             The multi-index.
 
         Returns
@@ -93,7 +96,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def compatible(self, tensor: Tensor) -> bool:
+    def compatible(self, shape: Shape) -> bool:
         """
         Check if a tensor is compatible with the distribution.
 
@@ -110,8 +113,8 @@ class Dist(ABC):
         pass
 
     @staticmethod
-    def axis_splits(
-        axis_size: int | np.int_, block_size: int, num_procs: int
+    def axisSplits(
+        axis_size: int | np.int_, block_size: int, num_procs: int | np.int_
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Split an axis into blocks.

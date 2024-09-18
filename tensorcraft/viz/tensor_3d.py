@@ -3,11 +3,11 @@
 import numpy as np
 from matplotlib.axis import Axis
 
-from tensorcraft import DTensor
-from tensorcraft.viz.util import drawColorBar, explode, getNColors, rgba2hex
+from tensorcraft.tensor import Tensor
+from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors, rgba2hex
 
 
-def draw3DTensor(axes: Axis, tensor: DTensor, cbar: bool = False) -> None:
+def draw_3d_tensor(axes: Axis, tensor: Tensor, cbar: bool = False) -> None:
     """
     Plot a 3D tensor.
 
@@ -27,17 +27,15 @@ def draw3DTensor(axes: Axis, tensor: DTensor, cbar: bool = False) -> None:
     if tensor.order != 3:
         raise ValueError("Only 3D tensors are supported")
 
-    dist = tensor.dist
-
-    processorView = tensor.processor_view
-    colors = getNColors(dist.numProcessors)
+    processorView = tensor.processorView()
+    colors = get_n_colors(tensor.numWorkers)
     colors_hex = [rgba2hex(color) for color in colors]
     colors_edges = [rgba2hex(color * 0.8) for color in colors]
 
     x, y, z = np.indices(tensor.shape)  # type: ignore
 
     # build up the numpy logo
-    filled = np.ones(tensor.shape)
+    filled = np.ones(tensor.shape.asTuple())
     facecolors = np.apply_along_axis(
         lambda a: colors_hex[np.argmax(a)], -1, processorView
     )
@@ -74,4 +72,4 @@ def draw3DTensor(axes: Axis, tensor: DTensor, cbar: bool = False) -> None:
     axes.grid(False)
 
     if cbar:
-        drawColorBar(axes.get_figure(), axes, colors)
+        draw_color_bar(axes.get_figure(), axes, colors)

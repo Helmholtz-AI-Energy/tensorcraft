@@ -39,8 +39,8 @@ class TileDist(Dist):
     def processorArrangement(self):  # noqa: D102
         return np.array((self._num_processors, 1))
 
-    def compatible(self, tensor):  # noqa: D102
-        for dim, dim_size in enumerate(tensor.shape):
+    def compatible(self, shape):  # noqa: D102
+        for dim, dim_size in enumerate(shape.asTuple()):
             if dim_size % self._tile_size != 0:
                 print("Tile shape not divisible by tile size along dimension ", dim)
                 return False
@@ -50,25 +50,27 @@ class TileDist(Dist):
     def getProcessorMultiIndex(self, index):  # noqa: D102
         return np.array((index,))
 
-    def processorView(self, tensor):  # noqa: D102
-        if not self.compatible(tensor):
+    def processorView(self, shape):  # noqa: D102
+        if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        processor_view = np.zeros((*tensor.shape, self._num_processors), dtype=np.bool_)
-        for i in range(tensor.size):
-            i_mi = tensor.getMultiIndex(i)
-            processor_view[tuple(i_mi) + (None,)] = self.getIndexLocation(tensor, i_mi)
+        processor_view = np.zeros(
+            (*shape.asTuple(), self._num_processors), dtype=np.bool_
+        )
+        for i in range(shape.size):
+            i_mi = shape.getMultiIndex(i)
+            processor_view[tuple(i_mi) + (None,)] = self.getIndexLocation(shape, i_mi)
 
         return processor_view
 
-    def getIndexLocation(self, tensor, index):  # noqa: D102
-        if not self.compatible(tensor):
+    def getIndexLocation(self, shape, index):  # noqa: D102
+        if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
         shrinked_index = np.array(index) // self._tile_size
-        shrinked_shape = np.array(tensor.shape) // self._tile_size
+        shrinked_shape = np.array(shape.asTuple()) // self._tile_size
         shrinked_linear_index = multi2linearIndex(
-            shrinked_shape, shrinked_index, order=np.arange(tensor.order)[::-1]
+            shrinked_shape, shrinked_index, order=np.arange(shape.order)[::-1]
         )
 
         p_list = np.zeros((self._num_processors,), dtype=np.bool_)

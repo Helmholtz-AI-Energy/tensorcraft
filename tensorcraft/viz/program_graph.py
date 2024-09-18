@@ -7,7 +7,7 @@ import networkx as nx
 
 from tensorcraft.compiler import Program, TensorExpression
 
-from .util import getNColors, rgba2hex
+from .util import get_n_colors, rgba2hex
 
 
 def draw_program_graph(program: Program, color_by="loops") -> None:
@@ -189,7 +189,7 @@ def _color_nodes_by_loops(program: Program) -> list[str]:
     dict[Any, str]
         The colors of the nodes in the graph.
     """
-    colors = getNColors(program._max_loop_depth[0] + 1, colormap="plasma")
+    colors = get_n_colors(program._max_loop_depth[0] + 1, colormap="plasma")
 
     color_list = []
     for node in program.graph:
@@ -214,7 +214,7 @@ def _color_nodes_by_opcount(program: Program) -> list[str]:
     dict[Any, str]
         The colors of the nodes in the graph.
     """
-    colors = getNColors(program._max_op_count[0] + 1, colormap="plasma")
+    colors = get_n_colors(program._max_op_count[0] + 1, colormap="plasma")
 
     color_list = []
     for node in program.graph:

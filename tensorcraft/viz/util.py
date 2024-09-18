@@ -3,10 +3,10 @@
 import matplotlib as mpl
 import numpy as np
 
-from tensorcraft.tensor import Tensor
+from tensorcraft.tensor import Shape
 
 
-def getNColors(n: int | np.int64, colormap: str = "viridis") -> np.ndarray:
+def get_n_colors(n: int | np.int64, colormap: str = "viridis") -> np.ndarray:
     """
     Get an array of n colors from a colormap.
 
@@ -44,7 +44,7 @@ def rgba2hex(rgba: np.ndarray) -> str:
     return "#{:02x}{:02x}{:02x}{:02x}".format(*RGBA)
 
 
-def draw2DGrid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
+def draw_2d_grid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
     """
     Set the axis ticks and labels for a 2D tensor plot.
 
@@ -80,7 +80,7 @@ def draw2DGrid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
     ax.set_ylabel("Axis 0")
 
 
-def drawColorBar(fig, axs, colors: np.ndarray, shrink=1.0, orientation="horizontal"):
+def draw_color_bar(fig, axs, colors: np.ndarray, shrink=1.0, orientation="horizontal"):
     """
     Draw a color bar for the given colors.
 
@@ -136,7 +136,7 @@ def explode(data: np.ndarray) -> np.ndarray:
     return data_e
 
 
-def meshGrid(mesh: Tensor) -> dict[tuple[int], np.ndarray]:
+def mesh_grid(mesh: Shape) -> dict[tuple[int], np.ndarray]:
     """
     Generate a mesh grid based on the given tensor.
 
@@ -154,8 +154,7 @@ def meshGrid(mesh: Tensor) -> dict[tuple[int], np.ndarray]:
     for i in range(mesh.size):
         mindex = mesh.getMultiIndex(i)
         pos = [
-            float(dimSize - dim) / (dimSize - 1)
-            for dim, dimSize in zip(mindex, mesh.shape)
+            float(dimSize - dim) / (dimSize - 1) for dim, dimSize in zip(mindex, mesh)
         ]
         if mesh.order == 1:
             pos += [0.5]

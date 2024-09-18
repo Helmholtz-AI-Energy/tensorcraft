@@ -2,25 +2,25 @@
 
 __version__ = "0.0.0"
 
-# Import everything and put it into __all__
+# Classes to be used as tc.<class> / tc.<func>()
+# Modules to be used as tc.<module>.<function>
 import tensorcraft.distributions as dist
-from tensorcraft import compiler, logging, viz
-from tensorcraft.tensor import DTensor, Tensor
-from tensorcraft.types import Shape
-from tensorcraft.util import multi2linearIndex, order2npOrder
-
-logging.init_logging("WARNING")
+from tensorcraft import compiler, viz
+from tensorcraft.shape import Shape
+from tensorcraft.tensor import Tensor
+from tensorcraft.util import linear2multiIndex, multi2linearIndex, order2npOrder
 
 _compiler = compiler.Compiler()
 compile = _compiler.compile
 
 
 __all__ = [
+    "dist",
     "compiler",
     "viz",
     "Shape",
     "Tensor",
-    "DTensor",
     "multi2linearIndex",
-    "order2npOrder" "dist",
+    "linear2multiIndex",
+    "order2npOrder",
 ]
