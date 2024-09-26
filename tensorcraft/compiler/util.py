@@ -27,6 +27,27 @@ _numpy_ops: dict[str, Callable[..., np.number]] = {
     ">": np.greater,
     "&&": np.logical_and,
     "||": np.logical_or,
+    "^": np.power,
+    "abs": np.abs,
+    "exp": np.exp,
+    "log": np.log,
+    "log2": np.log2,
+    "log10": np.log10,
+    "sqrt": np.sqrt,
+    "sin": np.sin,
+    "cos": np.cos,
+    "tan": np.tan,
+    "asin": np.arcsin,
+    "acos": np.arccos,
+    "atan": np.arctan,
+    "sinh": np.sinh,
+    "cosh": np.cosh,
+    "tanh": np.tanh,
+    "asinh": np.arcsinh,
+    "acosh": np.arccosh,
+    "atanh": np.arctanh,
+    "ceil": np.ceil,
+    "floor": np.floor,
 }
 
 
@@ -54,7 +75,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarDataType]:
         for node in sorted_nodes:
             if node in kwargs:
                 results[node] = kwargs[node]
-            elif re.match(r"[\+\-\*\>\/\<\=\!\&\|]{1,2}\s\d+", node):
+            elif node.split(" ")[0] in _numpy_ops:
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
                 if np.any(

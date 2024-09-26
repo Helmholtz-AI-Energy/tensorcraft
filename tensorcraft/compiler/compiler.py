@@ -283,16 +283,99 @@ class ProgramTransformer(lark.Transformer):
         """Process a less than or equal operation."""
         return self._op_handler(children, "<=")
 
+    def pow(self, children: list[lark.Tree]):
+        """Process a power operation."""
+        return self._op_handler(children, "^")
+
     def parenthesis(self, children: list[lark.Tree]):
         """Process a parenthesis operation."""
         return children[0]
+
+    def ceil(self, children: list[lark.Tree]):
+        """Process a ceil operation."""
+        return self._op_handler(children, "ceil")
+
+    def floor(self, children: list[lark.Tree]):
+        """Process a floor operation."""
+        return self._op_handler(children, "floor")
+
+    def sin(self, children: list[lark.Tree]):
+        """Process a sin operation."""
+        return self._op_handler(children, "sin")
+
+    def cos(self, children: list[lark.Tree]):
+        """Process a cos operation."""
+        return self._op_handler(children, "cos")
+
+    def tan(self, children: list[lark.Tree]):
+        """Process a tan operation."""
+        return self._op_handler(children, "tan")
+
+    def asin(self, children: list[lark.Tree]):
+        """Process a asin operation."""
+        return self._op_handler(children, "asin")
+
+    def acos(self, children: list[lark.Tree]):
+        """Process a acos operation."""
+        return self._op_handler(children, "acos")
+
+    def atan(self, children: list[lark.Tree]):
+        """Process a atan operation."""
+        return self._op_handler(children, "atan")
+
+    def sinh(self, children: list[lark.Tree]):
+        """Process a sinh operation."""
+        return self._op_handler(children, "sinh")
+
+    def cosh(self, children: list[lark.Tree]):
+        """Process a cosh operation."""
+        return self._op_handler(children, "cosh")
+
+    def tanh(self, children: list[lark.Tree]):
+        """Process a tanh operation."""
+        return self._op_handler(children, "tanh")
+
+    def asinh(self, children: list[lark.Tree]):
+        """Process a asinh operation."""
+        return self._op_handler(children, "asinh")
+
+    def acosh(self, children: list[lark.Tree]):
+        """Process a acosh operation."""
+        return self._op_handler(children, "acosh")
+
+    def atanh(self, children: list[lark.Tree]):
+        """Process a atanh operation."""
+        return self._op_handler(children, "atanh")
+
+    def exp(self, children: list[lark.Tree]):
+        """Process a exp operation."""
+        return self._op_handler(children, "exp")
+
+    def log(self, children: list[lark.Tree]):
+        """Process a log operation."""
+        return self._op_handler(children, "log")
+
+    def log2(self, children: list[lark.Tree]):
+        """Process a log2 operation."""
+        return self._op_handler(children, "log2")
+
+    def log10(self, children: list[lark.Tree]):
+        """Process a log10 operation."""
+        return self._op_handler(children, "log10")
+
+    def sqrt(self, children: list[lark.Tree]):
+        """Process a sqrt operation."""
+        return self._op_handler(children, "sqrt")
+
+    def abs(self, children: list[lark.Tree]):
+        """Process a abs operation."""
+        return self._op_handler(children, "abs")
 
     def _op_handler(self, children: list[lark.Tree], op: str):
         if isinstance(children[0], lark.Tree):
             op_0 = children[0].children[0]
         else:
             op_0 = children[0]
-        op_1 = children[1]
 
         if op not in self._op_count_dict:
             self._op_count_dict[op] = 0
@@ -304,9 +387,14 @@ class ProgramTransformer(lark.Transformer):
         self._op_graph.add_node(node_name)
 
         self._op_graph.add_edge(op_0, node_name)
-        self._op_graph.add_edge(op_1, node_name)
+        if len(children) > 1:
+            self._op_graph.add_edge(children[1], node_name)
         self._op_count += 1
         return node_name
+
+    def function(self, children: list[lark.Tree]):
+        """Process a function operation."""
+        return children[0]
 
     def operand(self, children: list[lark.Token]):
         """

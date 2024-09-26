@@ -6,19 +6,43 @@ tensorexp: tensor "=" tensorop -> assign
         | tensor "*=" tensorop -> prod_assign
         | tensor "/=" tensorop -> div_assign
 
-tensorop: operand
-        | tensorop "+" operand -> add
-        | tensorop "-" operand -> sub
-        | tensorop "*" operand -> prod
-        | tensorop "/" operand -> div
-        | tensorop "==" operand -> equal
-        | tensorop "!=" operand -> nequal
-        | tensorop "&&" operand -> bool_and
-        | tensorop "||" operand -> bool_or
-        | tensorop ">" operand -> gt
-        | tensorop "<" operand -> lt
-        | tensorop ">=" operand -> ge
-        | tensorop "<=" operand -> le
+tensorop: function
+        | tensorop "+" function -> add
+        | tensorop "-" function -> sub
+        | tensorop "*" function -> prod
+        | tensorop "/" function -> div
+        | tensorop "==" function -> equal
+        | tensorop "!=" function -> nequal
+        | tensorop "&&" function -> bool_and
+        | tensorop "||" function -> bool_or
+        | tensorop ">" function -> gt
+        | tensorop "<" function -> lt
+        | tensorop ">=" function -> ge
+        | tensorop "<=" function -> le
+        | tensorop "^" function -> pow
+
+
+function: operand
+        | "abs" "(" tensorop ")" -> abs
+        | "exp" "(" tensorop ")" -> exp
+        | "log" "(" tensorop ")" -> log
+        | "log2" "(" tensorop ")" -> log2
+        | "log10" "(" tensorop ")" -> log10
+        | "sqrt" "(" tensorop ")" -> sqrt
+        | "sin" "(" tensorop ")" -> sin
+        | "cos" "(" tensorop ")" -> cos
+        | "tan" "(" tensorop ")" -> tan
+        | "asin" "(" tensorop ")" -> asin
+        | "acos" "(" tensorop ")" -> acos
+        | "atan" "(" tensorop ")" -> atan
+        | "sinh" "(" tensorop ")" -> sinh
+        | "cosh" "(" tensorop ")" -> cosh
+        | "tanh" "(" tensorop ")" -> tanh
+        | "asinh" "(" tensorop ")" -> asinh
+        | "acosh" "(" tensorop ")" -> acosh
+        | "atanh" "(" tensorop ")" -> atanh
+        | "ceil" "(" tensorop ")" -> ceil
+        | "floor" "(" tensorop ")" -> floor
 
 operand: signed_tensor
          | signed_idxvar
