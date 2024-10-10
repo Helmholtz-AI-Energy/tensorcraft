@@ -38,6 +38,7 @@ dependencies = [
     "lark",
     "matplotlib",
     "networkx",
+    "drawsvg"
 ]
 
 [project.optional-dependencies]

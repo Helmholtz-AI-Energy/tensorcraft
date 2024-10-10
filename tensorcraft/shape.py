@@ -1,7 +1,5 @@
 """A class representing the shape of a tensor."""
 
-from typing import Iterable
-
 import numpy as np
 import numpy.typing as npt
 
@@ -22,16 +20,16 @@ class Shape:
     ----------
     order : int
         The order of the tensor.
-    shape : MIndex
+    shape : IndexTuple
         The shape of the tensor.
     size : int
         The size of the tensor.
 
     Methods
     -------
-    getLinearIndex(indices: MIndex, order: MemLayout | MIndex = "R") -> int
+    getLinearIndex(indices: IndexTuple, order: MemLayout | IndexTuple = "R") -> int
         Obtain the multi-dimensional indices to a linear index.
-    getMultiIndex(index: int, order: MemLayout = "R") -> MIndex
+    getMultiIndex(index: int, order: MemLayout = "R") -> IndexTuple
         Convert a linear index to multi-dimensional indices.
     info() -> None
         Print information about the tensor.
@@ -51,14 +49,10 @@ class Shape:
                 raise ValueError("Dimensions must be integers")
             if len(dims.shape) != 1:
                 raise ValueError("Must be a 1D array of dimensions")
-            if len(dims) == 0:
-                raise ValueError("Must have at least one dimension")
             if not np.all(dims > 0):
                 raise ValueError("Dimensions must be positive")
             self._dims: IndexTuple = tuple(dims.astype(np.int32))
         elif isinstance(dims, (list, tuple)):
-            if len(dims) == 0:
-                raise ValueError("Must have at least one dimension")
             if not all(isinstance(d, int) for d in dims):
                 raise ValueError("Dimensions must be integers")
             if not all(d > 0 for d in dims):
@@ -110,7 +104,7 @@ class Shape:
         """
         return self._dims[item]
 
-    def __getitem__(self, item) -> Iterable[Index]:
+    def __getitem__(self, item):
         """
         Get the dimension size at the given index.
 
@@ -223,3 +217,7 @@ class Shape:
     def info(self) -> None:
         """Print information about the tensor."""
         print(f"Shape: {self._dims}, Order: {self.order}, Size: {self.size}")
+
+    def __repr__(self) -> str:
+        """Get the string representation of the shape."""
+        return self._dims.__str__()
