@@ -2,18 +2,14 @@
 
 from abc import ABC, abstractmethod
 
-import numpy as np
-import numpy.typing as npt
-
-from tensorcraft.shape import Shape
-from tensorcraft.types import IndexTuple
+import torch
 
 
 class Dist(ABC):
     """Abstract base class for distributions."""
 
     @abstractmethod
-    def processorView(self, shape: Shape) -> np.ndarray:
+    def processorView(self, shape: torch.Size) -> torch.Tensor:
         """
         Get the processor view of a tensor.
 
@@ -46,7 +42,7 @@ class Dist(ABC):
 
     @property
     @abstractmethod
-    def processorArrangement(self) -> Shape:
+    def processorArrangement(self) -> torch.Size:
         """
         Get the arrangement of processors.
 
@@ -58,7 +54,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def getProcessorMultiIndex(self, index: int) -> IndexTuple:
+    def getProcessorMultiIndex(self, index: int) -> torch.Size:
         """
         Get the multi-index of a processor.
 
@@ -76,8 +72,8 @@ class Dist(ABC):
 
     @abstractmethod
     def getIndexLocation(
-        self, shape: Shape, index: IndexTuple
-    ) -> npt.NDArray[np.bool_]:
+        self, shape: torch.Size, index: torch.Size
+    ) -> torch.BoolTensor:
         """
         Get the processors that hold a specific element of a tensor.
 
@@ -96,7 +92,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def compatible(self, shape: Shape) -> bool:
+    def compatible(self, shape: torch.Size) -> bool:
         """
         Check if a tensor is compatible with the distribution.
 
@@ -114,8 +110,8 @@ class Dist(ABC):
 
     @staticmethod
     def axisSplits(
-        axis_size: int | np.int_, block_size: int, num_procs: int | np.int_
-    ) -> tuple[np.ndarray, np.ndarray]:
+        axis_size: int, block_size: int, num_procs: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Split an axis into blocks.
 
@@ -132,7 +128,7 @@ class Dist(ABC):
             The split sizes and the end of each of the blocks.
         """
         if block_size == 0:
-            tile_dims = np.zeros((num_procs,), dtype=np.int_)
+            tile_dims = torch.zeros((num_procs,), dtype=torch.int)
             chunk_size = axis_size // num_procs
             remainder = axis_size % num_procs
             tile_dims[:] = chunk_size
@@ -142,10 +138,10 @@ class Dist(ABC):
             n_blocks = axis_size // block_size
             if axis_size % block_size:
                 n_blocks += 1
-            tile_dims = np.zeros((n_blocks,), dtype=np.int_)
+            tile_dims = torch.zeros((n_blocks,), dtype=torch.int)
 
             rest = axis_size % block_size
             tile_dims[:-1] = block_size
             tile_dims[-1] = block_size - rest
 
-        return tile_dims, np.cumsum(tile_dims)
+        return tile_dims, torch.cumsum(tile_dims)

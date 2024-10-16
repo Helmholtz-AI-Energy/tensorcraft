@@ -34,7 +34,7 @@ classifiers = [
 requires-python = ">=3.10"
 
 dependencies = [
-    "numpy",
+    "torch>=2.0.0",
     "lark",
     "matplotlib",
     "networkx",
@@ -116,5 +116,5 @@ source = ["tensorcraft"]
 [tool.coverage.report]
 format = "markdown"
 
-[tool.mypy]
-plugins = "numpy.typing.mypy_plugin"
+# [tool.mypy]
+# plugins = "numpy.typing.mypy_plugin"

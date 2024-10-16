@@ -1,18 +1,20 @@
 """Utility functions for tensorcraft."""
 
-from typing import Optional
+import math
+from typing import Literal, Optional
 
-import numpy as np
+import torch
 
-from tensorcraft.types import Index, IndexTuple, MemLayout, MemLayoutNP
+MemLayoutNP = Literal["C", "F"]
+MemLayout = Literal["R", "C"]
 
 _order2npOrder: dict[MemLayout, MemLayoutNP] = {"C": "F", "R": "C"}
 
 
 def multi2linearIndex(
-    dims: IndexTuple,
-    indices: IndexTuple,
-    order: Optional[np.ndarray] = None,
+    dims: torch.Size,
+    indices: torch.Size,
+    order: Optional[torch.Size] = None,
 ) -> int:
     """Convert a multi-dimensional index to a linear index.
 
@@ -20,17 +22,17 @@ def multi2linearIndex(
     based on the dimensions of the tensor. The linear index represents the position
     of the element in a flattened version of the tensor.
 
-    Uses a column mayor indexing scheme by default.
+    Uses a row mayor indexing scheme by default.
 
     Parameters
     ----------
-    dims : tuple | np.ndarray
+    dims : torch.Size | torch.Tensor
         An array containing the dimensions of the tensor.
 
-    indices : tuple | np.ndarray
+    indices : torch.Size | torch.Tensor
         An array containing the multi-dimensional index.
 
-    order : tuple | np.ndarray | None, optional
+    order : torch.Size | torch.Tensor | None, optional
         An array specifying the order in which the dimensions should be considered
         when calculating the linear index. If None, the dimensions are considered
         in the default order, which is the same as the input order.
@@ -63,28 +65,28 @@ def multi2linearIndex(
         raise ValueError("Indices must have the same length as the tensor's dimensions")
 
     if order is None:
-        indices_reorderd = np.array(indices)
-        dims_reorderd = np.array(dims)
+        indices_reorderd = torch.tensor(indices).flip(0)
+        dims_reorderd = torch.tensor(dims).flip(0)
     else:
         if len(order) == 0 or len(order) > len(dims):
             raise ValueError("Invalid order dimensions")
-        indices_reorderd = np.array(indices)[order]
-        dims_reorderd = np.array(dims)[order]
+        indices_reorderd = torch.tensor(indices)[order].flip(0)
+        dims_reorderd = torch.tensor(dims)[order].flip(0)
 
-    if not np.all(indices_reorderd >= 0) or not np.all(
+    if not torch.all(indices_reorderd >= 0) or not torch.all(
         indices_reorderd < dims_reorderd
     ):
         raise ValueError("Indices out of bounds")
 
     result = 0
     for i in range(len(indices_reorderd)):
-        result += indices_reorderd[i] * np.prod(dims_reorderd[:i])
+        result += indices_reorderd[i] * torch.prod(dims_reorderd[:i])
     return result
 
 
 def linear2multiIndex(
-    index: Index, dims: IndexTuple, order: MemLayout = "R"
-) -> IndexTuple:
+    index: int, dims: torch.Size, order: MemLayout = "R"
+) -> torch.Size:
     """
     Convert a linear index to multi-dimensional indices.
 
@@ -105,10 +107,21 @@ def linear2multiIndex(
     ValueError
         If the index is out of bounds.
     """
-    if index < 0 or index >= np.prod(dims, dtype=int):  # type: ignore
+    if index < 0 or index >= math.prod(dims):  # type: ignore
         raise ValueError("Index out of bounds")
 
-    return np.unravel_index(index, dims, order=order2npOrder(order))
+    index_tensor = torch.tensor(index)
+
+    if order == "R":
+        return tuple(dim.item() for dim in torch.unravel_index(index_tensor, dims))
+    else:
+        return tuple(
+            dim.item()
+            for dim in torch.unravel_index(
+                index_tensor,
+                dims[::-1],
+            )
+        )
 
 
 def order2npOrder(order: MemLayout) -> MemLayoutNP:

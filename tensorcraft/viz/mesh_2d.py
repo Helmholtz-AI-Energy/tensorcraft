@@ -4,11 +4,10 @@ import networkx as nx
 import numpy as np
 from matplotlib.axes import Axes
 
-from tensorcraft.shape import Shape
 from tensorcraft.viz.util import get_n_colors, mesh_grid, rgba2hex
 
 
-def draw_2d_mesh(axes: Axes, mesh: Shape) -> None:
+def draw_2d_mesh(axes: Axes, mesh) -> None:
     """
     Plot a 2D mesh.
 

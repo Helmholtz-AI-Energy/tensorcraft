@@ -3,8 +3,6 @@
 import numpy as np
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.shape import Shape
-from tensorcraft.types import Index
 from tensorcraft.util import multi2linearIndex
 
 
