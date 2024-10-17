@@ -1,18 +1,19 @@
 """Utility functions for visualization."""
 
 import matplotlib as mpl
-import numpy as np
+from matplotlib.axes import Axes
+import torch
 
-from tensorcraft.tensor import Shape
+from tensorcraft.util import multi2linearIndex, linear2multiIndex
 
 
-def get_n_colors(n: int | np.int64, colormap: str = "viridis") -> np.ndarray:
+def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
     """
     Get an array of n colors from a colormap.
 
     Parameters
     ----------
-    n : int or np.int64
+    n : int
         The number of colors.
     colormap : str, optional
         The name of the colormap (default is "viridis").
@@ -25,7 +26,7 @@ def get_n_colors(n: int | np.int64, colormap: str = "viridis") -> np.ndarray:
     return mpl.colormaps[colormap].resampled(n).colors
 
 
-def rgba2hex(rgba: np.ndarray) -> str:
+def rgba2hex(rgba: torch.Tensor) -> str:
     """
     Convert an RGBA color array to a hexadecimal color string.
 
@@ -40,11 +41,11 @@ def rgba2hex(rgba: np.ndarray) -> str:
         The hexadecimal color string.
     """
     RGBA = rgba * 255
-    RGBA = RGBA.astype(np.uint8)
+    RGBA = RGBA.dtype(torch.uint8)
     return "#{:02x}{:02x}{:02x}{:02x}".format(*RGBA)
 
 
-def draw_2d_grid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
+def draw_2d_grid(ax: Axes, shape: tuple | torch.Tensor, color: str = "black") -> None:
     """
     Set the axis ticks and labels for a 2D tensor plot.
 
@@ -62,11 +63,11 @@ def draw_2d_grid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
     None
     """
     # Ticks
-    ax.set_xticks(np.arange(0.0, shape[1], 1.0))
-    ax.set_yticks(np.arange(0.0, shape[0], 1.0))
+    ax.set_xticks(torch.arange(0.0, shape[1], 1.0))
+    ax.set_yticks(torch.arange(0.0, shape[0], 1.0))
 
-    ax.set_xticks(np.arange(-0.5, float(shape[1]) - 0.5, 1.0), minor=True)
-    ax.set_yticks(np.arange(-0.5, float(shape[0]) - 0.5, 1.0), minor=True)
+    ax.set_xticks(torch.arange(-0.5, float(shape[1]) - 0.5, 1.0), minor=True)
+    ax.set_yticks(torch.arange(-0.5, float(shape[0]) - 0.5, 1.0), minor=True)
 
     ax.grid(which="minor", color="black", linestyle="-", linewidth=0.5)
     ax.tick_params(which="minor", bottom=False, left=False)
@@ -80,7 +81,7 @@ def draw_2d_grid(ax, shape: tuple | np.ndarray, color: str = "black") -> None:
     ax.set_ylabel("Axis 0")
 
 
-def draw_color_bar(fig, axs, colors: np.ndarray, shrink=1.0, orientation="horizontal"):
+def draw_color_bar(fig, axs, colors: torch.Tensor, shrink=1.0, orientation="horizontal"):
     """
     Draw a color bar for the given colors.
 
@@ -99,24 +100,24 @@ def draw_color_bar(fig, axs, colors: np.ndarray, shrink=1.0, orientation="horizo
     """
     location = "bottom" if orientation == "horizontal" else "right"
     cmap = mpl.colors.ListedColormap(colors)
-    norm = mpl.colors.BoundaryNorm(np.arange(-0.5, len(colors), 1), cmap.N)
+    norm = mpl.colors.BoundaryNorm(torch.arange(-0.5, len(colors), 1), cmap.N)
     cbar = fig.colorbar(
         mpl.cm.ScalarMappable(cmap=cmap, norm=norm),
         ax=axs,
         orientation=orientation,
         shrink=shrink,
-        ticks=np.arange(0, len(colors), 1),
+        ticks=torch.arange(0, len(colors), 1),
         location=location,
         panchor=(0.5, 0.5),
     )
     if orientation == "horizontal":
-        cbar.ax.set_xticklabels(np.arange(0, len(colors), 1))
+        cbar.ax.set_xticklabels(torch.arange(0, len(colors), 1))
     else:
-        cbar.ax.set_yticklabels(np.arange(0, len(colors), 1))
+        cbar.ax.set_yticklabels(torch.arange(0, len(colors), 1))
     cbar.set_label("Processor index")
 
 
-def explode(data: np.ndarray) -> np.ndarray:
+def explode(data: torch.Tensor) -> torch.Tensor:
     """
     Explode a 3D array by inserting zeros between each element.
 
@@ -130,13 +131,13 @@ def explode(data: np.ndarray) -> np.ndarray:
     ndarray
         The exploded 3D array.
     """
-    size = np.array(data.shape) * 2
-    data_e = np.zeros(size - 1, dtype=data.dtype)
+    size = torch.Tensor(data.shape) * 2
+    data_e = torch.Tensor(size - 1, dtype=data.dtype)
     data_e[::2, ::2, ::2] = data
     return data_e
 
 
-def mesh_grid(mesh: Shape) -> dict[tuple[int], np.ndarray]:
+def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
     """
     Generate a mesh grid based on the given tensor.
 
@@ -147,22 +148,22 @@ def mesh_grid(mesh: Shape) -> dict[tuple[int], np.ndarray]:
 
     Returns
     -------
-    dict[tuple[int], np.ndarray]
+    dict[tuple[int], torch.Tensor]
         A dictionary containing the positions of each element in the mesh grid.
     """
     positions: dict = {}
-    for i in range(mesh.size):
-        mindex = mesh.getMultiIndex(i)
+    for i in range(mesh.numel()):
+        mindex = linear2multiIndex(i, mesh)
         pos = [
             float(dimSize - dim) / (dimSize - 1) for dim, dimSize in zip(mindex, mesh)
         ]
-        if mesh.order == 1:
+        if len(mesh) <= 1:
             pos += [0.5]
             pos[-1] = 1 - pos[-1]
-            positions[mindex[0]] = np.array(pos)[::-1]
+            positions[mindex[0]] = torch.tensor(pos)[::-1]
         else:
             pos[-1] = 1 - pos[-1]
-            positions[tuple(mindex)] = np.array(pos)[::-1]
+            positions[tuple(mindex)] = torch.tensor(pos)[::-1]
 
     return positions
 

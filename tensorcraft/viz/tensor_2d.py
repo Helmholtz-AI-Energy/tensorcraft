@@ -1,13 +1,14 @@
 """2D tensor visualization functions."""
 
-import numpy as np
+import torch
 from matplotlib.axes import Axes
 
-from tensorcraft.tensor import Tensor
+from tensorcraft.distributions import Dist
 from tensorcraft.viz.util import draw_2d_grid, draw_color_bar, get_n_colors
 
+from tensorcraft.util import linear2multiIndex
 
-def draw_2d_tensor(axes: Axes, tensor: Tensor, cbar: bool = False) -> None:
+def draw_2d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False) -> None:
     """
     Plot a 2D tensor.
 
@@ -24,27 +25,29 @@ def draw_2d_tensor(axes: Axes, tensor: Tensor, cbar: bool = False) -> None:
     -------
     None
     """
-    if tensor.order > 2:
+    if len(shape) > 2:
         raise ValueError(
-            f"Only 2D tensors are supported, the provided tensor has {tensor.order}"
+            f"Only 2D tensors are supported, the provided tensor has {len(shape)} dimensions"     
         )
 
     # if len(tensor.dist.processorArrangement) > 2:
     #     raise ValueError("Only 2D meshes are supported")
 
-    processor_view = tensor.processorView()
+    processor_view = dist.processorView(shape) 
 
-    if tensor.order == 1:
-        img_shape = np.array(tensor.shape).reshape(-1, 1)
+    if len(shape) == 1:
+        img_shape = torch.tensor(shape).reshape(-1, 1)
+    elif len(shape) == 0:
+        img_shape = torch.tensor([1]).reshape(1,1)
     else:
-        img_shape = np.array(tensor.shape)
+        img_shape = torch.tensor(shape)
 
-    colors = get_n_colors(tensor.numWorkers)
-    img = np.zeros((*img_shape, 4))
-    for i in range(tensor.size):
-        m_idx = tensor.getMultiIndex(i)
+    colors = get_n_colors(dist.numProcessors)
+    img = torch.zeros((*img_shape, 4))
+    for i in range(shape.numel()):
+        m_idx = linear2multiIndex(i, img_shape)
         img[m_idx[0], m_idx[1], :] = colors[
-            np.argmax(processor_view[m_idx[0], m_idx[1], :])
+            torch.argmax(processor_view[m_idx[0], m_idx[1], :])
         ]
 
     axes.imshow(img[::-1], origin="lower", aspect="equal")
@@ -57,7 +60,7 @@ def draw_2d_tensor(axes: Axes, tensor: Tensor, cbar: bool = False) -> None:
 
 
 def draw_2d_processor_view(
-    axes: Axes, tensor: Tensor, processor: int, cbar: bool = False
+    axes: Axes, shape: torch.Size, dist: Dist, processor: int, cbar: bool = False
 ) -> None:
     """
     Plot the processor view of a 2D tensor.
@@ -75,31 +78,28 @@ def draw_2d_processor_view(
     -------
     None
     """
-    if tensor.order > 2:
+    if len(shape) > 2:
         raise ValueError(
             "Only 2D tensors are supported, please provide the dimensions to print"
         )
 
-    dist = tensor.dist
 
     if dist is None:
         raise ValueError("The tensor is not distributed")
 
-    processor_view = tensor.processorView()
+    processor_view = dist.processorView(shape) 
 
-    if tensor.order == 1:
-        img_shape = np.array(tensor.shape).reshape(-1, 1)
+    if len(shape) == 1:
+        img_shape = torch.tensor(shape).reshape(-1, 1)
     else:
-        img_shape = np.array(tensor.shape)
+        img_shape = torch.tensor(shape)
 
-    colors = get_n_colors(tensor.numWorkers)
+    colors = get_n_colors(dist.numProcessors)
 
     p_midx = dist.getProcessorMultiIndex(processor)
 
-    img = np.apply_along_axis(
-        lambda a: colors[processor] if a[processor] else [0.0, 0.0, 0.0, 0.0],
-        -1,
-        processor_view,
+    img = torch.stack(
+        [colors[processor] if a[processor] else [0.0, 0.0, 0.0, 0.0] for a in torch.unbind(processor_view, dim=-1)]
     )
     axes.imshow(img, origin="upper", aspect="equal")
     draw_2d_grid(axes, img_shape)

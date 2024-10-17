@@ -2,111 +2,13 @@
 
 from abc import ABC, abstractmethod
 
+import math
 import torch
 
+from tensorcraft.util import linear2multiIndex
 
 class Dist(ABC):
     """Abstract base class for distributions."""
-
-    @abstractmethod
-    def processorView(self, shape: torch.Size) -> torch.Tensor:
-        """
-        Get the processor view of a tensor.
-
-        The processor view is a boolean array that shares the same shape as the input tensors, where each of the elements is a a boolean array marking on which processors the element is located.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        np.ndarray
-            The processor view of the tensor.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def numProcessors(self) -> int:
-        """
-        Get the number of processors.
-
-        Returns
-        -------
-        int
-            The number of processors.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def processorArrangement(self) -> torch.Size:
-        """
-        Get the arrangement of processors.
-
-        Returns
-        -------
-        npt.NDArray[np.int_]
-            The arrangement of processors.
-        """
-        pass
-
-    @abstractmethod
-    def getProcessorMultiIndex(self, index: int) -> torch.Size:
-        """
-        Get the multi-index of a processor.
-
-        Parameters
-        ----------
-        index : int
-            The index of the processor.
-
-        Returns
-        -------
-        IndexTuple
-            The multi-index of the processor.
-        """
-        pass
-
-    @abstractmethod
-    def getIndexLocation(
-        self, shape: torch.Size, index: torch.Size
-    ) -> torch.BoolTensor:
-        """
-        Get the processors that hold a specific element of a tensor.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            The input tensor.
-        index : IndexTuple
-            The multi-index.
-
-        Returns
-        -------
-        npt.NDArray[np.bool_]
-            Boolean array marking the processors that hold the element.
-        """
-        pass
-
-    @abstractmethod
-    def compatible(self, shape: torch.Size) -> bool:
-        """
-        Check if a tensor is compatible with the distribution.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        bool
-            True if the tensor is compatible, False otherwise.
-        """
-        pass
 
     @staticmethod
     def axisSplits(
@@ -145,3 +47,109 @@ class Dist(ABC):
             tile_dims[-1] = block_size - rest
 
         return tile_dims, torch.cumsum(tile_dims)
+
+    def __init__(self, processor_mesh: int | torch.Size):
+        if isinstance(processor_mesh, int):
+            self._pmesh = torch.Size([processor_mesh])
+        else:
+            self._pmesh = processor_mesh
+
+
+    @property
+    def numProcessors(self) -> int:
+        """
+        Get the number of processors.
+
+        Returns
+        -------
+        int
+            The number of processors.
+        """
+        return math.prod(self._pmesh)
+
+    @property
+    def processorMesh(self) -> torch.Size:
+        """
+        Get the arrangement of processors.
+
+        Returns
+        -------
+        torch.Size
+            The arrangement of processors.
+        """
+        return self._pmesh
+
+    def getProcessorMultiIndex(self, index: int) -> torch.Size:
+        """
+        Get the multi-index of a processor.
+
+        Parameters
+        ----------
+        index : int
+            The index of the processor.
+
+        Returns
+        -------
+        IndexTuple
+            The multi-index of the processor.
+        """
+        return linear2multiIndex(index, self._pmesh)
+
+
+    @abstractmethod
+    def processorView(self, shape: torch.Size) -> torch.Tensor:
+        """
+        Get the processor view of a tensor.
+
+        The processor view is a boolean array that shares the same shape as the input tensors, where each of the elements is a a boolean array marking on which processors the element is located.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of a tensor
+
+        Returns
+        -------
+        torch.Tensor
+            The processor view of the tensor.
+        """
+        pass
+
+    @abstractmethod
+    def getElementLocation(
+        self, shape: torch.Size, index: torch.Size
+    ) -> torch.BoolTensor:
+        """
+        Get the processors that hold a specific element of a tensor.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            The input tensor.
+        index : IndexTuple
+            The multi-index.
+
+        Returns
+        -------
+        torch.BoolTensor
+            Boolean array marking the processors that hold the element.
+        """
+        pass
+
+    @abstractmethod
+    def compatible(self, shape: torch.Size) -> bool:
+        """
+        Check if a tensor is compatible with the distribution.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        bool
+            True if the tensor is compatible, False otherwise.
+        """
+        pass
+

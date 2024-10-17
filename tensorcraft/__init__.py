@@ -4,8 +4,9 @@ __version__ = "0.0.0"
 
 # Classes to be used as tc.<class> / tc.<func>()
 # Modules to be used as tc.<module>.<function>
-# import tensorcraft.distributions as dist
-# from tensorcraft import compiler, viz
+import tensorcraft.distributions as dist
+# from tensorcraft import compiler
+from tensorcraft import viz
 from tensorcraft.util import linear2multiIndex, multi2linearIndex, order2npOrder
 
 # _compiler = compiler.Compiler()

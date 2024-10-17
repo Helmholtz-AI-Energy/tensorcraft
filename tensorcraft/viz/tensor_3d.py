@@ -1,13 +1,13 @@
 """3D tensor visualization."""
 
-import numpy as np
-from matplotlib.axis import Axis
+import torch
+from tensorcraft.distributions import Dist
+from matplotlib.axes import Axes
 
-from tensorcraft.tensor import Tensor
 from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors, rgba2hex
 
 
-def draw_3d_tensor(axes: Axis, tensor: Tensor, cbar: bool = False) -> None:
+def draw_3d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False) -> None:
     """
     Plot a 3D tensor.
 
@@ -24,24 +24,18 @@ def draw_3d_tensor(axes: Axis, tensor: Tensor, cbar: bool = False) -> None:
     -------
     None
     """
-    if tensor.order != 3:
+    if len(shape) != 3:
         raise ValueError("Only 3D tensors are supported")
 
-    processorView = tensor.processorView()
-    colors = get_n_colors(tensor.numWorkers)
+    processorView = dist.processorView(shape)
+    colors = get_n_colors(dist.numProcessors)
     colors_hex = [rgba2hex(color) for color in colors]
     colors_edges = [rgba2hex(color * 0.8) for color in colors]
 
-    x, y, z = np.indices(tensor.shape)  # type: ignore
-
     # build up the numpy logo
-    filled = np.ones(tensor.shape.asTuple())
-    facecolors = np.apply_along_axis(
-        lambda a: colors_hex[np.argmax(a)], -1, processorView
-    )
-    edgecolors = np.apply_along_axis(
-        lambda a: colors_edges[np.argmax(a)], -1, processorView
-    )
+    filled = torch.ones(shape)
+    facecolors = torch.stack([colors_hex[torch.argmax(a)] for a in torch.unbind(processorView, -1)])
+    edgecolors = torch.stack([colors_edges[torch.argmax(a)] for a in torch.unbind(processorView, -1)])
 
     # upscale the above voxel image, leaving gaps
     filled_2 = explode(filled)
@@ -50,7 +44,11 @@ def draw_3d_tensor(axes: Axis, tensor: Tensor, cbar: bool = False) -> None:
 
     # Shrink the gaps
 
-    x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2  # type: ignore
+    # x, y, z = torch.meshgrid(torch.arange(shape[0]), torch.arange(shape[1]), torch.arange(shape[2]))  # type: ignore
+    # x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2  # type: ignore
+    x, y, z = torch.meshgrid(
+        torch.arange(filled_2.shape[0] + 1), torch.arange(filled_2.shape[1] + 1), torch.arange(filled_2.shape[2] + 1)
+    )
     x[0::2, :, :] += 0.1
     y[:, 0::2, :] += 0.1
     z[:, :, 0::2] += 0.1

@@ -1,13 +1,13 @@
 """2D mesh visualization module."""
 
+import torch
 import networkx as nx
-import numpy as np
 from matplotlib.axes import Axes
 
 from tensorcraft.viz.util import get_n_colors, mesh_grid, rgba2hex
 
 
-def draw_2d_mesh(axes: Axes, mesh) -> None:
+def draw_2d_mesh(axes: Axes, mesh: torch.Size) -> None:
     """
     Plot a 2D mesh.
 
@@ -20,15 +20,15 @@ def draw_2d_mesh(axes: Axes, mesh) -> None:
     -------
     None
     """
-    if mesh.order <= 2:
+    if len(mesh) <= 2:
         graph = nx.grid_graph(dim=tuple(mesh[::-1]))
     else:
         raise ValueError("Only 1D and 2D meshes are supported")
 
-    colors = get_n_colors(mesh.size)
+    colors = get_n_colors(mesh.numel())
     hexColors = [rgba2hex(color) for color in colors]
     pos = mesh_grid(mesh)
-    offset = np.array([0.15 / dim for dim in mesh])
+    offset = torch.tensor([0.15 / dim for dim in mesh])
     labelPos = {key: pos + offset for key, pos in pos.items()}
 
     nx.draw(graph, pos, node_color=hexColors, ax=axes)

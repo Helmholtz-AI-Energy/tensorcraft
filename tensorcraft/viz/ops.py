@@ -1,49 +1,48 @@
 """Visualization of tensor operations."""
-
+import torch
 from typing import Optional
 
 import drawsvg as draw
-import numpy as np
 
 from tensorcraft.compiler.model import TensorExpression
-from tensorcraft.tensor import Tensor
-from tensorcraft.types import Index, IndexTuple
 
 
-def _highlight_index(axis: int, index: Index, highlight: Optional[IndexTuple]) -> bool:
+def _highlight_index(axis: int, index: int, highlight: Optional[tuple[int, ...]] = None) -> bool:
     if highlight is None:
         return index == 0
     else:
         return highlight[axis] == index or highlight[axis] is None
 
 
-def _orthogonal_projection(theta: float, gamma: float, phi: float) -> np.ndarray:
+def _orthogonal_projection(theta: float, gamma: float, phi: float) -> torch.tensor:
     # Rotate the 3D point (x, y, z) by theta, gamma and phi angles
     # around the x, y and z axis respectively
     # The rotation matrix is given by:
     # R = Rz * Ry * Rx
 
     # Rotation around the x axis
-    Rx = np.array(
+    Rx = torch.tensor(
         [
             [1, 0, 0],
-            [0, np.cos(theta), -np.sin(theta)],
-            [0, np.sin(theta), np.cos(theta)],
+            [0, torch.cos(theta), -torch.sin(theta)],
+            [0, torch.sin(theta), torch.cos(theta)],
         ]
     )
 
     # Rotation around the y axis
-    Ry = np.array(
+    Ry = torch.tensor(
         [
-            [np.cos(gamma), 0, np.sin(gamma)],
+            [torch.cos(gamma), 0, torch.sin(gamma)],
             [0, 1, 0],
-            [-np.sin(gamma), 0, np.cos(gamma)],
+            [-torch.sin(gamma), 0, torch.cos(gamma)],
         ]
     )
 
     # Rotation around the z axis
-    Rz = np.array(
-        [[np.cos(phi), -np.sin(phi), 0], [np.sin(phi), np.cos(phi), 0], [0, 0, 1]]
+    Rz = torch.tensor(
+        [[torch.cos(phi), -torch.sin(phi), 0],
+         [torch.sin(phi), torch.cos(phi), 0],
+         [0, 0, 1]]
     )
 
     R = Rz @ Ry @ Rx
@@ -52,11 +51,11 @@ def _orthogonal_projection(theta: float, gamma: float, phi: float) -> np.ndarray
 
 def draw_tensor(
     d: draw.Drawing | draw.Group,
-    tensor: Tensor,
+    tensor: torch.Tensor,
     cell_size: float = 1,
     highlight_color: str = "blue",
     stroke_color: str = "black",
-    mindex_highlight: Optional[IndexTuple] = None,
+    mindex_highlight: Optional[tuple[int, ...]] = None,
     stroke_width: float = 0.1,
 ):
     """Draw a tensor as a grid of cells.
@@ -65,7 +64,7 @@ def draw_tensor(
     ----------
     d : draw.Drawing
         The drawing object to append the tensor to.
-    tensor : Tensor
+    tensor : torch.Tensor
         The tensor to draw.
     cell_size : float, optional
         The size of each cell, by default 1.
@@ -73,7 +72,7 @@ def draw_tensor(
         The color to highlight the cells, by default "blue".
     stroke_color : str, optional
         The color of the stroke, by default "black".
-    mindex_highlight : Optional[IndexTuple], optional
+    mindex_highlight : Optional[tuple[int, ...]], optional
         The index to highlight, by default None.
     stroke_width : float, optional
         The width of the stroke, by default 0.1.
@@ -85,14 +84,15 @@ def draw_tensor(
     ValueError
         If the highlight index has a different order than the tensor.
     """
-    if tensor.order > 3:
+    shape = tensor.shape
+    if len(shape) > 3:
         raise ValueError("Cannot draw tensors with order greater than 3")
 
     if mindex_highlight is not None and len(mindex_highlight) != tensor.order:
         raise ValueError("Highlight index must have the same order as the tensor")
 
     # If 0 order, draw a simple square and highlight with
-    if tensor.order == 0:
+    if len(shape) == 0:
         start_x, start_y = -cell_size / 2, -cell_size / 2
         d.append(
             draw.Rectangle(
@@ -105,7 +105,7 @@ def draw_tensor(
             )
         )
 
-    if tensor.order == 1:
+    if len(shape) == 1:
         # Rectangle
         cells = tensor.size
         start_x, start_y = -cell_size / 2, -cell_size * cells / 2
@@ -125,7 +125,7 @@ def draw_tensor(
                 )
             )
 
-    if tensor.order == 2:
+    if len(shape) == 2:
         rows, cols = tensor.shape
         start_x, start_y = -cell_size * cols / 2, -cell_size * rows / 2
         for i in range(rows):
@@ -148,7 +148,7 @@ def draw_tensor(
                     )
                 )
 
-    if tensor.order == 3:
+    if len(shape) == 3:
         # Draw a 3D tensor as a stack of 2D tensors
         rows, cols, depth = tensor.shape
         start_x, start_y, start_z = (
@@ -156,9 +156,9 @@ def draw_tensor(
             -cell_size * rows / 2,
             -cell_size * depth / 2,
         )
-        theta = -10 * np.pi / 180
-        gamma = -10 * np.pi / 180
-        phi = -0 * np.pi / 180
+        theta = -10 * torch.pi / 180
+        gamma = -10 * torch.pi / 180
+        phi = -0 * torch.pi / 180
         R = _orthogonal_projection(theta, gamma, phi)
         for k in reversed(range(depth)):
             fill_depth = _highlight_index(2, k, mindex_highlight)
@@ -172,7 +172,7 @@ def draw_tensor(
                         if fill_row & fill_col & fill_depth
                         else "#00000000"
                     )
-                    coord_matrix = np.array(
+                    coord_matrix = torch.tensor(
                         [
                             [
                                 start_x + j * cell_size,
@@ -219,8 +219,8 @@ def draw_tensor(
 def draw_op(
     d: draw.Drawing,
     op: TensorExpression,
-    tensor_shapes: dict[str, Tensor],
-    mindex_highlight: Optional[IndexTuple],
+    tensor_shapes: dict[str, torch.Size],
+    mindex_highlight: Optional[tuple[int, ...]] = None,
 ):
     """Draw a tensor operation as a graph.
 
@@ -259,11 +259,11 @@ def draw_op(
     print(f"Output index variables: {output_index_variables}")
 
     if mindex_highlight is None:
-        mindex_highlight = tuple([0 for _ in output_shape.shape])
+        mindex_highlight = tuple([0 for _ in output_shape])
 
     # Draw the output tensor
     output_tensor_width = (
-        output_shape.shape[1] * cell_size if output_shape.order > 1 else cell_size
+        output_shape[1] * cell_size if output_shape > 1 else cell_size
     )
     current_x = padding_marging - canvas_w / 2
     print(f"Current x: {current_x}")
@@ -273,10 +273,10 @@ def draw_op(
     d.append(group)
 
     # Label at the top
-    label_h = -output_shape.shape[0] * cell_size / 2 - padding_marging
+    label_h = -output_shape[0] * cell_size / 2 - padding_marging
     d.append(
         draw.Text(
-            f"{op.output[0]} {output_shape.shape}",
+            f"{op.output[0]} {output_shape}",
             font_size_labels,
             current_x + output_tensor_width / 2,
             label_h,
@@ -295,7 +295,7 @@ def draw_op(
     for i, (tensor_name, tensor_idx_exp) in enumerate(op.inputs):
         tensor_shape = tensor_shapes[tensor_name]
         tensor_width = (
-            tensor_shape.shape[1] * cell_size if tensor_shape.order > 1 else cell_size
+            tensor_shape[1] * cell_size if len(tensor_shape) > 1 else cell_size
         )
         current_x = next_x + padding_marging
         group = draw.Group(transform=f"translate({current_x + tensor_width/2}, 0)")
@@ -312,10 +312,10 @@ def draw_op(
         d.append(group)
 
         # Label at the top
-        label_h = -tensor_shape.shape[0] * cell_size / 2 - padding_marging
+        label_h = -tensor_shape[0] * cell_size / 2 - padding_marging
         d.append(
             draw.Text(
-                f"{tensor_name} {tensor_shape.shape}",
+                f"{tensor_name} {tensor_shape}",
                 font_size_labels,
                 current_x + tensor_width / 2,
                 label_h,
