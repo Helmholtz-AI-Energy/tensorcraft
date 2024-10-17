@@ -23,7 +23,7 @@ def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
     ndarray
         An array of n colors.
     """
-    return mpl.colormaps[colormap].resampled(n).colors
+    return torch.tensor(mpl.colormaps[colormap].resampled(n).colors)
 
 
 def rgba2hex(rgba: torch.Tensor) -> str:
@@ -41,7 +41,7 @@ def rgba2hex(rgba: torch.Tensor) -> str:
         The hexadecimal color string.
     """
     RGBA = rgba * 255
-    RGBA = RGBA.dtype(torch.uint8)
+    RGBA = RGBA.type(torch.uint8)
     return "#{:02x}{:02x}{:02x}{:02x}".format(*RGBA)
 
 
@@ -151,7 +151,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
     dict[tuple[int], torch.Tensor]
         A dictionary containing the positions of each element in the mesh grid.
     """
-    positions: dict = {}
+    positions = {}
     for i in range(mesh.numel()):
         mindex = linear2multiIndex(i, mesh)
         pos = [
@@ -160,10 +160,10 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
         if len(mesh) <= 1:
             pos += [0.5]
             pos[-1] = 1 - pos[-1]
-            positions[mindex[0]] = torch.tensor(pos)[::-1]
+            positions[mindex[0]] = torch.tensor(pos).flip(0)
         else:
             pos[-1] = 1 - pos[-1]
-            positions[tuple(mindex)] = torch.tensor(pos)[::-1]
+            positions[tuple(mindex)] = torch.tensor(pos).flip(0)
 
     return positions
 

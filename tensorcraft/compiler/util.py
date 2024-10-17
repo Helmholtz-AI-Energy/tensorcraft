@@ -3,55 +3,53 @@
 import logging
 import re
 from typing import Callable
-
+import torch
 import networkx as nx
-import numpy as np
 
-from tensorcraft.types import IndexTuple, ScalarDataType, TensorDataType, is_scalar_type
 from tensorcraft.util import multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
 TOL = 1e-11
 
-_numpy_ops: dict[str, Callable[..., np.number]] = {
-    "+": np.add,
-    "-": np.subtract,
-    "*": np.multiply,
-    "/": np.divide,
-    "<": np.less,
-    "<=": np.less_equal,
-    "==": np.equal,
-    "!=": np.not_equal,
-    ">=": np.greater_equal,
-    ">": np.greater,
-    "&&": np.logical_and,
-    "||": np.logical_or,
-    "^": np.power,
-    "abs": np.abs,
-    "exp": np.exp,
-    "log": np.log,
-    "log2": np.log2,
-    "log10": np.log10,
-    "sqrt": np.sqrt,
-    "sin": np.sin,
-    "cos": np.cos,
-    "tan": np.tan,
-    "asin": np.arcsin,
-    "acos": np.arccos,
-    "atan": np.arctan,
-    "sinh": np.sinh,
-    "cosh": np.cosh,
-    "tanh": np.tanh,
-    "asinh": np.arcsinh,
-    "acosh": np.arccosh,
-    "atanh": np.arctanh,
-    "ceil": np.ceil,
-    "floor": np.floor,
+_torch_ops: dict[str, Callable[..., torch.Tensor]] = {
+    "+": torch.add,
+    "-": torch.subtract,
+    "*": torch.multiply,
+    "/": torch.divide,
+    "<": torch.less,
+    "<=": torch.less_equal,
+    "==": torch.equal,
+    "!=": torch.not_equal,
+    ">=": torch.greater_equal,
+    ">": torch.greater,
+    "&&": torch.logical_and,
+    "||": torch.logical_or,
+    "^": torch.pow,
+    "abs": torch.abs,
+    "exp": torch.exp,
+    "log": torch.log,
+    "log2": torch.log2,
+    "log10": torch.log10,
+    "sqrt": torch.sqrt,
+    "sin": torch.sin,
+    "cos": torch.cos,
+    "tan": torch.tan,
+    "asin": torch.arcsin,
+    "acos": torch.arccos,
+    "atan": torch.arctan,
+    "sinh": torch.sinh,
+    "cosh": torch.cosh,
+    "tanh": torch.tanh,
+    "asinh": torch.arcsinh,
+    "acosh": torch.arccosh,
+    "atanh": torch.arctanh,
+    "ceil": torch.ceil,
+    "floor": torch.floor,
 }
 
 
-def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarDataType]:
+def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
     """Convert a directed graph of operations to a function.
 
     This function takes a directed graph of operations and converts it to a function
@@ -69,26 +67,26 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarDataType]:
     """
     sorted_nodes = list(nx.topological_sort(op_graph))
 
-    def compute(**kwargs: ScalarDataType) -> ScalarDataType:
+    def compute(**kwargs: torch.Tensor) -> torch.Tensor:
         results = {}
 
         for node in sorted_nodes:
             if node in kwargs:
                 results[node] = kwargs[node]
-            elif node.split(" ")[0] in _numpy_ops:
+            elif node.split(" ")[0] in _torch_ops:
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
-                if np.any(
-                    [isinstance(x, np.floating) for x in op_inputs]
+                if torch.any(
+                    [x.dtype == torch.float for x in op_inputs]
                 ) and op_id in ["==", "!="]:
                     if op_id == "==":
-                        results[node] = np.abs(np.subtract(*op_inputs)) < TOL  # type: ignore
+                        results[node] = torch.abs(torch.subtract(*op_inputs)) < TOL  # type: ignore
                     elif op_id == "!=":
-                        results[node] = np.abs(np.subtract(*op_inputs)) >= TOL  # type: ignore
+                        results[node] = torch.abs(torch.subtract(*op_inputs)) >= TOL  # type: ignore
                 else:
-                    results[node] = _numpy_ops[op_id](*op_inputs)
+                    results[node] = _torch_ops[op_id](*op_inputs)
             else:
-                results[node] = np.float64(node) if "." in node else np.int64(node)
+                results[node] = torch.tensor(node, dtype=torch.float32) if "." in node else torch.tensor(node, dtype=torch.float32)
 
         return results[sorted_nodes[-1]]
 
@@ -98,7 +96,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., ScalarDataType]:
 def idx_exp_compatible(
     var_name: str,
     idx_exp: list[str],
-    tensor: TensorDataType,
+    tensor: torch.Tensor,
     idx_var_sizes: dict[str, int],
 ) -> bool:
     """Check if an index expression is compatible with a tensor.
@@ -121,12 +119,8 @@ def idx_exp_compatible(
     bool
         True if the index expression is compatible with the tensor, False otherwise.
     """
-    if is_scalar_type(tensor):
-        data_shape: list[int] = []
-        data_order = 0
-    else:
-        data_shape = tensor.shape  # type: ignore
-        data_order = len(data_shape)
+    data_shape = tensor.shape  # type: ignore
+    data_order = len(data_shape)
 
     if data_order != len(idx_exp):
         log.error(f"Variable {var_name} has incompatible order.")
@@ -166,7 +160,7 @@ def idx_exp2multiIdx(
     idx_var_names: list[str],
     current_loop_midx: list[int],
     idx_var_sizes: list[int],
-) -> IndexTuple:
+) -> torch.Size:
     """Convert an index expression to a multi-index.
 
     This function converts an index expression to a multi-index. The index expression
@@ -187,7 +181,7 @@ def idx_exp2multiIdx(
 
     Returns
     -------
-    MIndex
+    torch.Size
         The multi-index that corresponds to the index expression.
     """
     current_tensor_midx = [
@@ -204,8 +198,8 @@ def idx_exp2multiIdx(
                 tmp_midx.append(current_loop_midx[idx_var_idx])
                 tmp_shape.append(idx_var_sizes[idx_var_idx])
             current_tensor_midx[i] = multi2linearIndex(
-                tuple(tmp_shape), tuple(tmp_midx), np.array(range(len(tmp_shape)))[::-1]
+                tuple(tmp_shape), tuple(tmp_midx), tuple(range(len(tmp_shape)))[::-1]
             )
         elif re.match(r"[a-z]", sub_idx):
             current_tensor_midx[i] = current_loop_midx[idx_var_names.index(sub_idx)]
-    return tuple(current_tensor_midx)
+    return torch.Size(current_tensor_midx)

@@ -32,8 +32,8 @@ def draw_3d_mesh(axes: Axes, mesh: torch.Size) -> None:
     hexColors = [rgba2hex(color) for color in colors]
     pos = mesh_grid(mesh)
 
-    node_xyz = torch.tensor([pos[v] for v in graph.nodes()])
-    edge_xyz = torch.tensor([[pos[u], pos[v]] for u, v in graph.edges()])
+    node_xyz = torch.stack([pos[v] for v in graph.nodes()])
+    edge_xyz = torch.stack([torch.stack([pos[u], pos[v]]) for u, v in graph.edges()])
 
     axes.scatter(*node_xyz.T, c=hexColors, s=100, alpha=1.0)
     for node, node_pos in zip(graph.nodes(), node_xyz):
