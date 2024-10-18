@@ -2,6 +2,9 @@
 
 __version__ = "0.0.0"
 
+import torch
+torch.autograd.set_grad_enabled(False)
+
 # Classes to be used as tc.<class> / tc.<func>()
 # Modules to be used as tc.<module>.<function>
 import tensorcraft.distributions as dist

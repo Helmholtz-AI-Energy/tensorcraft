@@ -1,4 +1,5 @@
 """A module containing classes for representing a tensor expression and a program."""
+import math
 import torch
 import enum
 import logging
@@ -188,6 +189,9 @@ class TensorExpression:
                 # Initialize the output array
                 if len(input_data) == 0:
                     output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
+                elif len(input_data) == 1:
+                    output_array = torch.zeros(output_shape_hint, dtype=list(input_data.values())[0].dtype)
+
                 else:
                     dtype = torch.result_type(*input_data.values())
                     output_array = torch.zeros(output_shape_hint, dtype=dtype)
@@ -242,9 +246,9 @@ class TensorExpression:
             else:
                 tmp_output_array = output_array
 
-            for i in range(torch.prod(index_var_dims)):
+            for i in range(math.prod(index_var_dims)):
                 # Read elements from input arrays, write them on the operation string and evaluate
-                loop_mindex = torch.tensor(linear2multiIndex(i, index_var_dims))
+                loop_mindex = linear2multiIndex(i, index_var_dims)
                 elementwise_inputs = {}
 
                 for var_id, (var_name, idx_exp_list) in var_idx_exp_dict.items():
@@ -296,7 +300,6 @@ class TensorExpression:
                             tmp_output_array[output_midx] /= value  # type: ignore
 
             if reduction_last:
-                print("Reducing the classic way")
                 axis_tuple = tuple(range(len(self.output[1]), len(tmp_output_idx_expr)))
                 match self.assignment_type:
                     case AssignmentType.ADD:

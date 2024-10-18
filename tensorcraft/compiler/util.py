@@ -72,21 +72,23 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
 
         for node in sorted_nodes:
             if node in kwargs:
-                results[node] = kwargs[node]
+                result = kwargs[node]
             elif node.split(" ")[0] in _torch_ops:
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
-                if torch.any(
+                if any(
                     [x.dtype == torch.float for x in op_inputs]
                 ) and op_id in ["==", "!="]:
                     if op_id == "==":
-                        results[node] = torch.abs(torch.subtract(*op_inputs)) < TOL  # type: ignore
+                        result = torch.tensor(torch.abs(torch.subtract(*op_inputs)) < TOL)  # type: ignore
                     elif op_id == "!=":
-                        results[node] = torch.abs(torch.subtract(*op_inputs)) >= TOL  # type: ignore
+                        result = torch.tensor(torch.abs(torch.subtract(*op_inputs)) >= TOL)  # type: ignore
                 else:
-                    results[node] = _torch_ops[op_id](*op_inputs)
+                    result = _torch_ops[op_id](*op_inputs)
             else:
-                results[node] = torch.tensor(node, dtype=torch.float32) if "." in node else torch.tensor(node, dtype=torch.float32)
+                result = torch.tensor(node, dtype=torch.int32) if "." in node else torch.tensor(node, dtype=torch.float32)
+
+            results[node] = result 
 
         return results[sorted_nodes[-1]]
 
@@ -198,7 +200,7 @@ def idx_exp2multiIdx(
                 tmp_midx.append(current_loop_midx[idx_var_idx])
                 tmp_shape.append(idx_var_sizes[idx_var_idx])
             current_tensor_midx[i] = multi2linearIndex(
-                tuple(tmp_shape), tuple(tmp_midx), tuple(range(len(tmp_shape)))[::-1]
+                tuple(tmp_shape), tuple(tmp_midx), tuple(range(len(tmp_shape)))
             )
         elif re.match(r"[a-z]", sub_idx):
             current_tensor_midx[i] = current_loop_midx[idx_var_names.index(sub_idx)]

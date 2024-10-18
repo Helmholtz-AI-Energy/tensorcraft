@@ -26,13 +26,13 @@ def multi2linearIndex(
 
     Parameters
     ----------
-    dims : torch.Size | torch.Tensor
+    dims : torch.Size 
         An array containing the dimensions of the tensor.
 
-    indices : torch.Size | torch.Tensor
+    indices : torch.Size 
         An array containing the multi-dimensional index.
 
-    order : torch.Size | torch.Tensor | None, optional
+    order : torch.Size
         An array specifying the order in which the dimensions should be considered
         when calculating the linear index. If None, the dimensions are considered
         in the default order, which is the same as the input order.
@@ -70,8 +70,14 @@ def multi2linearIndex(
     else:
         if len(order) == 0 or len(order) > len(dims):
             raise ValueError("Invalid order dimensions")
+        # print("Dims:", dims)
+        # print("Order:", order)
+        # print("Indices:", torch.tensor(indices))
+        order = torch.tensor(order)
         indices_reorderd = torch.tensor(indices)[order].flip(0)
         dims_reorderd = torch.tensor(dims)[order].flip(0)
+        # print("Indices reordered:", indices_reorderd)
+        # print("Dims reordered:", dims_reorderd)
 
     if not torch.all(indices_reorderd >= 0) or not torch.all(
         indices_reorderd < dims_reorderd

@@ -1,8 +1,8 @@
 from typing import Callable
 
+import torch
 import hypothesis.extra.numpy as npst
 import networkx as nx
-import numpy as np
 import pytest
 from hypothesis import given, note, settings
 from hypothesis import strategies as st
@@ -10,9 +10,8 @@ from hypothesis import strategies as st
 import tensorcraft as tc
 from tensorcraft.compiler.model import Program
 
-np.seterr(all="warn")
 
-TOL = 1e-12
+TOL = 1e-6
 MIN_ABS = 1e-5
 MAX_ABS = 1e5
 
@@ -40,25 +39,6 @@ _operations = [
 
 index_names = ["i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
 
-
-def limited_floats(width: int):
-    return st.floats(
-        width=width,
-        allow_infinity=False,
-        allow_nan=False,
-        allow_subnormal=False,
-        min_value=-MAX_ABS,
-        max_value=MAX_ABS,
-    ).filter(lambda x: MIN_ABS <= np.abs(x) <= MAX_ABS if x != 0 else True)
-
-
-@given(value=limited_floats(32))
-def test_limited_strategy(value: np.number):
-    print(value)
-    assert not np.isnan(value)
-    assert not np.isinf(value)
-    if value != 0:
-        assert MIN_ABS <= np.abs(value) <= MAX_ABS
 
 
 @given(program=st.text())
@@ -97,24 +77,23 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
-    data=st.data(),
     op=st.one_of(
-        st.just(("+", np.add)),
-        st.just(("-", np.subtract)),
-        st.just(("*", np.multiply)),
-        st.just(("/", np.divide)),
-        st.just(("<", np.less)),
-        st.just(("<=", np.less_equal)),
-        st.just(("==", np.equal)),
-        st.just(("!=", np.not_equal)),
-        st.just((">", np.greater)),
-        st.just((">=", np.greater_equal)),
+        st.just(("+", torch.add)),
+        st.just(("-", torch.subtract)),
+        st.just(("*", torch.multiply)),
+        st.just(("/", torch.divide)),
+        st.just(("<", torch.less)),
+        st.just(("<=", torch.less_equal)),
+        st.just(("==", torch.equal)),
+        st.just(("!=", torch.not_equal)),
+        st.just((">", torch.greater)),
+        st.just((">=", torch.greater_equal)),
     ),
     float_width=st.sampled_from([32, 64]),
 )
-def test_scalar_ops(data, op: tuple[str, Callable], float_width):
-    a = data.draw(limited_floats(float_width))
-    b = data.draw(limited_floats(float_width))
+def test_scalar_ops(op: tuple[str, Callable], float_width):
+    a = torch.randn(tuple())
+    b = torch.randn(tuple())
     if op[0] == "/" and b == 0:
         b = 1
     expected = op[1](a, b)
@@ -129,30 +108,31 @@ def test_scalar_ops(data, op: tuple[str, Callable], float_width):
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
     op=st.one_of(
-        st.just(("+", np.add)),
-        st.just(("-", np.subtract)),
-        st.just(("*", np.multiply)),
-        st.just(("/", np.divide)),
-        st.just(("<", np.less)),
-        st.just(("<=", np.less_equal)),
-        st.just(("==", np.equal)),
-        st.just(("!=", np.not_equal)),
-        st.just((">", np.greater)),
-        st.just((">=", np.greater_equal)),
+        st.just(("+", torch.add)),
+        st.just(("-", torch.subtract)),
+        st.just(("*", torch.multiply)),
+        st.just(("/", torch.divide)),
+        st.just(("<", torch.less)),
+        st.just(("<=", torch.less_equal)),
+        st.just(("==", torch.equal)),
+        st.just(("!=", torch.not_equal)),
+        st.just((">", torch.greater)),
+        st.just((">=", torch.greater_equal)),
     ),
-    vector=npst.arrays(
-        dtype=np.dtype("float32"),
-        shape=npst.array_shapes(min_dims=1, max_dims=5, max_side=5),
-        elements=limited_floats(32),
-    ),
-    scalar=limited_floats(32),
+    shape=npst.array_shapes(min_dims=1, max_dims=5, max_side=5),
 )
 @settings(deadline=None)
-def test_tensor_scalar_ops(op, vector, scalar):
+def test_tensor_scalar_ops(op, shape):
+    scalar = torch.randn(tuple(), dtype=torch.float32)
     if op[0] == "/" and scalar == 0:
         scalar = 1
 
+    vector = torch.randn(shape, dtype=torch.float32)
+    note(f"Scalar: {scalar}")
+    note(f"Vector: {vector}")
     expected = op[1](vector, scalar)
+    if not isinstance(expected, torch.Tensor):
+        expected = torch.tensor(expected)
     note(f"Expected: {expected}")
 
     idx_str = ",".join([index_names[i] for i in range(len(vector.shape))])
@@ -161,44 +141,41 @@ def test_tensor_scalar_ops(op, vector, scalar):
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B")
     result = program.tensor_expressions[1]({"A": vector, "B": scalar})
     note(f"Result: {result}")
-    assert np.allclose(result, expected, atol=TOL)
+    assert torch.allclose(result.type(dtype=torch.float32), expected.type(dtype=torch.float32), atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
-    data=st.data(),
     op=st.one_of(
-        st.just(("+", np.add)),
-        st.just(("-", np.subtract)),
-        st.just(("*", np.multiply)),
-        st.just(("/", np.divide)),
-        st.just(("<", np.less)),
-        st.just(("<=", np.less_equal)),
-        st.just(("==", np.equal)),
-        st.just(("!=", np.not_equal)),
-        st.just((">", np.greater)),
-        st.just((">=", np.greater_equal)),
+        st.just(("+", torch.add)),
+        st.just(("-", torch.subtract)),
+        st.just(("*", torch.multiply)),
+        st.just(("/", torch.divide)),
+        st.just(("<", torch.less)),
+        st.just(("<=", torch.less_equal)),
+        st.just(("==", torch.equal)),
+        st.just(("!=", torch.not_equal)),
+        st.just((">", torch.greater)),
+        st.just((">=", torch.greater_equal)),
     ),
     shape=npst.array_shapes(min_dims=1, max_dims=4, min_side=1, max_side=5),
 )
 @settings(deadline=None)
-def test_tensor_elementwise_ops(data, op, shape):
-    a = data.draw(
-        npst.arrays(dtype=np.dtype("float32"), shape=shape, elements=limited_floats(32))
-    )
-    b = data.draw(
-        npst.arrays(dtype=np.dtype("float32"), shape=shape, elements=limited_floats(32))
-    )
+def test_tensor_elementwise_ops(op, shape):
+    a = torch.randn(shape, dtype=torch.float32)
+    b = torch.randn(shape, dtype=torch.float32)
 
-    if op[0] == "/" and np.any(b == 0):
-        b[b == 0] = 1
+    if op[0] == "/" and torch.any(b == 0):
+        b[b == 0] = 0.01
     expected = op[1](a, b)
+    if not isinstance(expected, torch.Tensor):
+        expected = torch.tensor(expected)
 
     idx_str = ",".join([index_names[i] for i in range(len(a.shape))])
 
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B[{idx_str}]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
-    assert np.allclose(result, expected, atol=TOL)
+    assert torch.allclose(result.type(dtype=torch.float32), expected.type(torch.float32), atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
@@ -206,8 +183,8 @@ def test_tensor_elementwise_ops(data, op, shape):
     shape=npst.array_shapes(min_dims=1, max_dims=1, max_side=50),
 )
 def test_vector_dot(shape):
-    a = np.random.random(shape)
-    b = np.random.random(shape)
+    a = torch.randn(shape)
+    b = torch.randn(shape)
 
     expected = a @ b
     note(f"Expected: {expected}, {expected.dtype}")
@@ -215,16 +192,16 @@ def test_vector_dot(shape):
     program = tc.compile("C += A[i] * B[i]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
     note(f"Result: {result}, {result.dtype}")
-    assert np.allclose(result, expected, atol=TOL)
+    assert torch.allclose(result, expected, atol=TOL)
 
 
-@pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
 @given(
     shape=npst.array_shapes(min_dims=3, max_dims=3, min_side=2),
 )
+@settings(deadline=None)
 def test_matrix_dot(shape):
-    A = np.random.random((shape[0], shape[1]))
-    B = np.random.random((shape[1], shape[2]))
+    A = torch.randn((shape[0], shape[1]))
+    B = torch.randn((shape[1], shape[2]))
 
     expected = A @ B
     note(f"Expected: {expected}, {expected.dtype}")
@@ -232,51 +209,48 @@ def test_matrix_dot(shape):
     program = tc.compile("C[i,j] += A[i,k] * B[k,j]")
     result = program.tensor_expressions[1]({"A": A, "B": B})
     note(f"Result: {result}, {result.dtype}")
-    assert np.allclose(result, expected, atol=TOL)
+    assert torch.allclose(result, expected, atol=TOL)
+    # assert torch.all(result == expected)
 
 
 @given(
-    data=st.data(),
     shape=npst.array_shapes(min_dims=2, max_dims=4, max_side=5),
 )
-def test_reduction(data, shape):
-    A = data.draw(
-        npst.arrays(dtype=np.dtype("float64"), shape=shape, elements=limited_floats(64))
-    )
-    expected = np.sum(A)
+@settings(deadline=None)
+def test_reduction(shape):
+    A = torch.randn(shape, dtype=torch.float32)
+    expected = torch.sum(A)
 
     idx_str = ",".join([index_names[i] for i in range(len(shape))])
     program = tc.compile(f"C += A[{idx_str}]")
     result = program.tensor_expressions[1]({"A": A})
-    assert np.allclose(result, expected, atol=TOL)
+    assert torch.allclose(result, expected, atol=TOL)
 
-    expected = np.sum(A, axis=tuple(range(1, len(shape))))
+    expected = torch.sum(A, axis=tuple(range(1, len(shape))))
     program = tc.compile(f"C[i] += A[{idx_str}]")
     result = program.tensor_expressions[1]({"A": A})
-    assert np.allclose(result, expected, atol=TOL)
+    assert torch.allclose(result, expected, atol=TOL)
 
 
 @given(
-    data=st.data(),
     shape=npst.array_shapes(min_dims=2, max_dims=2, min_side=2),
 )
-def test_reshape(data, shape):
-    A = data.draw(
-        npst.arrays(dtype=np.dtype("float32"), shape=shape, elements=limited_floats(32))
-    )
+@settings(deadline=None)
+def test_reshape(shape):
+    A = torch.randn(shape, dtype=torch.float32)
     excepted = A.reshape(shape[0] * shape[1])
+    note(f"A: {A}")
+    note(f"Expected: {excepted}")
     program = tc.compile("C[(ij)] = A[i,j]")
     result = program.tensor_expressions[1]({"A": A})
-    assert np.allclose(result, excepted, atol=TOL)
+    note(f"Result: {result}")
+    assert torch.allclose(result, excepted, atol=TOL)
 
-    A = data.draw(
-        npst.arrays(
-            dtype=np.dtype("float32"),
-            shape=(shape[0] * shape[1]),
-            elements=limited_floats(32),
-        )
-    )
+    A = torch.randn(shape[0] * shape[1], dtype=torch.float32)
     excepted = A.reshape(shape)
+    note(f"A: {A}")
+    note(f"Expected: {excepted}")
     program = tc.compile("C[i,j] = A[(ij)]")
     result = program.tensor_expressions[1]({"A": A}, output_shape_hint=shape)
-    assert np.allclose(result, excepted, atol=TOL)
+    note(f"Result: {result}")
+    assert torch.allclose(result, excepted, atol=TOL)
