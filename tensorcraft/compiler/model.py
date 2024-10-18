@@ -191,10 +191,13 @@ class TensorExpression:
                     output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
                 elif len(input_data) == 1:
                     output_array = torch.zeros(output_shape_hint, dtype=list(input_data.values())[0].dtype)
-
-                else:
+                elif len(input_data) == 2:
                     dtype = torch.result_type(*input_data.values())
                     output_array = torch.zeros(output_shape_hint, dtype=dtype)
+                else: 
+                    output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
+
+
 
                 if not idx_exp_compatible(
                     self.output[0],
@@ -265,9 +268,9 @@ class TensorExpression:
                     elementwise_inputs[var_id] = value
 
                 for index_var in index_var_names:
-                    elementwise_inputs[index_var] = loop_mindex[
+                    elementwise_inputs[index_var] = torch.tensor(loop_mindex[
                         index_var_names.index(index_var)
-                    ]
+                    ])
 
                 value = op_func(**elementwise_inputs)
 

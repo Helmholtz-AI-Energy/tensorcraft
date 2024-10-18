@@ -86,7 +86,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
                 else:
                     result = _torch_ops[op_id](*op_inputs)
             else:
-                result = torch.tensor(node, dtype=torch.int32) if "." in node else torch.tensor(node, dtype=torch.float32)
+                result = torch.tensor(int(node)) if "." in node else torch.tensor(float(node), dtype=torch.float32)
 
             results[node] = result 
 
