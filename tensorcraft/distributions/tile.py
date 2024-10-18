@@ -3,7 +3,7 @@
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util import multi2linearIndex
+from tensorcraft.util import multi2linearIndex, linear2multiIndex
 
 
 class TileDist(Dist):
@@ -28,12 +28,12 @@ class TileDist(Dist):
             (*shape, self.numProcessors), dtype=torch.bool
         )
         for i in range(shape.numel()):
-            i_mi = multi2linearIndex(shape, i)
-            processor_view[tuple(i_mi) + (None,)] = self.getIndexLocation(shape, i_mi)
+            i_mi = linear2multiIndex(i, shape)
+            processor_view[tuple(i_mi) + (None,)] = self.getElementLocation(shape, i_mi)
 
         return processor_view
 
-    def getIndexLocation(self, shape: torch.Size, index: int | torch.Size):  # noqa: D102
+    def getElementLocation(self, shape: torch.Size, index: int | torch.Size):  # noqa: D102
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
         
@@ -44,7 +44,7 @@ class TileDist(Dist):
         shrinked_index = torch.tensor(index) // self._tile_size
         shrinked_shape = torch.tensor(shape) // self._tile_size
         shrinked_linear_index = multi2linearIndex(
-            shrinked_shape, shrinked_index, order=torch.arange(len(shape))[::-1]
+            shrinked_shape, shrinked_index, order=torch.arange(len(shape)).flip(0)
         )
 
         p_list = torch.zeros((self.numProcessors,), dtype=torch.bool)

@@ -36,21 +36,21 @@ def draw_2d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
     processor_view = dist.processorView(shape) 
 
     if len(shape) == 1:
-        img_shape = torch.tensor(shape).reshape(-1, 1)
+        img_shape = torch.Size([shape[0], 1])
     elif len(shape) == 0:
-        img_shape = torch.tensor([1]).reshape(1,1)
+        img_shape = torch.Size([1, 1])
     else:
-        img_shape = torch.tensor(shape)
+        img_shape = shape
 
     colors = get_n_colors(dist.numProcessors)
     img = torch.zeros((*img_shape, 4))
     for i in range(shape.numel()):
         m_idx = linear2multiIndex(i, img_shape)
         img[m_idx[0], m_idx[1], :] = colors[
-            torch.argmax(processor_view[m_idx[0], m_idx[1], :])
+            processor_view[m_idx[0], m_idx[1], :].nonzero()
         ]
 
-    axes.imshow(img[::-1], origin="lower", aspect="equal")
+    axes.imshow(img.flip(0), origin="lower", aspect="equal")
 
     # Ticks
     draw_2d_grid(axes, img_shape)
@@ -98,9 +98,10 @@ def draw_2d_processor_view(
 
     p_midx = dist.getProcessorMultiIndex(processor)
 
+
     img = torch.stack(
-        [colors[processor] if a[processor] else [0.0, 0.0, 0.0, 0.0] for a in torch.unbind(processor_view, dim=-1)]
-    )
+        [colors[processor] if a[processor] else torch.zeros(4, dtype=torch.float32) for a in processor_view.reshape(-1, dist.numProcessors).unbind(0)]
+    ).reshape(*shape, 4)
     axes.imshow(img, origin="upper", aspect="equal")
     draw_2d_grid(axes, img_shape)
 

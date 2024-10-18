@@ -1,4 +1,5 @@
 """MultiAxisDist class."""
+import math
 from typing import TypeAlias
 
 from tensorcraft.distributions.dist import Dist
@@ -58,7 +59,7 @@ class MultiAxisDist(Dist):
 
         return processor_view
 
-    def getIndexLocation(self, shape, index):  # noqa: D102
+    def getElementLocation(self, shape, index):  # noqa: D102
         if isinstance(index, int):
             mindex = linear2multiIndex(index, shape)
         else:
@@ -117,15 +118,15 @@ class MultiAxisDist(Dist):
         dim_distribution = torch.ones((dim_size, num_process), dtype=torch.bool)
         mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
         block_size = self._block_sizes[dim]
-        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, torch.prod(mesh_dims))  # type: ignore
+        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, math.prod(mesh_dims))  # type: ignore
         start_idx = 0
         for chunk_idx, end_idx in enumerate(axis_chunk_ends):
-            left_eq = chunk_idx % torch.prod(mesh_dims)
+            left_eq = chunk_idx % math.prod(mesh_dims)
             for j in range(num_process):
                 p_mi = self.getProcessorMultiIndex(j)
                 right_eq = multi2linearIndex(
                     self._pmesh, p_mi, order=mesh_dims_idx
-                ) % torch.prod(mesh_dims)  # type: ignore
+                ) % math.prod(mesh_dims)  # type: ignore
                 dim_distribution[start_idx:end_idx, j] = left_eq == right_eq
 
             start_idx = end_idx

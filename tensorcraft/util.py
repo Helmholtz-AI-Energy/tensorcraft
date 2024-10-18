@@ -79,6 +79,12 @@ def multi2linearIndex(
         raise ValueError("Indices out of bounds")
 
     result = 0
+    if indices_reorderd.size() == tuple():
+        indices_reorderd = indices_reorderd.unsqueeze(-1)
+        dims_reorderd = dims_reorderd.unsqueeze(-1)
+        
+    # print("Indices: ", indices_reorderd)
+    # print("Dims: ", dims_reorderd)
     for i in range(len(indices_reorderd)):
         result += indices_reorderd[i] * torch.prod(dims_reorderd[:i])
     return result

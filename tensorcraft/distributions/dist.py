@@ -46,7 +46,7 @@ class Dist(ABC):
             tile_dims[:-1] = block_size
             tile_dims[-1] = block_size - rest
 
-        return tile_dims, torch.cumsum(tile_dims)
+        return tile_dims, torch.cumsum(tile_dims, dim=0)
 
     def __init__(self, processor_mesh: int | torch.Size):
         if isinstance(processor_mesh, int):

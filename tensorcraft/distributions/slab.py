@@ -15,7 +15,7 @@ class SlabDist(Dist):
         self._block_size = block_size
 
     def compatible(self, shape: torch.Size) -> bool:
-        if len(shape) > self._dim and shape[self._dim] < self.numProcessors():
+        if len(shape) > self._dim and shape[self._dim] < self.numProcessors:
             print(f"Tensor dimension {self._dim} is less than the number of processors")
             return False
 
@@ -36,7 +36,7 @@ class SlabDist(Dist):
         _, tile_ends = self.axisSplits(
             shape[self._dim],
             self._block_size,
-            self.numProcessors()
+            self.numProcessors
         )
 
         processor_view = torch.zeros(
@@ -55,7 +55,7 @@ class SlabDist(Dist):
             prev_idx = next_idx
         return processor_view
 
-    def getIndexLocation(self, shape: torch.Size, index: torch.Size | int):
+    def getElementLocation(self, shape: torch.Size, index: torch.Size | int):
         if isinstance(index, int):
             mindex = multi2linearIndex(shape, index)
         else:

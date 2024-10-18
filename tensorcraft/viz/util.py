@@ -131,8 +131,13 @@ def explode(data: torch.Tensor) -> torch.Tensor:
     ndarray
         The exploded 3D array.
     """
-    size = torch.Tensor(data.shape) * 2
-    data_e = torch.Tensor(size - 1, dtype=data.dtype)
+    if len(data.shape) == 3:
+        size = torch.tensor(data.shape) * 2 - 1
+    elif len(data.shape) == 4:
+        size = torch.tensor(data.shape)
+        size[0:3] = size[0:3] * 2 - 1
+
+    data_e = torch.zeros(*size, dtype=data.dtype)
     data_e[::2, ::2, ::2] = data
     return data_e
 
