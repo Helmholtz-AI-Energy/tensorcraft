@@ -197,8 +197,6 @@ class TensorExpression:
                 else: 
                     output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
 
-
-
                 if not idx_exp_compatible(
                     self.output[0],
                     self.output[1],
@@ -225,9 +223,9 @@ class TensorExpression:
                 f"{var}[{','.join(idxs)}]": (var, idxs) for (var, idxs) in self.inputs
             }
 
-            reduction_last = (self.assignment_type != AssignmentType.ASSIGN) and (
+            reduction_last = ((self.assignment_type != AssignmentType.ASSIGN) and (
                 self.output[0] not in input_data
-            )
+            ))
 
             # Write directly on the output array, because there is no reduction or because it is also part of the input
             if reduction_last:
@@ -301,24 +299,29 @@ class TensorExpression:
                             tmp_output_array[output_midx] *= value  # type: ignore
                         case AssignmentType.DIV:
                             tmp_output_array[output_midx] /= value  # type: ignore
+                
 
             if reduction_last:
+                print("Reduction last")
                 axis_tuple = tuple(range(len(self.output[1]), len(tmp_output_idx_expr)))
                 match self.assignment_type:
                     case AssignmentType.ADD:
-                        output_array += torch.sum(tmp_output_array, dim=axis_tuple)
+                        output_array += torch.sum(tmp_output_array, dim=axis_tuple, dtype=output_array.dtype)
                     case AssignmentType.SUB:
                         output_array -= torch.sum(
                             tmp_output_array, axis=axis_tuple
-                        )
+                        , dtype=output_array.dtype)
                     case AssignmentType.MUL:
                         for axis in axis_tuple[::-1]:
-                            tmp_output_array = torch.prod(tmp_output_array, dim=axis)
+                            tmp_output_array = torch.prod(tmp_output_array, dim=axis, dtype=output_array.dtype)
                         output_array *= tmp_output_array
                     case AssignmentType.DIV:
                         for axis in axis_tuple[::-1]:
-                            tmp_output_array = torch.prod(tmp_output_array, dim=axis)
+                            tmp_output_array = torch.prod(tmp_output_array, dim=axis, dtype=output_array.dtype)
                         output_array /= tmp_output_array
+                
+            else:
+                output_array = tmp_output_array.clone().detach()
         return output_array
 
 

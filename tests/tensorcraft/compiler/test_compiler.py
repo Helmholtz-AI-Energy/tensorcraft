@@ -11,7 +11,7 @@ import tensorcraft as tc
 from tensorcraft.compiler.model import Program
 
 
-TOL = 1e-6
+TOL = 1e-14
 MIN_ABS = 1e-5
 MAX_ABS = 1e5
 
@@ -123,16 +123,20 @@ def test_scalar_ops(op: tuple[str, Callable], float_width):
 )
 @settings(deadline=None)
 def test_tensor_scalar_ops(op, shape):
-    scalar = torch.randn(tuple(), dtype=torch.float32)
+    scalar = torch.randn(tuple())
     if op[0] == "/" and scalar == 0:
         scalar = 1
 
-    vector = torch.randn(shape, dtype=torch.float32)
+    vector = torch.randn(shape)
     note(f"Scalar: {scalar}")
     note(f"Vector: {vector}")
     expected = op[1](vector, scalar)
+
     if not isinstance(expected, torch.Tensor):
         expected = torch.tensor(expected)
+    
+    if expected.dtype != torch.float64:
+        expected = expected.type(torch.float64)
     note(f"Expected: {expected}")
 
     idx_str = ",".join([index_names[i] for i in range(len(vector.shape))])
@@ -141,7 +145,7 @@ def test_tensor_scalar_ops(op, shape):
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B")
     result = program.tensor_expressions[1]({"A": vector, "B": scalar})
     note(f"Result: {result}")
-    assert torch.allclose(result.type(dtype=torch.float32), expected.type(dtype=torch.float32), atol=TOL)
+    assert torch.allclose(result, expected, atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
@@ -162,20 +166,25 @@ def test_tensor_scalar_ops(op, shape):
 )
 @settings(deadline=None)
 def test_tensor_elementwise_ops(op, shape):
-    a = torch.randn(shape, dtype=torch.float32)
-    b = torch.randn(shape, dtype=torch.float32)
+    a = torch.randn(shape)
+    b = torch.randn(shape)
 
     if op[0] == "/" and torch.any(b == 0):
         b[b == 0] = 0.01
     expected = op[1](a, b)
     if not isinstance(expected, torch.Tensor):
         expected = torch.tensor(expected)
+    
+    if expected.dtype != torch.float64:
+        expected = expected.type(torch.float64)
 
     idx_str = ",".join([index_names[i] for i in range(len(a.shape))])
 
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B[{idx_str}]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
-    assert torch.allclose(result.type(dtype=torch.float32), expected.type(torch.float32), atol=TOL)
+    print(f"Expected: {expected}")
+    print(f"Result: {result}")
+    assert torch.allclose(result, expected, atol=TOL)
 
 
 @pytest.mark.filterwarnings("ignore:overflow:RuntimeWarning")
@@ -218,7 +227,7 @@ def test_matrix_dot(shape):
 )
 @settings(deadline=None)
 def test_reduction(shape):
-    A = torch.randn(shape, dtype=torch.float32)
+    A = torch.randn(shape)
     expected = torch.sum(A)
 
     idx_str = ",".join([index_names[i] for i in range(len(shape))])
@@ -237,7 +246,7 @@ def test_reduction(shape):
 )
 @settings(deadline=None)
 def test_reshape(shape):
-    A = torch.randn(shape, dtype=torch.float32)
+    A = torch.randn(shape)
     excepted = A.reshape(shape[0] * shape[1])
     note(f"A: {A}")
     note(f"Expected: {excepted}")
@@ -246,7 +255,7 @@ def test_reshape(shape):
     note(f"Result: {result}")
     assert torch.allclose(result, excepted, atol=TOL)
 
-    A = torch.randn(shape[0] * shape[1], dtype=torch.float32)
+    A = torch.randn(shape[0] * shape[1])
     excepted = A.reshape(shape)
     note(f"A: {A}")
     note(f"Expected: {excepted}")

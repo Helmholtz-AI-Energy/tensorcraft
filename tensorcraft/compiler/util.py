@@ -10,7 +10,7 @@ from tensorcraft.util import multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
-TOL = 1e-11
+TOL = torch.tensor(1e-14)
 
 _torch_ops: dict[str, Callable[..., torch.Tensor]] = {
     "+": torch.add,
@@ -73,6 +73,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
         for node in sorted_nodes:
             if node in kwargs:
                 result = kwargs[node]
+                # print(f"Node: {node}, Result: {result}")
             elif node.split(" ")[0] in _torch_ops:
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
@@ -80,13 +81,17 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
                     [x.dtype == torch.float for x in op_inputs]
                 ) and op_id in ["==", "!="]:
                     if op_id == "==":
-                        result = torch.tensor(torch.abs(torch.subtract(*op_inputs)) < TOL)  # type: ignore
+                        result = torch.lt(torch.abs(torch.subtract(*op_inputs)), TOL)  # type: ignore
                     elif op_id == "!=":
-                        result = torch.tensor(torch.abs(torch.subtract(*op_inputs)) >= TOL)  # type: ignore
+                        result = torch.ge(torch.abs(torch.subtract(*op_inputs)), TOL)  # type: ignore
                 else:
                     result = _torch_ops[op_id](*op_inputs)
+                    if not isinstance(result, torch.Tensor):
+                        result = torch.tensor(result)
+
+                # print(f"Node: {node}, Inputs: {op_inputs}, Result: {result}")
             else:
-                result = torch.tensor(int(node)) if "." in node else torch.tensor(float(node), dtype=torch.float32)
+                result = torch.tensor(int(node)) if "." in node else torch.tensor(float(node), dtype=torch.float64)
 
             results[node] = result 
 
