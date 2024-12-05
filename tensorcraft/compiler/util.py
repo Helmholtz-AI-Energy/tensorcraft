@@ -3,8 +3,9 @@
 import logging
 import re
 from typing import Callable
-import torch
+
 import networkx as nx
+import torch
 
 from tensorcraft.util import multi2linearIndex
 
@@ -67,8 +68,8 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
     """
     sorted_nodes = list(nx.topological_sort(op_graph))
 
-    def compute(**kwargs: torch.Tensor) -> torch.Tensor:
-        results = {}
+    def compute(**kwargs: torch.Tensor) -> dict[str, torch.Tensor]:
+        results: dict[str, torch.Tensor] = {}
 
         for node in sorted_nodes:
             if node in kwargs:
@@ -77,9 +78,10 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
             elif node.split(" ")[0] in _torch_ops:
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
-                if any(
-                    [x.dtype == torch.float for x in op_inputs]
-                ) and op_id in ["==", "!="]:
+                if any([x.dtype == torch.float for x in op_inputs]) and op_id in [
+                    "==",
+                    "!=",
+                ]:
                     if op_id == "==":
                         result = torch.lt(torch.abs(torch.subtract(*op_inputs)), TOL)  # type: ignore
                     elif op_id == "!=":
@@ -91,9 +93,13 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
 
                 # print(f"Node: {node}, Inputs: {op_inputs}, Result: {result}")
             else:
-                result = torch.tensor(int(node)) if "." in node else torch.tensor(float(node), dtype=torch.float64)
+                result = (
+                    torch.tensor(int(node))
+                    if "." in node
+                    else torch.tensor(float(node), dtype=torch.float64)
+                )
 
-            results[node] = result 
+            results[node] = result
 
         return results[sorted_nodes[-1]]
 

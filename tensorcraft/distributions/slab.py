@@ -4,12 +4,32 @@
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util import multi2linearIndex, linear2multiIndex
+from tensorcraft.util import multi2linearIndex
 
 
 class SlabDist(Dist):
+    """
+    Single axis distribution with configurable block size.
 
-    def __init__(self, processor_mesh: int | torch.Size, dim: int = 0, block_size: int = 0) -> None:
+    Parameters
+    ----------
+    processor_mesh : int | torch.Size
+        The number of processors in each dimension.
+    dim : int, optional
+        The dimension to distribute, by default 0.
+    block_size : int, optional
+        The size of the blocks, by default 0.
+
+    Raises
+    ------
+    ValueError
+        If the block size is too big for the number of processors and tensor dimensions.
+
+    """
+
+    def __init__(
+        self, processor_mesh: int | torch.Size, dim: int = 0, block_size: int = 0
+    ) -> None:
         super().__init__(processor_mesh=processor_mesh)
         self._dim = dim
         self._block_size = block_size
@@ -21,7 +41,7 @@ class SlabDist(Dist):
 
         if (
             self._block_size != 0
-            and self.numProcessors() * self._block_size > shape[self._dim]
+            and self.numProcessors * self._block_size > shape[self._dim]
         ):
             raise ValueError(
                 "Block size is too big for the number of processors and tensor dimensions"
@@ -34,14 +54,10 @@ class SlabDist(Dist):
             raise ValueError("The tensor is not compatible with the distribution")
 
         _, tile_ends = self.axisSplits(
-            shape[self._dim],
-            self._block_size,
-            self.numProcessors
+            shape[self._dim], self._block_size, self.numProcessors
         )
 
-        processor_view = torch.zeros(
-            (*shape, self.numProcessors), dtype=torch.bool
-        )
+        processor_view = torch.zeros((*shape, self.numProcessors), dtype=torch.bool)
 
         prev_idx = 0
         for p, next_idx in enumerate(tile_ends):
@@ -57,7 +73,7 @@ class SlabDist(Dist):
 
     def getElementLocation(self, shape: torch.Size, index: torch.Size | int):
         if isinstance(index, int):
-            mindex = multi2linearIndex(shape, index)
+            mindex: torch.Size = multi2linearIndex(shape, index)
         else:
             mindex = index
 

@@ -38,7 +38,8 @@ dependencies = [
     "lark",
     "matplotlib",
     "networkx",
-    "drawsvg"
+    "drawsvg",
+    "mpi4py"
 ]
 
 [project.optional-dependencies]
@@ -58,6 +59,7 @@ dev = [
     # Interactive stuff
     "ipykernel",
     "ipympl",
+
 ]
 
 [project.urls]
@@ -70,7 +72,7 @@ Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/blob/main/CHANGE
 # Ruff
 [tool.ruff]
 target-version = "py310"
-extend-include = ["*.ipynb"]
+extend-exclude = ["notebooks/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "D"]
