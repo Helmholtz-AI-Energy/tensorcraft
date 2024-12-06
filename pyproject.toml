@@ -39,11 +39,10 @@ dependencies = [
     "matplotlib",
     "networkx",
     "drawsvg",
-    "mpi4py"
 ]
 
 [project.optional-dependencies]
-notebook = ["ipython", "ipyml"]
+notebook = ["ipython", "ipympl", "mpi4py", "ipyparallel"]
 dev = [
     # Testing
     "pytest",
@@ -59,7 +58,6 @@ dev = [
     # Interactive stuff
     "ipykernel",
     "ipympl",
-
 ]
 
 [project.urls]
