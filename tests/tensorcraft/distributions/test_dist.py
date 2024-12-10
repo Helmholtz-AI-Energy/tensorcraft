@@ -1,0 +1,52 @@
+import math
+import random
+
+import hypothesis.strategies as st
+from hypothesis import assume, given, note
+
+import tensorcraft as tc
+
+
+@given(
+    axis_size=st.integers(min_value=10, max_value=100),
+    num_procs=st.integers(min_value=1, max_value=64),
+)
+def test_maxBlockSize(axis_size, num_procs):
+    assume(axis_size >= num_procs)
+    max_block_size = tc.dist.Dist.maxBlockSize(axis_size, num_procs)
+    note(f"Max block size: {max_block_size}")
+
+    # Check that the block size is less than the axis size
+    assert max_block_size <= axis_size
+    assert max_block_size >= 1
+
+    max_n_procs = math.floor(axis_size / max_block_size)
+    max_n_procs += 1 if axis_size % max_block_size > 0 else 0
+
+    assert num_procs <= max_n_procs
+
+
+@given(
+    axis_size=st.integers(min_value=10, max_value=100),
+    num_procs=st.integers(min_value=2, max_value=64),
+)
+def test_axisSplits(axis_size, num_procs):
+    assume(axis_size >= num_procs)
+    max_block_size = tc.dist.Dist.maxBlockSize(axis_size, num_procs)
+    note(f"Max block size: {max_block_size}")
+
+    rand_block_size = random.randint(0, max_block_size)
+    note(f"Random block size: {rand_block_size}")
+
+    tile_sizes, tile_ends = tc.dist.Dist.axisSplits(
+        axis_size, rand_block_size, num_procs
+    )
+    note(f"Tile sizes: {tile_sizes}")
+    note(f"Tile ends: {tile_ends}")
+    assert tile_sizes.sum().item() == axis_size
+    assert len(tile_sizes) == len(tile_ends)
+    assert len(tile_sizes) >= num_procs
+    assert tile_ends[-1] == axis_size
+    assert tile_ends[0] == tile_sizes[0]
+
+    assert all([0 < tile_sizes[i] <= max_block_size for i in range(len(tile_sizes))])

@@ -163,3 +163,5 @@ cython_debug/
 pdm.lock
 .ruff_cache
 notebooks/plots
+
+.vscode/
