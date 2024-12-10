@@ -35,17 +35,16 @@ class SlabDist(Dist):
         self._block_size = block_size
 
     def compatible(self, shape: torch.Size) -> bool:
-        if len(shape) > self._dim and shape[self._dim] < self.numProcessors:
-            print(f"Tensor dimension {self._dim} is less than the number of processors")
+        # Check that tensor has at least self._dim + 1 number of dimensions
+        if len(shape) <= self._dim:
+            print(f"Tensor must have at least {self._dim + 1} dimensions")
             return False
 
-        if (
-            self._block_size != 0
-            and self.numProcessors * self._block_size > shape[self._dim]
+        if not self.compatibleAxis(
+            self._dim, shape[self._dim], self._block_size, self.numProcessors
         ):
-            raise ValueError(
-                "Block size is too big for the number of processors and tensor dimensions"
-            )
+            print(f"Axis {self._dim}: Incompatible axis with distribution scheme")
+            return False
 
         return True
 

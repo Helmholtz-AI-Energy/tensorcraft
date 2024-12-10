@@ -1,11 +1,12 @@
 """Abstract base class for distributions."""
 
+import math
 from abc import ABC, abstractmethod
 
-import math
 import torch
 
 from tensorcraft.util import linear2multiIndex
+
 
 class Dist(ABC):
     """Abstract base class for distributions."""
@@ -23,6 +24,8 @@ class Dist(ABC):
             The size of the axis.
         block_size : int
             The size of the blocks.
+        num_procs : int
+            The number of processors.
 
         Returns
         -------
@@ -38,22 +41,92 @@ class Dist(ABC):
         else:
             # Calculate the number of blocks
             n_blocks = axis_size // block_size
-            if axis_size % block_size:
-                n_blocks += 1
-            tile_dims = torch.zeros((n_blocks,), dtype=torch.int)
-
             rest = axis_size % block_size
-            tile_dims[:-1] = block_size
-            tile_dims[-1] = block_size - rest
+            if rest:
+                tile_dims = torch.zeros((n_blocks + 1,), dtype=torch.int)
+                tile_dims[:-1] = block_size
+                tile_dims[-1] = rest
+            else:
+                tile_dims = torch.zeros((n_blocks,), dtype=torch.int)
+                tile_dims[:] = block_size
 
         return tile_dims, torch.cumsum(tile_dims, dim=0)
+
+    @staticmethod
+    def maxBlockSize(axis_size: int, num_procs: int) -> int:
+        """
+        Calculate the maximum allowed block size given the size of the axis and the number of workers.
+
+        Parameters
+        ----------
+        axis_size : int
+            The size of the axis.
+        num_procs : int
+            The number of processors.
+
+        Returns
+        -------
+        int
+            The maximum block size.
+        """
+        if num_procs == 1:
+            return axis_size
+
+        max_block_size = math.floor(axis_size / (num_procs - 1)) - 1
+        if max_block_size < 1:
+            max_block_size = 1
+        return max_block_size
+
+    @staticmethod
+    def compatibleAxis(
+        axis_index, axis_size: int, block_size: int, num_procs: int
+    ) -> bool:
+        """
+        Given an axis size, block size, and number of processors, check if the axis can be distributed.
+
+        Parameters
+        ----------
+        axis_index : int
+            The index of the axis.
+        axis_size : int
+            The size of the axis.
+        block_size : int
+            The size of the blocks.
+        num_procs : int
+            The number of processors.
+
+        Returns
+        -------
+        bool
+            True if the axis can be distributed, False otherwise.
+        """
+        # 1) Number of processors must be less or equal the axis size, otherwise there are empty processors
+        if axis_size < num_procs:
+            print(
+                f"Axis {axis_index}: Number of processors must be less or equal the axis size to avoid empty processors"
+            )
+            return False
+
+        # 2.a) Block size must be greater or equal 0
+        if block_size < 0:
+            print(f"Axis {axis_index}: Block size must be greater or equal 0")
+            return False
+
+        # 2.b) Block size must ensure that each of the processors has access to at least one element
+        max_block_size = Dist.maxBlockSize(axis_size, num_procs)
+        if block_size > max_block_size:
+            print(
+                f"Axis {axis_index}: Block size is too big for the number of processors and tensor axis size"
+            )
+            return False
+
+        return True
 
     def __init__(self, processor_mesh: int | torch.Size):
         if isinstance(processor_mesh, int):
             self._pmesh = torch.Size([processor_mesh])
         else:
             self._pmesh = processor_mesh
-
 
     @property
     def numProcessors(self) -> int:
@@ -94,7 +167,6 @@ class Dist(ABC):
             The multi-index of the processor.
         """
         return linear2multiIndex(index, self._pmesh)
-
 
     @abstractmethod
     def processorView(self, shape: torch.Size) -> torch.Tensor:
@@ -152,4 +224,3 @@ class Dist(ABC):
             True if the tensor is compatible, False otherwise.
         """
         pass
-
