@@ -1,10 +1,10 @@
 """Utility functions for visualization."""
 
 import matplotlib as mpl
-from matplotlib.axes import Axes
 import torch
+from matplotlib.axes import Axes
 
-from tensorcraft.util import multi2linearIndex, linear2multiIndex
+from tensorcraft.util import linear2multiIndex
 
 
 def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
@@ -81,7 +81,9 @@ def draw_2d_grid(ax: Axes, shape: tuple | torch.Tensor, color: str = "black") ->
     ax.set_ylabel("Axis 0")
 
 
-def draw_color_bar(fig, axs, colors: torch.Tensor, shrink=1.0, orientation="horizontal"):
+def draw_color_bar(
+    fig, axs, colors: torch.Tensor, shrink=1.0, orientation="horizontal"
+):
     """
     Draw a color bar for the given colors.
 
@@ -98,22 +100,23 @@ def draw_color_bar(fig, axs, colors: torch.Tensor, shrink=1.0, orientation="hori
     -------
     None
     """
+    np_colors = colors.numpy()
     location = "bottom" if orientation == "horizontal" else "right"
-    cmap = mpl.colors.ListedColormap(colors)
-    norm = mpl.colors.BoundaryNorm(torch.arange(-0.5, len(colors), 1), cmap.N)
+    cmap = mpl.colors.ListedColormap(np_colors)
+    norm = mpl.colors.BoundaryNorm(torch.arange(-0.5, len(np_colors), 1), cmap.N)
     cbar = fig.colorbar(
         mpl.cm.ScalarMappable(cmap=cmap, norm=norm),
         ax=axs,
         orientation=orientation,
         shrink=shrink,
-        ticks=torch.arange(0, len(colors), 1),
+        ticks=torch.arange(0, len(np_colors), 1),
         location=location,
-        panchor=(0.5, 0.5),
+        panchor=(0.5, 0),
     )
     if orientation == "horizontal":
-        cbar.ax.set_xticklabels(torch.arange(0, len(colors), 1))
+        cbar.ax.set_xticklabels(torch.arange(0, len(np_colors), 1).numpy())
     else:
-        cbar.ax.set_yticklabels(torch.arange(0, len(colors), 1))
+        cbar.ax.set_yticklabels(torch.arange(0, len(np_colors), 1).numpy())
     cbar.set_label("Processor index")
 
 
