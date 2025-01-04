@@ -9,7 +9,7 @@ from tensorcraft.distributions.dist import Dist
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
-BlockSizesType: TypeAlias = tuple[int, ...]
+BlockSizesType: TypeAlias = int | tuple[int, ...]
 
 
 class MultiAxisDist(Dist):
@@ -42,6 +42,9 @@ class MultiAxisDist(Dist):
         block_sizes: BlockSizesType,
     ) -> None:
         super().__init__(processor_mesh=processor_mesh)
+        if isinstance(block_sizes, int):
+            block_sizes = (block_sizes,) * len(dims_mapping)
+
         if len(dims_mapping) != len(block_sizes):
             raise ValueError("The number of dimensions and block sizes must match")
         for dim in dims_mapping:

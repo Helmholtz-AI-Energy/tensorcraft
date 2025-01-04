@@ -1,11 +1,16 @@
 """Abstract base class for distributions."""
 
+import logging
 import math
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import torch
+from typing_extensions import Self
 
 from tensorcraft.util import linear2multiIndex
+
+log = logging.getLogger("tensorcraft")
 
 
 class Dist(ABC):
@@ -224,3 +229,72 @@ class Dist(ABC):
             True if the tensor is compatible, False otherwise.
         """
         pass
+
+    def allGather(
+        self, shape, mesh_axis: Optional[int] = None
+    ) -> tuple[Optional[Self], list[int]]:
+        """
+        Return the distribution that results from gathering the tensor across the selected processor mesh axis.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of the tensor.
+        mesh_axis : int, optional
+            The processor mesh axis, by default None, signifying an all-gather over all the processors.
+
+        Returns
+        -------
+        Dist
+            The distribution that results from the all-gather. None if the tensor is not compatible with the distribution.
+        list[int]
+            The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
+        """
+        log.warning("allGather not implemented for abstract class Dist")
+        return None, [0] * self.numProcessors
+
+    def scatter(
+        self, shape, mesh_axis: Optional[int] = None
+    ) -> tuple[Optional[Self], list[int]]:
+        """
+        Return the distribution that results from scattering the tensor across the selected processor mesh axis.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of the tensor.
+        mesh_axis : int, optional
+            The processor mesh axis, by default None, signifying an all-gather over all the processors.
+
+        Returns
+        -------
+        Dist
+            The distribution that results from the scatter. None if the tensor is not compatible with the distribution.
+        list[int]
+            The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
+        """
+        log.warning("allGather not implemented for abstract class Dist")
+        return None, [0] * self.numProcessors
+
+    def permute(
+        self, shape, mesh_axis: tuple[int, int]
+    ) -> tuple[Optional[Self], list[int]]:
+        """
+        Return the distribution that results from permuting the tensor across the selected processor mesh axes.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of the tensor.
+        mesh_axis : tuple[int, int]
+            The processor mesh axes.
+
+        Returns
+        -------
+        Dist
+            The distribution that results from the permutation. None if the tensor is not compatible with the distribution.
+        list[int]
+            The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
+        """
+        log.warning("allGather not implemented for abstract class Dist")
+        return None, [0] * self.numProcessors
