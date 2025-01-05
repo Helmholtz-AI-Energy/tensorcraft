@@ -1,12 +1,16 @@
 """MultiAxisDist class."""
 
+import logging
 import math
 from typing import TypeAlias
 
 import torch
 
 from tensorcraft.distributions.dist import Dist
+from tensorcraft.distributions.util import allgather_bandwidth_cost
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
+
+log = logging.getLogger("tensorcraft")
 
 DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
 BlockSizesType: TypeAlias = int | tuple[int, ...]
@@ -94,6 +98,14 @@ class MultiAxisDist(Dist):
 
         return processor_view
 
+    def isDistributed(self) -> bool:
+        dist = False
+        for axis in self._dims_mapping:
+            if len(axis) > 1:
+                dist = True
+                break
+        return dist
+
     def getElementLocation(self, shape, index):  # noqa: D102
         if isinstance(index, int):
             mindex = linear2multiIndex(index, shape)
@@ -153,3 +165,55 @@ class MultiAxisDist(Dist):
             start_idx = end_idx
 
         return dim_distribution
+
+    def allGather(self, shape, mesh_axis=None):  # noqa: D102
+        if not self.isDistributed():
+            log.warning(
+                "The original distribution is not distributed, nothing is done."
+            )
+            return self, 0
+
+        if not self.compatible(shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+
+        if mesh_axis is None:
+            # Results in full replication of the tensor on all processors
+            new_dist = MultiAxisDist(
+                self._pmesh, ((),) * len(shape), (0,) * len(shape)
+            )  #
+
+            # Cost of all-gather is the number of processors
+            max_block_size = 1
+            max_n_blocks = 1
+            for i in range(len(shape)):
+                mesh_dims_idx = self._dims_mapping[i]
+                mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
+                n_procs_axis = math.prod(mesh_dims)
+                axis_splits, _ = self.axisSplits(
+                    shape[i], self._block_sizes[i], n_procs_axis
+                )
+                max_block_size *= max(axis_splits)
+                max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
+
+            return new_dist, allgather_bandwidth_cost(
+                self._pmesh.numel(), max_block_size * max_n_blocks
+            )
+        else:
+            # Check that the mesh axis is valid
+            valid_axis = False
+            for axis, mappings in enumerate(self._dims_mapping):
+                if mesh_axis in mappings:
+                    valid_axis = True
+                    break
+
+            log.debug(f"Valid axis: {valid_axis}")
+            log.debug(f"Mesh axis: {axis}")
+            log.debug(f"Mappings: {mappings}")
+
+            new_dist = MultiAxisDist(self._pmesh, self._dims_mapping, self._block_sizes)
+
+    def scatter(self, shape, mesh_axis=None):
+        raise NotImplementedError("Scatter is not implemented for MultiAxisDist")
+
+    def permute(self, shape, mesh_axis):
+        raise NotImplementedError("Permute is not implemented for MultiAxisDist")

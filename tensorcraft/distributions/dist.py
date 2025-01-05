@@ -230,9 +230,10 @@ class Dist(ABC):
         """
         pass
 
+    @abstractmethod
     def allGather(
         self, shape, mesh_axis: Optional[int] = None
-    ) -> tuple[Optional[Self], list[int]]:
+    ) -> tuple[Optional[Self], int]:
         """
         Return the distribution that results from gathering the tensor across the selected processor mesh axis.
 
@@ -251,11 +252,12 @@ class Dist(ABC):
             The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
         """
         log.warning("allGather not implemented for abstract class Dist")
-        return None, [0] * self.numProcessors
+        return None, 0
 
+    @abstractmethod
     def scatter(
         self, shape, mesh_axis: Optional[int] = None
-    ) -> tuple[Optional[Self], list[int]]:
+    ) -> tuple[Optional[Self], int]:
         """
         Return the distribution that results from scattering the tensor across the selected processor mesh axis.
 
@@ -273,12 +275,11 @@ class Dist(ABC):
         list[int]
             The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
         """
-        log.warning("allGather not implemented for abstract class Dist")
-        return None, [0] * self.numProcessors
+        log.warning("scatter not implemented for abstract class Dist")
+        return None, 0
 
-    def permute(
-        self, shape, mesh_axis: tuple[int, int]
-    ) -> tuple[Optional[Self], list[int]]:
+    @abstractmethod
+    def permute(self, shape, mesh_axis: tuple[int, int]) -> tuple[Optional[Self], int]:
         """
         Return the distribution that results from permuting the tensor across the selected processor mesh axes.
 
@@ -296,5 +297,5 @@ class Dist(ABC):
         list[int]
             The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
         """
-        log.warning("allGather not implemented for abstract class Dist")
-        return None, [0] * self.numProcessors
+        log.warning("permute not implemented for abstract class Dist")
+        return None, 0

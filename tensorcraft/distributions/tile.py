@@ -3,11 +3,10 @@
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util import multi2linearIndex, linear2multiIndex
+from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 
 class TileDist(Dist):
-
     def __init__(self, processor_mesh: int | torch.Size, tile_size: int) -> None:
         super().__init__(processor_mesh=processor_mesh)
         self._tile_size = tile_size
@@ -24,9 +23,7 @@ class TileDist(Dist):
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        processor_view = torch.zeros(
-            (*shape, self.numProcessors), dtype=torch.bool
-        )
+        processor_view = torch.zeros((*shape, self.numProcessors), dtype=torch.bool)
         for i in range(shape.numel()):
             i_mi = linear2multiIndex(i, shape)
             processor_view[tuple(i_mi) + (None,)] = self.getElementLocation(shape, i_mi)
@@ -36,10 +33,9 @@ class TileDist(Dist):
     def getElementLocation(self, shape: torch.Size, index: int | torch.Size):  # noqa: D102
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
-        
+
         if isinstance(index, int):
             index = multi2linearIndex(shape, index)
-        
 
         shrinked_index = torch.tensor(index) // self._tile_size
         shrinked_shape = torch.tensor(shape) // self._tile_size
@@ -53,3 +49,12 @@ class TileDist(Dist):
         p_list[shrinked_linear_index % self.numProcessors] = True
 
         return p_list
+
+    def allGather(self, shape, mesh_axis=None):
+        raise NotImplementedError("allGather is not implemented for TileDist")
+
+    def scatter(self, shape, mesh_axis=None):
+        raise NotImplementedError("scatter is not implemented for TileDist")
+
+    def permute(self, shape, mesh_axis=None):
+        raise NotImplementedError("permute is not implemented for TileDist")

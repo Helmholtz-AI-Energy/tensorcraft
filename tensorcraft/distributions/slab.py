@@ -88,3 +88,12 @@ class SlabDist(Dist):
         p_list[block_idx % self.numProcessors] = True
 
         return p_list
+
+    def allGather(self, shape, mesh_axis=None):
+        raise NotImplementedError("Allgather is not supported for Slab distribution")
+
+    def scatter(self, shape, mesh_axis=None):
+        raise NotImplementedError("Scatter is not supported for Slab distribution")
+
+    def permute(self, shape, mesh_axis=None):
+        raise NotImplementedError("Permute is not supported for Slab distribution")
