@@ -2,7 +2,7 @@
 
 import logging
 import math
-from typing import TypeAlias
+from typing import Optional, TypeAlias
 
 import torch
 
@@ -12,7 +12,7 @@ from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
-DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
+DimsMapType: TypeAlias = tuple[Optional[tuple[int, ...]], ...]
 BlockSizesType: TypeAlias = int | tuple[int, ...]
 
 
@@ -51,10 +51,13 @@ class MultiAxisDist(Dist):
 
         if len(dims_mapping) != len(block_sizes):
             raise ValueError("The number of dimensions and block sizes must match")
+
+        # Check if the dimension mapping is out of bounds and fill in the missing dimensions with empty tuples
         for dim in dims_mapping:
-            for mesh_axis in dim:
-                if mesh_axis >= len(self._pmesh) or mesh_axis < 0:
-                    raise ValueError("The dimension mapping is out of bounds")
+            if dim:
+                for mesh_axis in dim:
+                    if mesh_axis >= len(self._pmesh) or mesh_axis < 0:
+                        raise ValueError("The dimension mapping is out of bounds")
 
         for block in block_sizes:
             if block < 0:
@@ -62,11 +65,12 @@ class MultiAxisDist(Dist):
 
         # Check that no processor mesh axis is repeated
         mesh_dims = []
-        for dim in dims_mapping:
-            for axis in dim:
-                if axis in mesh_dims:
-                    raise ValueError("The processor mesh axis must not be repeated")
-                mesh_dims.append(axis)
+        for dim_mapping in dims_mapping:
+            if dim_mapping:
+                for axis in dim_mapping:
+                    if axis in mesh_dims:
+                        raise ValueError("The processor mesh axis must not be repeated")
+                    mesh_dims.append(axis)
 
         self._dims_mapping = dims_mapping
         self._block_sizes = block_sizes
@@ -133,6 +137,9 @@ class MultiAxisDist(Dist):
         for axis, (axis_size, assigned_dims, block_size) in enumerate(
             zip(shape, self._dims_mapping, self._block_sizes)
         ):
+            if not assigned_dims:
+                # Axis is not distributed
+                continue
             mesh_dims = [self._pmesh[i] for i in assigned_dims]
             if not self.compatibleAxis(
                 axis, axis_size, block_size, math.prod(mesh_dims)
@@ -145,7 +152,7 @@ class MultiAxisDist(Dist):
         mesh_dims_idx = self._dims_mapping[dim]
         num_process = self._pmesh.numel()
 
-        if len(mesh_dims_idx) == 0:
+        if not mesh_dims_idx or len(mesh_dims_idx) == 0:
             return torch.ones((dim_size, num_process), dtype=torch.bool)
 
         dim_distribution = torch.ones((dim_size, num_process), dtype=torch.bool)
@@ -187,6 +194,8 @@ class MultiAxisDist(Dist):
             max_n_blocks = 1
             for i in range(len(shape)):
                 mesh_dims_idx = self._dims_mapping[i]
+                if not mesh_dims_idx:
+                    continue
                 mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
                 n_procs_axis = math.prod(mesh_dims)
                 axis_splits, _ = self.axisSplits(
@@ -217,3 +226,8 @@ class MultiAxisDist(Dist):
 
     def permute(self, shape, mesh_axis):
         raise NotImplementedError("Permute is not implemented for MultiAxisDist")
+
+    def __str__(self):
+        return (
+            f"MultiAxisDist({self._pmesh}, {self._dims_mapping}, {self._block_sizes})"
+        )
