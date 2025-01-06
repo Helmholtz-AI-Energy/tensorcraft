@@ -1,16 +1,16 @@
-import math
 import random
 
 import hypothesis.strategies as st
-from hypothesis import assume, given, note
+from hypothesis import assume, example, given, note
 
 import tensorcraft as tc
 
 
 @given(
-    axis_size=st.integers(min_value=10, max_value=100),
+    axis_size=st.integers(min_value=1, max_value=100),
     num_procs=st.integers(min_value=1, max_value=64),
 )
+@example(axis_size=20, num_procs=8)
 def test_maxBlockSize(axis_size, num_procs):
     assume(axis_size >= num_procs)
     max_block_size = tc.dist.Dist.maxBlockSize(axis_size, num_procs)
@@ -20,10 +20,14 @@ def test_maxBlockSize(axis_size, num_procs):
     assert max_block_size <= axis_size
     assert max_block_size >= 1
 
-    max_n_procs = math.floor(axis_size / max_block_size)
-    max_n_procs += 1 if axis_size % max_block_size > 0 else 0
+    # The max_block size times the processor less should fit completely in the axis
+    assert max_block_size * (num_procs - 1) <= axis_size
 
-    assert num_procs <= max_n_procs
+    # The max_block size + 1 times the number of processors should be equal or greater than the axis size
+    assert (max_block_size + 1) * num_procs >= axis_size
+
+    if axis_size == 20 and num_procs == 8:
+        assert max_block_size == 2
 
 
 @given(

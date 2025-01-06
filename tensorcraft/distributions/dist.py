@@ -77,7 +77,8 @@ class Dist(ABC):
         if num_procs == 1:
             return axis_size
 
-        max_block_size = math.floor(axis_size / (num_procs - 1)) - 1
+        max_block_size = math.floor(axis_size / num_procs)
+
         if max_block_size < 1:
             max_block_size = 1
         return max_block_size

@@ -103,9 +103,17 @@ class MultiAxisDist(Dist):
         return processor_view
 
     def isDistributed(self) -> bool:
+        """
+        Check if the distribution is distributed.
+
+        Returns
+        -------
+        bool
+            True if the distribution is distributed, False otherwise.
+        """
         dist = False
-        for axis in self._dims_mapping:
-            if len(axis) > 1:
+        for axis_mapping in self._dims_mapping:
+            if axis_mapping and len(axis_mapping) > 0:
                 dist = True
                 break
         return dist
@@ -192,20 +200,26 @@ class MultiAxisDist(Dist):
             # Cost of all-gather is the number of processors
             max_block_size = 1
             max_n_blocks = 1
+            involved_procs = 1
             for i in range(len(shape)):
                 mesh_dims_idx = self._dims_mapping[i]
-                if not mesh_dims_idx:
+                if not mesh_dims_idx or len(mesh_dims_idx) == 0:
+                    max_block_size *= shape[i]
                     continue
                 mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
                 n_procs_axis = math.prod(mesh_dims)
+                involved_procs *= n_procs_axis
                 axis_splits, _ = self.axisSplits(
                     shape[i], self._block_sizes[i], n_procs_axis
                 )
                 max_block_size *= max(axis_splits)
                 max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
 
+            print(f"Max block size: {max_block_size}")
+            print(f"Max n blocks: {max_n_blocks}")
+            print(f"Involved procs: {involved_procs}")
             return new_dist, allgather_bandwidth_cost(
-                self._pmesh.numel(), max_block_size * max_n_blocks
+                involved_procs, max_block_size * max_n_blocks
             )
         else:
             # Check that the mesh axis is valid
@@ -221,10 +235,10 @@ class MultiAxisDist(Dist):
 
             new_dist = MultiAxisDist(self._pmesh, self._dims_mapping, self._block_sizes)
 
-    def scatter(self, shape, mesh_axis=None):
+    def scatter(self, shape, mesh_axis=None):  # noqa: D102
         raise NotImplementedError("Scatter is not implemented for MultiAxisDist")
 
-    def permute(self, shape, mesh_axis):
+    def permute(self, shape, mesh_axis):  # noqa: D102
         raise NotImplementedError("Permute is not implemented for MultiAxisDist")
 
     def __str__(self):
