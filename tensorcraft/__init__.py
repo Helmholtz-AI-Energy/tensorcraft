@@ -3,13 +3,13 @@
 __version__ = "0.0.0"
 
 import torch
+
 torch.autograd.set_grad_enabled(False)
 
 # Classes to be used as tc.<class> / tc.<func>()
 # Modules to be used as tc.<module>.<function>
 import tensorcraft.distributions as dist
-from tensorcraft import compiler
-from tensorcraft import viz
+from tensorcraft import compiler, mpi4torch, viz
 from tensorcraft.util import linear2multiIndex, multi2linearIndex, order2npOrder
 
 _compiler = compiler.Compiler()
@@ -20,6 +20,7 @@ __all__ = [
     "dist",
     "compiler",
     "viz",
+    "mpi4torch",
     "Shape",
     "Tensor",
     "multi2linearIndex",

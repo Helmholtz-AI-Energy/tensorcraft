@@ -74,7 +74,7 @@ extend-exclude = ["notebooks/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "D"]
-ignore = ["E501", "D105"]
+ignore = ["E402", "E501", "D105"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]
