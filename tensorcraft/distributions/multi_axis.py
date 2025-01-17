@@ -181,7 +181,24 @@ class MultiAxisDist(Dist):
 
         return dim_distribution
 
-    def allGather(self, shape, mesh_axis=None):  # noqa: D102
+    def _max_block_size_n_blocks(self, shape):
+        max_block_size = 1
+        max_n_blocks = 1
+        for i in range(len(shape)):
+            mesh_dims_idx = self._dims_mapping[i]
+            if not mesh_dims_idx or len(mesh_dims_idx) == 0:
+                max_block_size *= shape[i]
+                continue
+            mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
+            n_procs_axis = math.prod(mesh_dims)
+            axis_splits, _ = self.axisSplits(
+                shape[i], self._block_sizes[i], n_procs_axis
+            )
+            max_block_size *= max(axis_splits)
+            max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
+        return max_block_size, max_n_blocks
+
+    def allGather(self, shape, gather_axis=None):  # noqa: D102
         if not self.isDistributed():
             log.warning(
                 "The original distribution is not distributed, nothing is done."
@@ -191,52 +208,80 @@ class MultiAxisDist(Dist):
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if mesh_axis is None:
+        if gather_axis is None:
             # Results in full replication of the tensor on all processors
             new_dist = MultiAxisDist(
                 self._pmesh, ((),) * len(shape), (0,) * len(shape)
             )  #
 
             # Cost of all-gather is the number of processors
-            max_block_size = 1
-            max_n_blocks = 1
-            involved_procs = 1
-            for i in range(len(shape)):
-                mesh_dims_idx = self._dims_mapping[i]
-                if not mesh_dims_idx or len(mesh_dims_idx) == 0:
-                    max_block_size *= shape[i]
-                    continue
-                mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
-                n_procs_axis = math.prod(mesh_dims)
-                involved_procs *= n_procs_axis
-                axis_splits, _ = self.axisSplits(
-                    shape[i], self._block_sizes[i], n_procs_axis
-                )
-                max_block_size *= max(axis_splits)
-                max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
+            max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+            involved_procs = math.prod(self._pmesh)
 
-            print(f"Max block size: {max_block_size}")
-            print(f"Max n blocks: {max_n_blocks}")
-            print(f"Involved procs: {involved_procs}")
             return new_dist, allgather_bandwidth_cost(
                 involved_procs, max_block_size * max_n_blocks
             )
         else:
             # Check that the mesh axis is valid
-            valid_axis = False
+            tensor_axis = -1
             for axis, mappings in enumerate(self._dims_mapping):
-                if mesh_axis in mappings:
-                    valid_axis = True
+                if gather_axis in mappings:
+                    dist_axis_i = mappings.index(gather_axis)
+
+                    print(f"Mesh axis idx: {dist_axis_i}")
+                    if dist_axis_i != 0 and dist_axis_i != len(mappings) - 1:
+                        log.warning(
+                            f"Gather along axis {gather_axis} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
+                        )
+                        return self, 0
+                    tensor_axis = axis
                     break
 
-            log.debug(f"Valid axis: {valid_axis}")
-            log.debug(f"Mesh axis: {axis}")
+            if tensor_axis == -1:
+                log.warning(
+                    "Tensor is not distributed along the specified axis, doing nothing"
+                )
+                return self, 0
+
+            log.debug(f"Tensor axis: {tensor_axis}")
+            log.debug(f"Mesh axis: {gather_axis}")
             log.debug(f"Mappings: {mappings}")
 
-            new_dist = MultiAxisDist(self._pmesh, self._dims_mapping, self._block_sizes)
+            involved_procs = self._pmesh[gather_axis]
 
-    def scatter(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("Scatter is not implemented for MultiAxisDist")
+            if dist_axis_i != 0:
+                new_block_sizes = list(self._block_sizes)
+                new_block_sizes[tensor_axis] *= involved_procs
+            else:
+                new_block_sizes = list(self._block_sizes)
+
+            new_mapping = tuple(
+                tuple(m_axis for m_axis in axis_mappings if m_axis != gather_axis)
+                if axis_mappings
+                else None
+                for axis_mappings in self._dims_mapping
+            )
+
+            new_dist = MultiAxisDist(self._pmesh, new_mapping, new_block_sizes)
+
+            # Cost of all-gather is the number of processors
+            max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+
+            return new_dist, allgather_bandwidth_cost(
+                involved_procs, max_block_size * max_n_blocks
+            )
+
+    def split(self, shape, scatter_axis=None):  # noqa: D102
+        # This will just split a along the scatter axis
+        if not self.compatible(shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+
+        # Scatter over all involved processors
+        if scatter_axis is None:
+            raise NotImplementedError("Scatter over all processors is not implemented")
+
+    def reduce_scatter(self, shape, scatter_axis=None):  # noqa: D102
+        raise NotImplementedError("Reduce scatter is not implemented for MultiAxisDist")
 
     def permute(self, shape, mesh_axis):  # noqa: D102
         raise NotImplementedError("Permute is not implemented for MultiAxisDist")
