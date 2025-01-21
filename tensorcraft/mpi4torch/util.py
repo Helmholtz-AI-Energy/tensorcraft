@@ -4,10 +4,12 @@ from typing import Tuple, TypeAlias
 
 import torch
 from mpi4py import MPI
+from mpi4py.typing import BufSpec, BufSpecB, BufSpecV, BufSpecW
 
-MPIBuffer: TypeAlias = MPI.BufSpec | MPI.BufSpecB | MPI.BufSpecV | MPI.BufSpecW
+MPIBuffer: TypeAlias = BufSpec | BufSpecB | BufSpecV | BufSpecW
 
 MPI_INT_MAX = torch.iinfo(torch.int32).max
+# MPI_INT_MAX = 128
 
 torch_type2mpi_type = {
     torch.float32: MPI.FLOAT,
@@ -26,7 +28,7 @@ torch_type2mpi_type = {
 }
 
 
-def as_buffer(x: torch.Tensor) -> MPI.buffer:
+def as_buffer(x: torch.Tensor, offset: int = 0) -> MPI.buffer:
     """
     Convert a PyTorch tensor to an MPI buffer.
 
@@ -40,10 +42,11 @@ def as_buffer(x: torch.Tensor) -> MPI.buffer:
     MPI.buffer
 
     """
-    return MPI.buffer.fromaddress(x.untyped_storage().data_ptr(), 0)
+    dtype_size = x.dtype.itemsize
+    return MPI.buffer.fromaddress(x.untyped_storage().data_ptr() + offset * dtype_size, 0)
 
 
-def _recursive_contiguous(
+def _large_contiguous_vector(
     n_elements: int, mpi_type: MPI.Datatype
 ) -> Tuple[MPI.Datatype, int]:
     new_count = n_elements // MPI_INT_MAX
@@ -65,17 +68,24 @@ def _recursive_contiguous(
     else:
         return vector_type, 1
 
+def _create_subarray(x: torch.Tensor) -> MPI.Datatype:
+    """
+    Create a subarray datatype.
 
-def _create_large_vector(n_elements: int, mpi_type: MPI.Datatype):
-    n_vectors = n_elements // MPI_INT_MAX
-    left_over = n_elements % MPI_INT_MAX
+    Parameters
+    ----------
+    shape : Tuple[int]
+        The shape of the subarray.
+    start : Tuple[int]
+        The starting index of the subarray.
+    mpi_type : MPI.Datatype
+        The MPI datatype.
 
-    vector_type = mpi_type.Create_vector(n_vectors, MPI_INT_MAX, 1).Commit()
-    if left_over == 0:
-        return vector_type
-    else:
-        vector_type = mpi_type.Create_vector(n_vectors, 1, MPI_INT_MAX)
-
+    Returns
+    -------
+    MPI.Datatype
+    """
+    return mpi_type.Create_subarray(shape, shape, start).Commit()
 
 def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
     """
@@ -101,19 +111,33 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
     print(f"tensor_dtype: {tensor_dtype}")
 
     if tensor.is_contiguous():
-        buffer = as_buffer(tensor)
+        buffer = as_buffer(tensor, tensor_offset)
 
         n_elements = tensor.numel()
         # Check
-        if n_elements >= MPI_INT_MAX:
+        if n_elements > MPI_INT_MAX:
+            print("tensor is too large, using tricks")
             if n_elements > MPI_INT_MAX**2:
                 raise ValueError("Tensor is too large, wtf are you doing?")
-            mpi_type, type_count = _recursive_contiguous(
+            mpi_type, type_count = _large_contiguous_vector(
                 n_elements, torch_type2mpi_type[tensor_dtype]
             )
             return buffer, type_count, mpi_type
         else:
             return buffer, n_elements, torch_type2mpi_type[tensor_dtype]
     else:
-        print("tensor is not contiguous")
-        raise NotImplementedError("Non-contiguous tensors are not supported yet.")
+        # Check if the tensor stride is arranged in decending order
+        desc_stride = True
+        for i in range(1, len(tensor_stride)):
+            if tensor_stride[i] > tensor_stride[i - 1]:
+                desc_stride = False
+                break
+        
+        if desc_stride and tensor_stride[-1] == 1 and offset != 0:
+            # Can be handled with MPI Subarray
+            print("desc_stride")
+
+        else:
+            # Can be handled with MPI Vector
+            print("asc_stride")
+            raise NotImplementedError("Non-contiguous tensor with is not supported yet.")

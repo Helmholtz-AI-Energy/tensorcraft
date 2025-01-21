@@ -39,10 +39,11 @@ dependencies = [
     "matplotlib",
     "networkx",
     "drawsvg",
+    "mpi4py"
 ]
 
 [project.optional-dependencies]
-notebook = ["ipython", "ipympl", "mpi4py", "ipyparallel"]
+notebook = ["ipython", "ipympl", "ipyparallel"]
 dev = [
     # Testing
     "pytest",
@@ -54,10 +55,6 @@ dev = [
 
     # Releases and changelogs
     "python-semantic-release>=9.0.0",
-
-    # Interactive stuff
-    "ipykernel",
-    "ipympl",
 ]
 
 [project.urls]
