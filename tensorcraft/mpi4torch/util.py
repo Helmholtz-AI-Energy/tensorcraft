@@ -1,10 +1,13 @@
 """Datatype utilities."""
 
+import logging
 from typing import Tuple, TypeAlias
 
 import torch
 from mpi4py import MPI
 from mpi4py.typing import BufSpec, BufSpecB, BufSpecV, BufSpecW
+
+log = logging.getLogger("tensorcraft")
 
 MPIBuffer: TypeAlias = BufSpec | BufSpecB | BufSpecV | BufSpecW
 
@@ -136,10 +139,10 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
     tensor_shape = tensor.size()
     tensor_dtype = tensor.dtype
 
-    print(f"tensor_stride: {tensor_stride}")
-    print(f"tensor_offset: {tensor_offset}")
-    print(f"tensor_shape: {tensor_shape}")
-    print(f"tensor_dtype: {tensor_dtype}")
+    log.debug(f"tensor_stride: {tensor_stride}")
+    log.debug(f"tensor_offset: {tensor_offset}")
+    log.debug(f"tensor_shape: {tensor_shape}")
+    log.debug(f"tensor_dtype: {tensor_dtype}")
 
     if tensor.is_contiguous():
         buffer = as_buffer(tensor, tensor_offset)
@@ -147,7 +150,7 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
         n_elements = tensor.numel()
         # Check
         if n_elements > MPI_INT_MAX:
-            print("tensor is too large, using tricks")
+            log.info("tensor is too large, using tricks")
             if n_elements > MPI_INT_MAX**2:
                 raise ValueError("Tensor is too large, wtf are you doing?")
             mpi_type, type_count = _large_contiguous_vector(
