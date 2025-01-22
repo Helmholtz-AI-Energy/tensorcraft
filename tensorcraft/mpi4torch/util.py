@@ -43,7 +43,9 @@ def as_buffer(x: torch.Tensor, offset: int = 0) -> MPI.buffer:
 
     """
     dtype_size = x.dtype.itemsize
-    return MPI.buffer.fromaddress(x.untyped_storage().data_ptr() + offset * dtype_size, 0)
+    return MPI.buffer.fromaddress(
+        x.untyped_storage().data_ptr() + offset * dtype_size, 0
+    )
 
 
 def _large_contiguous_vector(
@@ -68,24 +70,53 @@ def _large_contiguous_vector(
     else:
         return vector_type, 1
 
-def _create_subarray(x: torch.Tensor) -> MPI.Datatype:
-    """
-    Create a subarray datatype.
 
-    Parameters
-    ----------
-    shape : Tuple[int]
-        The shape of the subarray.
-    start : Tuple[int]
-        The starting index of the subarray.
-    mpi_type : MPI.Datatype
-        The MPI datatype.
+def _create_recursive_vector(x: torch.Tensor) -> MPI.Datatype:
+    subarray_sizes = x.size()
+    tensor_stride = x.stride()
 
-    Returns
-    -------
-    MPI.Datatype
-    """
-    return mpi_type.Create_subarray(shape, shape, start).Commit()
+    datatype_history: list[MPI.Datatype] = []
+    original_datatype = torch_type2mpi_type[x.dtype]
+    current_datatype = original_datatype
+
+    i = len(tensor_stride) - 1
+    while i >= 0:
+        current_stride = tensor_stride[i]
+        current_size = subarray_sizes[i]
+        # Define vector out of previous datatype with stride equals to current stride
+        if i == len(tensor_stride) - 1 and current_stride == 1:
+            i -= 1
+            # Define vector out of previous datatype with stride equals to current stride
+            current_stride = tensor_stride[i]
+            next_size = subarray_sizes[i]
+            new_vector_datatype = current_datatype.Create_vector(
+                next_size, current_size, current_stride
+            ).Commit()
+
+        else:
+            if i == len(tensor_stride) - 1:
+                new_vector_datatype = current_datatype.Create_vector(
+                    current_size, 1, current_stride
+                ).Commit()
+            else:
+                new_vector_datatype = current_datatype.Create_vector(
+                    current_size, 1, 1
+                ).Commit()
+
+        datatype_history.append(new_vector_datatype)
+        # Set extent of the new datatype to the extent of the basic datatype to allow interweaving of data
+        next_stride = tensor_stride[i - 1]
+        new_resized_vector_datatype = new_vector_datatype.Create_resized(
+            0, original_datatype.Get_extent()[1] * next_stride
+        ).Commit()
+        datatype_history.append(new_resized_vector_datatype)
+        current_datatype = new_resized_vector_datatype
+
+        i -= 1
+    for dt in datatype_history[:-1]:
+        dt.Free()
+    return current_datatype
+
 
 def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
     """
@@ -127,17 +158,7 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
             return buffer, n_elements, torch_type2mpi_type[tensor_dtype]
     else:
         # Check if the tensor stride is arranged in decending order
-        desc_stride = True
-        for i in range(1, len(tensor_stride)):
-            if tensor_stride[i] > tensor_stride[i - 1]:
-                desc_stride = False
-                break
-        
-        if desc_stride and tensor_stride[-1] == 1 and offset != 0:
-            # Can be handled with MPI Subarray
-            print("desc_stride")
-
-        else:
-            # Can be handled with MPI Vector
-            print("asc_stride")
-            raise NotImplementedError("Non-contiguous tensor with is not supported yet.")
+        buffer = as_buffer(tensor, tensor_offset)
+        recursive_dt = _create_recursive_vector(tensor)
+        type_count = 1
+        return buffer, type_count, recursive_dt

@@ -47,8 +47,8 @@ notebook = ["ipython", "ipympl", "ipyparallel"]
 dev = [
     # Testing
     "pytest",
+    "coverage",
     "hypothesis[numpy]<6.100",
-    "pytest-coverage",
 
     # QA
     "pre-commit",
@@ -105,10 +105,10 @@ prerelease = false
 # Pytest
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov --cov-report term"
 
 [tool.coverage.run]
 source = ["tensorcraft"]
+parallel = true
 
 [tool.coverage.report]
 format = "markdown"
