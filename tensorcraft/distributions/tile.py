@@ -7,6 +7,36 @@ from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 
 class TileDist(Dist):
+    """
+    TileDist is a distribution class that divides a tensor into tiles and assigns each tile to a processor.
+
+    Parameters
+    ----------
+    processor_mesh : int or torch.Size
+        The number of processors or the size of the processor mesh.
+    tile_size : int
+        The size of each tile.
+
+    Methods
+    -------
+    compatible(shape: torch.Size) -> bool
+        Checks if the given shape is compatible with the tile size.
+    processorView(shape: torch.Size) -> torch.Tensor
+        Returns a boolean tensor indicating the processor assignment for each element in the tensor.
+    getElementLocation(shape: torch.Size, index: int or torch.Size) -> torch.Tensor
+        Returns a boolean tensor indicating the processor assignment for a specific element in the tensor.
+    allGather(shape, mesh_axis=None)
+        Not implemented. Raises NotImplementedError.
+    split(shape, tensor_axis, mesh_axis)
+        Not implemented. Raises NotImplementedError.
+    reduce_scatter(shape, mesh_axis=None)
+        Not implemented. Raises NotImplementedError.
+    permute(shape, mesh_axis=None)
+        Not implemented. Raises NotImplementedError.
+    all2all(shape, from_tensor_axis, to_tensor_axis)
+        Not implemented. Raises NotImplementedError.
+    """
+
     def __init__(self, processor_mesh: int | torch.Size, tile_size: int) -> None:
         super().__init__(processor_mesh=processor_mesh)
         self._tile_size = tile_size
@@ -50,11 +80,17 @@ class TileDist(Dist):
 
         return p_list
 
-    def allGather(self, shape, mesh_axis=None):
+    def allGather(self, shape, mesh_axis=None):  # noqa: D102
         raise NotImplementedError("allGather is not implemented for TileDist")
 
-    def scatter(self, shape, mesh_axis=None):
-        raise NotImplementedError("scatter is not implemented for TileDist")
+    def split(self, shape, tensor_axis, mesh_axis):  # noqa: D102
+        raise NotImplementedError("split is not implemented for TileDist")
 
-    def permute(self, shape, mesh_axis=None):
+    def reduce_scatter(self, shape, mesh_axis=None):  # noqa: D102
+        raise NotImplementedError("reduce_scatter is not implemented for TileDist")
+
+    def permute(self, shape, mesh_axis=None):  # noqa: D102
         raise NotImplementedError("permute is not implemented for TileDist")
+
+    def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
+        raise NotImplementedError("all2all is not implemented for TileDist")

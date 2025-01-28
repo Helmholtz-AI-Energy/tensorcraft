@@ -286,6 +286,9 @@ class MultiAxisDist(Dist):
     def permute(self, shape, mesh_axis):  # noqa: D102
         raise NotImplementedError("Permute is not implemented for MultiAxisDist")
 
+    def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
+        raise NotImplementedError("All2ll is not implemented for MultiAxisDist")
+
     def __str__(self):
         return (
             f"MultiAxisDist({self._pmesh}, {self._dims_mapping}, {self._block_sizes})"

@@ -89,11 +89,17 @@ class SlabDist(Dist):
 
         return p_list
 
-    def allGather(self, shape, mesh_axis=None):
-        raise NotImplementedError("Allgather is not supported for Slab distribution")
+    def allGather(self, shape, mesh_axis=None):  # noqa: D102
+        raise NotImplementedError("allGather is not implemented for Slabdist")
 
-    def scatter(self, shape, mesh_axis=None):
-        raise NotImplementedError("Scatter is not supported for Slab distribution")
+    def split(self, shape, tensor_axis, mesh_axis):  # noqa: D102
+        raise NotImplementedError("split is not implemented for Slabdist")
 
-    def permute(self, shape, mesh_axis=None):
-        raise NotImplementedError("Permute is not supported for Slab distribution")
+    def reduce_scatter(self, shape, mesh_axis=None):  # noqa: D102
+        raise NotImplementedError("reduce_scatter is not implemented for Slabdist")
+
+    def permute(self, shape, mesh_axis=None):  # noqa: D102
+        raise NotImplementedError("permute is not implemented for Slabdist")
+
+    def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
+        raise NotImplementedError("all2all is not implemented for Slabdist")

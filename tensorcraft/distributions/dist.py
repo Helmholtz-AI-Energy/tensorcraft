@@ -256,23 +256,49 @@ class Dist(ABC):
         return None, 0
 
     @abstractmethod
-    def scatter(
+    def split(self, shape, tensor_axis, mesh_axis, block_size=1):
+        """
+        Return the distribution that results from splitting the tensor across the selected tensor axis and processor mesh axis.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of the tensor.
+        tensor_axis : int
+            The tensor axis to split.
+        mesh_axis : int
+            The processor mesh axis to split.
+        block_size : int, optional
+            The size of the blocks, by default 1.
+
+        Returns
+        -------
+        Dist
+            The distribution that results from the split. None if the tensor is not compatible with the distribution.
+        list[int]
+            The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution. (Should always be zero in this case)
+        """
+        log.warning("split not implemented for abstract class Dist")
+        return None, 0
+
+    @abstractmethod
+    def reduce_scatter(
         self, shape, mesh_axis: Optional[int] = None
     ) -> tuple[Optional[Self], int]:
         """
-        Return the distribution that results from scattering the tensor across the selected processor mesh axis.
+        Return the distribution that results from reduce_scattering the tensor across the selected processor mesh axis.
 
         Parameters
         ----------
         shape : torch.Size
             The shape of the tensor.
         mesh_axis : int, optional
-            The processor mesh axis, by default None, signifying an all-gather over all the processors.
+            The processor mesh axis, by default None, signifying a reduce-scatter over all the processors.
 
         Returns
         -------
         Dist
-            The distribution that results from the scatter. None if the tensor is not compatible with the distribution.
+            The distribution that results from the reduce-scatter. None if the tensor is not compatible with the distribution.
         list[int]
             The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
         """
@@ -280,7 +306,9 @@ class Dist(ABC):
         return None, 0
 
     @abstractmethod
-    def permute(self, shape, mesh_axis: tuple[int, int]) -> tuple[Optional[Self], int]:
+    def permute(
+        self, shape: torch.Size, mesh_axis: tuple[int, int]
+    ) -> tuple[Optional[Self], int]:
         """
         Return the distribution that results from permuting the tensor across the selected processor mesh axes.
 
@@ -299,4 +327,30 @@ class Dist(ABC):
             The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
         """
         log.warning("permute not implemented for abstract class Dist")
+        return None, 0
+
+    @abstractmethod
+    def all2all(
+        self, shape: torch.Size, from_tensor_axis: int, to_tensor_axis: int
+    ) -> tuple[Optional[Self], int]:
+        """
+        Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of the tensor.
+        from_tensor_axis : int
+            The tensor axis to send data from.
+        to_tensor_axis : int
+            The tensor axis to receive data to.
+
+        Returns
+        -------
+        Dist
+            The distribution that results from the all-to-all communication. None if the tensor is not compatible with the distribution.
+        list[int]
+            The expected communication volume for each processor. Will be filled with zeros if the tensor is not compatible with the distribution.
+        """
+        log.warning("all2all not implemented for abstract class Dist")
         return None, 0

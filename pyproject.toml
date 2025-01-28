@@ -102,13 +102,14 @@ prerelease = true
 match = "release"
 prerelease = false
 
-# Pytest
+# Pytest & coverage
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["tensorcraft"]
 parallel = true
+command_line = "-m pytest"
 
 [tool.coverage.report]
 format = "markdown"
