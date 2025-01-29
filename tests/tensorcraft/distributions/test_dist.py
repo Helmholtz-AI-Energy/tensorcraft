@@ -10,6 +10,7 @@ import tensorcraft as tc
     axis_size=st.integers(min_value=1, max_value=100),
     num_procs=st.integers(min_value=1, max_value=64),
 )
+@example(axis_size=20, num_procs=3)
 @example(axis_size=20, num_procs=8)
 def test_maxBlockSize(axis_size, num_procs):
     assume(axis_size >= num_procs)
@@ -28,6 +29,9 @@ def test_maxBlockSize(axis_size, num_procs):
 
     if axis_size == 20 and num_procs == 8:
         assert max_block_size == 2
+
+    if axis_size == 20 and num_procs == 3:
+        assert max_block_size == 9
 
 
 @given(
