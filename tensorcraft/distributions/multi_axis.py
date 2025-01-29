@@ -7,7 +7,10 @@ from typing import Optional, TypeAlias
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.distributions.util import allgather_bandwidth_cost
+from tensorcraft.distributions.util import (
+    all2all_bandwidth_cost,
+    allgather_bandwidth_cost,
+)
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
@@ -316,7 +319,35 @@ class MultiAxisDist(Dist):
         raise NotImplementedError("Permute is not implemented for MultiAxisDist")
 
     def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
-        raise NotImplementedError("All2ll is not implemented for MultiAxisDist")
+        if not self.isDistributed() or len(self._dims_mapping[from_tensor_axis]) == 0:
+            raise ValueError("From axis needs to be distributed.")
+
+        from_dim_map = self._dims_mapping[from_tensor_axis]
+        target_dim_map = self._dims_mapping[to_tensor_axis]
+        new_target_dim_map = from_dim_map + target_dim_map
+        new_block_size = self._block_sizes
+
+        new_dims_map_list = list(self._dims_mapping)
+        new_dims_map_list[from_tensor_axis] = ()
+        new_dims_map_list[to_tensor_axis] = new_target_dim_map
+
+        new_dist = MultiAxisDist(self._pmesh, tuple(new_dims_map_list), new_block_size)
+
+        if not new_dist.compatible(shape):
+            raise ValueError(
+                "Tensor shape cannot be redistributed with the given axis mapping and block size."
+            )
+
+        # Cost
+        relevant_procs = [self._pmesh[x] for x in self._dims_mapping[from_tensor_axis]]
+        n_procs = math.prod(relevant_procs)
+        src_max_block_size, src_n_blocks = self._max_block_size_n_blocks(shape)
+        max_n_elements = src_max_block_size * src_n_blocks
+        print(max_n_elements)
+
+        return new_dist, all2all_bandwidth_cost(
+            n_procs=n_procs, n_elements=max_n_elements
+        )
 
     def __str__(self):
         return (

@@ -1,6 +1,9 @@
+"""Utility function for redistributions."""
+
+
 def allgather_bandwidth_cost(n_procs: int, n_elements: int) -> float:
     """
-    Calculate the bandwidth of an allgather operation.
+    Calculate the bandwidth cost of an allgather operation.
 
     Parameters
     ----------
@@ -19,7 +22,7 @@ def allgather_bandwidth_cost(n_procs: int, n_elements: int) -> float:
 
 def permute_bandwith_cost(n_procs: int, n_elements: int) -> float:
     """
-    Calculate the bandwidth of a permute operation.
+    Calculate the bandwidth cost of a permute operation.
 
     Parameters
     ----------
@@ -38,7 +41,26 @@ def permute_bandwith_cost(n_procs: int, n_elements: int) -> float:
 
 def scatter_bandwidth_cost(n_procs: int, n_elements: int) -> float:
     """
-    Calculate the bandwidth of a scatter operation.
+    Calculate the bandwidth cost of a scatter operation.
+
+    Parameters
+    ----------
+    n_procs : int
+        The number of processors.
+    n_elements : int
+        The number of elements to communicate.
+
+    Returns
+    -------
+    float
+        The bandwidth of the scatter operation.
+    """
+    return (n_procs - 1) * n_elements / n_procs
+
+
+def all2all_bandwidth_cost(n_procs: int, n_elements: int) -> float:
+    """
+    Calculate the bandwidthco cost of an all2all operation.
 
     Parameters
     ----------
