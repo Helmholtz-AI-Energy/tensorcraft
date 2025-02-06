@@ -39,9 +39,28 @@ def permute_bandwith_cost(n_procs: int, n_elements: int) -> float:
     return n_elements
 
 
-def scatter_bandwidth_cost(n_procs: int, n_elements: int) -> float:
+def allreduce_bandwidth_cost(n_procs: int, n_elements: int) -> float:
     """
-    Calculate the bandwidth cost of a scatter operation.
+    Calculate the bandwidth cost of an all-reduce operation.
+
+    Parameters
+    ----------
+    n_procs : int
+        The number of processors.
+    n_elements : int
+        The number of elements to communicate.
+
+    Returns
+    -------
+    float
+        The bandwidth of the scatter operation.
+    """
+    return (n_procs - 1) * n_elements / n_procs
+
+
+def reduce_scatter_bandwidth_cost(n_procs: int, n_elements: int) -> float:
+    """
+    Calculate the bandwidth cost of a reduce-scatter operation.
 
     Parameters
     ----------

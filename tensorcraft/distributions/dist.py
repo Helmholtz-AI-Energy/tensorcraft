@@ -232,9 +232,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def allGather(
-        self, shape, mesh_axis: Optional[int] = None
-    ) -> tuple[Optional[Self], float]:
+    def allGather(self, shape, mesh_axis: Optional[int] = None) -> tuple[Self, float]:
         """
         Return the distribution that results from gathering the tensor across the selected processor mesh axis.
 
@@ -253,7 +251,7 @@ class Dist(ABC):
             The maximum expected communication cost.
         """
         log.warning("allGather not implemented for abstract class Dist")
-        return None, 0
+        raise NotImplementedError()
 
     @abstractmethod
     def split(
@@ -262,7 +260,7 @@ class Dist(ABC):
         tensor_axis: int,
         mesh_axis: int | tuple[int, ...],
         block_size=1,
-    ) -> tuple[Optional[Self], float]:
+    ) -> tuple[Self, float]:
         """
         Return the distribution that results from splitting the tensor across the selected tensor axis and processor mesh axis.
 
@@ -285,36 +283,12 @@ class Dist(ABC):
             The maximum expected communication cost.
         """
         log.warning("split not implemented for abstract class Dist")
-        return None, 0
-
-    @abstractmethod
-    def reduce_scatter(
-        self, shape, mesh_axis: Optional[int] = None
-    ) -> tuple[Optional[Self], float]:
-        """
-        Return the distribution that results from reduce_scattering the tensor across the selected processor mesh axis.
-
-        Parameters
-        ----------
-        shape : torch.Size
-            The shape of the tensor.
-        mesh_axis : int, optional
-            The processor mesh axis, by default None, signifying a reduce-scatter over all the processors.
-
-        Returns
-        -------
-        Dist
-            The distribution that results from the reduce-scatter. None if the tensor is not compatible with the distribution.
-        float
-            The maximum expected communication cost.
-        """
-        log.warning("scatter not implemented for abstract class Dist")
-        return None, 0
+        raise NotImplementedError()
 
     @abstractmethod
     def permute(
         self, shape: torch.Size, mesh_axis: tuple[int, int]
-    ) -> tuple[Optional[Self], float]:
+    ) -> tuple[Self, float]:
         """
         Return the distribution that results from permuting the tensor across the selected processor mesh axes.
 
@@ -333,12 +307,12 @@ class Dist(ABC):
             The maximum expected communication cost.
         """
         log.warning("permute not implemented for abstract class Dist")
-        return None, 0
+        raise NotImplementedError()
 
     @abstractmethod
     def all2all(
         self, shape: torch.Size, from_tensor_axis: int, to_tensor_axis: int
-    ) -> tuple[Optional[Self], float]:
+    ) -> tuple[Self, float]:
         """
         Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
 
@@ -359,4 +333,4 @@ class Dist(ABC):
             The maximum expected communication cost.
         """
         log.warning("all2all not implemented for abstract class Dist")
-        return None, 0
+        raise NotImplementedError()

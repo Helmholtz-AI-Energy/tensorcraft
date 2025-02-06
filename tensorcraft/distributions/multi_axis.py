@@ -10,6 +10,7 @@ from tensorcraft.distributions.dist import Dist
 from tensorcraft.distributions.util import (
     all2all_bandwidth_cost,
     allgather_bandwidth_cost,
+    permute_bandwith_cost,
 )
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
@@ -201,7 +202,7 @@ class MultiAxisDist(Dist):
             max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
         return max_block_size, max_n_blocks
 
-    def allGather(self, shape, mesh_axis=Optional[int]):  # noqa: D102
+    def allGather(self, shape, gather_dim=Optional[int]):  # noqa: D102
         if not self.isDistributed():
             log.warning(
                 "The original distribution is not distributed, nothing is done."
@@ -211,7 +212,7 @@ class MultiAxisDist(Dist):
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if mesh_axis is None:
+        if gather_dim is None:
             # Results in full replication of the tensor on all processors
             new_dist = MultiAxisDist(
                 self._pmesh, ((),) * len(shape), (0,) * len(shape)
@@ -228,13 +229,13 @@ class MultiAxisDist(Dist):
             # Check that the mesh axis is valid
             tensor_axis = -1
             for axis, mappings in enumerate(self._dims_mapping):
-                if mesh_axis in mappings:
-                    dist_axis_i = mappings.index(mesh_axis)
+                if gather_dim in mappings:
+                    dist_axis_i = mappings.index(gather_dim)
 
                     print(f"Mesh axis idx: {dist_axis_i}")
                     if dist_axis_i != 0 and dist_axis_i != len(mappings) - 1:
                         log.warning(
-                            f"Gather along axis {mesh_axis} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
+                            f"Gather along axis {gather_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
                         )
                         return self, 0
                     tensor_axis = axis
@@ -247,10 +248,10 @@ class MultiAxisDist(Dist):
                 return self, 0
 
             log.debug(f"Tensor axis: {tensor_axis}")
-            log.debug(f"Mesh axis: {mesh_axis}")
+            log.debug(f"Mesh axis: {gather_dim}")
             log.debug(f"Mappings: {mappings}")
 
-            involved_procs = self._pmesh[mesh_axis]
+            involved_procs = self._pmesh[gather_dim]
 
             if dist_axis_i != 0:
                 new_block_sizes = list(self._block_sizes)
@@ -259,7 +260,7 @@ class MultiAxisDist(Dist):
                 new_block_sizes = list(self._block_sizes)
 
             new_mapping = tuple(
-                tuple(m_axis for m_axis in axis_mappings if m_axis != mesh_axis)
+                tuple(m_axis for m_axis in axis_mappings if m_axis != gather_dim)
                 if axis_mappings
                 else None
                 for axis_mappings in self._dims_mapping
@@ -274,18 +275,18 @@ class MultiAxisDist(Dist):
                 involved_procs, max_block_size * max_n_blocks
             )
 
-    def split(self, shape, tensor_axis, mesh_axis, block_size=1):  # noqa: D102
+    def split(self, shape, tensor_axis, mesh_dims, block_size=1):  # noqa: D102
         # This will just split a along the scatter axis
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if isinstance(mesh_axis, int):
-            mesh_axis = (mesh_axis,)
+        if isinstance(mesh_dims, int):
+            mesh_dims = (mesh_dims,)
 
         # When tensor is not distributed or the tensor axis is not split, simply apply
         if not self.isDistributed() or len(self._dims_mapping[tensor_axis]) == 0:
             new_dims_mapping = tuple(
-                mesh_axis if i == tensor_axis else mapping
+                mesh_dims if i == tensor_axis else mapping
                 for i, mapping in enumerate(self._dims_mapping)
             )
             new_block_size = tuple(
@@ -300,7 +301,7 @@ class MultiAxisDist(Dist):
                     "Spliting an already split axis. Block size argument will be ignored."
                 )
             new_dims_mapping = tuple(
-                mesh_axis + mapping if i == tensor_axis else mapping
+                mesh_dims + mapping if i == tensor_axis else mapping
                 for i, mapping in enumerate(self._dims_mapping)
             )
             new_block_size = self._block_sizes
@@ -312,11 +313,39 @@ class MultiAxisDist(Dist):
             )
         return new_dist, 0
 
-    def reduce_scatter(self, shape, scatter_axis=None):  # noqa: D102
-        raise NotImplementedError("Reduce scatter is not implemented for MultiAxisDist")
+    def permute(self, shape, mesh_dims: tuple[int, int]):  # noqa: D102
+        # check for compatibility and if it is distributed
+        if not self.compatible(shape):
+            raise ValueError(
+                "Provided shape is not compitble with original distribution"
+            )
 
-    def permute(self, shape, mesh_axis):  # noqa: D102
-        raise NotImplementedError("Permute is not implemented for MultiAxisDist")
+        if not self.isDistributed():
+            raise ValueError("Operation not allowed on non-distributed tensors.")
+
+        # Swaping mesh axis should have same size should have matching sizes
+        if self._pmesh[mesh_dims[0]] != self._pmesh[mesh_dims[1]]:
+            raise ValueError("Both mesh dimentions need to be on the same size.")
+
+        new_dims_mapping: tuple[tuple[int, ...] | None, ...] = ()
+        for i, axis_dims in enumerate(self._dims_mapping):
+            if axis_dims:
+                axis_dims_list = list(axis_dims)
+                if mesh_dims[0] in axis_dims_list:
+                    axis_dims_list[axis_dims.index(mesh_dims[0])] = mesh_dims[1]
+                if mesh_dims[1] in axis_dims_list:
+                    axis_dims_list[axis_dims.index(mesh_dims[1])] = mesh_dims[0]
+                print(axis_dims_list)
+                new_dims_mapping += (tuple(axis_dims_list),)
+            else:
+                new_dims_mapping += (axis_dims,)
+        print(new_dims_mapping)
+
+        new_dim = MultiAxisDist(self._pmesh, new_dims_mapping, self._block_sizes)
+
+        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+        n_procs = 2
+        return new_dim, permute_bandwith_cost(n_procs, max_block_size * max_n_blocks)
 
     def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
         if not self.isDistributed() or len(self._dims_mapping[from_tensor_axis]) == 0:

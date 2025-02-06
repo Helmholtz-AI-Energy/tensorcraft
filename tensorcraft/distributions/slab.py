@@ -90,16 +90,13 @@ class SlabDist(Dist):
         return p_list
 
     def allGather(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("allGather is not implemented for Slabdist")
+        raise NotImplementedError("allGather is not implemented for SlabDist")
 
     def split(self, shape, tensor_axis, mesh_axis):  # noqa: D102
-        raise NotImplementedError("split is not implemented for Slabdist")
+        raise NotImplementedError("split is not implemented for SlabDist")
 
-    def reduce_scatter(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("reduce_scatter is not implemented for Slabdist")
-
-    def permute(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("permute is not implemented for Slabdist")
+    def permute(self, shape, mesh_axis):  # noqa: D102
+        raise NotImplementedError("permute is not implemented for SlabDist")
 
     def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
-        raise NotImplementedError("all2all is not implemented for Slabdist")
+        raise NotImplementedError("all2all is not implemented for SlabDist")

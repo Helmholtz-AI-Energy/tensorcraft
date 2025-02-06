@@ -86,10 +86,7 @@ class TileDist(Dist):
     def split(self, shape, tensor_axis, mesh_axis):  # noqa: D102
         raise NotImplementedError("split is not implemented for TileDist")
 
-    def reduce_scatter(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("reduce_scatter is not implemented for TileDist")
-
-    def permute(self, shape, mesh_axis=None):  # noqa: D102
+    def permute(self, shape, mesh_axis):  # noqa: D102
         raise NotImplementedError("permute is not implemented for TileDist")
 
     def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
