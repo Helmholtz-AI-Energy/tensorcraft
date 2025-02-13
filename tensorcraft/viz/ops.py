@@ -1,13 +1,17 @@
 """Visualization of tensor operations."""
-import torch
+
+import math
 from typing import Optional
 
 import drawsvg as draw
+import torch
 
 from tensorcraft.compiler.model import TensorExpression
 
 
-def _highlight_index(axis: int, index: int, highlight: Optional[tuple[int, ...]] = None) -> bool:
+def _highlight_index(
+    axis: int, index: int, highlight: Optional[tuple[int, ...]] = None
+) -> bool:
     if highlight is None:
         return index == 0
     else:
@@ -21,28 +25,33 @@ def _orthogonal_projection(theta: float, gamma: float, phi: float) -> torch.tens
     # R = Rz * Ry * Rx
 
     # Rotation around the x axis
+    print(theta)
+    print(gamma)
+    print(phi)
     Rx = torch.tensor(
         [
             [1, 0, 0],
-            [0, torch.cos(theta), -torch.sin(theta)],
-            [0, torch.sin(theta), torch.cos(theta)],
+            [0, math.cos(theta), -math.sin(theta)],
+            [0, math.sin(theta), math.cos(theta)],
         ]
     )
 
     # Rotation around the y axis
     Ry = torch.tensor(
         [
-            [torch.cos(gamma), 0, torch.sin(gamma)],
+            [math.cos(gamma), 0, math.sin(gamma)],
             [0, 1, 0],
-            [-torch.sin(gamma), 0, torch.cos(gamma)],
+            [-math.sin(gamma), 0, math.cos(gamma)],
         ]
     )
 
     # Rotation around the z axis
     Rz = torch.tensor(
-        [[torch.cos(phi), -torch.sin(phi), 0],
-         [torch.sin(phi), torch.cos(phi), 0],
-         [0, 0, 1]]
+        [
+            [math.cos(phi), -math.sin(phi), 0],
+            [math.sin(phi), math.cos(phi), 0],
+            [0, 0, 1],
+        ]
     )
 
     R = Rz @ Ry @ Rx
@@ -51,7 +60,7 @@ def _orthogonal_projection(theta: float, gamma: float, phi: float) -> torch.tens
 
 def draw_tensor(
     d: draw.Drawing | draw.Group,
-    tensor: torch.Tensor,
+    tensor_shape: torch.Size,
     cell_size: float = 1,
     highlight_color: str = "blue",
     stroke_color: str = "black",
@@ -84,11 +93,13 @@ def draw_tensor(
     ValueError
         If the highlight index has a different order than the tensor.
     """
-    shape = tensor.shape
-    if len(shape) > 3:
+    shape = tensor_shape
+    order = len(shape)
+    cells = tensor_shape.numel()
+    if order > 3:
         raise ValueError("Cannot draw tensors with order greater than 3")
 
-    if mindex_highlight is not None and len(mindex_highlight) != tensor.order:
+    if mindex_highlight is not None and len(mindex_highlight) != order:
         raise ValueError("Highlight index must have the same order as the tensor")
 
     # If 0 order, draw a simple square and highlight with
@@ -107,9 +118,8 @@ def draw_tensor(
 
     if len(shape) == 1:
         # Rectangle
-        cells = tensor.size
         start_x, start_y = -cell_size / 2, -cell_size * cells / 2
-        for i in range(tensor.size):
+        for i in range(cells):
             fill = (
                 highlight_color if _highlight_index(0, i, mindex_highlight) else "white"
             )
@@ -126,7 +136,7 @@ def draw_tensor(
             )
 
     if len(shape) == 2:
-        rows, cols = tensor.shape
+        rows, cols = shape
         start_x, start_y = -cell_size * cols / 2, -cell_size * rows / 2
         for i in range(rows):
             fill_row = _highlight_index(0, i, mindex_highlight)
@@ -150,7 +160,7 @@ def draw_tensor(
 
     if len(shape) == 3:
         # Draw a 3D tensor as a stack of 2D tensors
-        rows, cols, depth = tensor.shape
+        rows, cols, depth = shape
         start_x, start_y, start_z = (
             -cell_size * cols / 2,
             -cell_size * rows / 2,
@@ -263,7 +273,7 @@ def draw_op(
 
     # Draw the output tensor
     output_tensor_width = (
-        output_shape[1] * cell_size if output_shape > 1 else cell_size
+        output_shape[1] * cell_size if len(output_shape) > 1 else cell_size
     )
     current_x = padding_marging - canvas_w / 2
     print(f"Current x: {current_x}")
@@ -276,7 +286,7 @@ def draw_op(
     label_h = -output_shape[0] * cell_size / 2 - padding_marging
     d.append(
         draw.Text(
-            f"{op.output[0]} {output_shape}",
+            f"{op.output[0]} {list(output_shape)}",
             font_size_labels,
             current_x + output_tensor_width / 2,
             label_h,
@@ -315,7 +325,7 @@ def draw_op(
         label_h = -tensor_shape[0] * cell_size / 2 - padding_marging
         d.append(
             draw.Text(
-                f"{tensor_name} {tensor_shape}",
+                f"{tensor_name} {list(tensor_shape)}",
                 font_size_labels,
                 current_x + tensor_width / 2,
                 label_h,

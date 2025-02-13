@@ -34,3 +34,6 @@ jobs:
           mpirun -n 4 coverage run tests/tensorcraft/mpi4py/test_util.py
           coverage combine
           coverage xml
+      - name: Test notebooks
+        run: |
+          pytest --nbmake "./notebooks" --ignore=notebooks/mpi/mpi_2D_3D_mm.ipynb
