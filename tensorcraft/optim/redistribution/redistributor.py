@@ -1,9 +1,15 @@
 """Base Redistributor module."""
 
 import abc
+import logging
 from typing import Any
 
+import torch
+
+from tensorcraft.distributions import Dist
 from tensorcraft.optim.cost import Cost, CostModel
+
+log = logging.getLogger("tensorcraft")
 
 
 class Redistributor(abc.ABC):
@@ -26,9 +32,18 @@ class Redistributor(abc.ABC):
         """Redistributor setup."""
         raise NotImplementedError()
 
+    def _compatible(shape: torch.Size, start_dist: Dist, target_dist: Dist) -> bool:
+        if not start_dist.compatible(shape):
+            log.error("Shape is not compatible with starting distributions.")
+            return False
+        if not target_dist.compatible(shape):
+            log.error("Shape is not compatible with target distributions.")
+            return False
+        return True
+
     @abc.abstractmethod
     def redistribute(
-        self, shape, start_dist, target_dist
+        self, shape: torch.Size, start_dist: Dist, target_dist: Dist
     ) -> tuple[list[tuple[str, tuple[Any], Cost]], Cost]:
         """
         Given a tensor shape, a starting distribution, and a target distribution, it will return a sequence of collective operations to reach the target distribution.
@@ -37,9 +52,9 @@ class Redistributor(abc.ABC):
         ----------
         shape : tuple of int
             The shape of the tensor to be redistributed.
-        start_dist : Any
+        start_dist : Dist
             The starting distribution of the tensor.
-        target_dist : Any
+        target_dist : Dist
             The target distribution of the tensor.
 
         Returns
@@ -47,4 +62,4 @@ class Redistributor(abc.ABC):
         list of (str, tuple of Any)
             A list of collective operations required to transform the tensor from the starting distribution to the target distribution.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("Abstract methods.")

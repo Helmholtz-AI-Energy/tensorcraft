@@ -10,10 +10,10 @@ from typing_extensions import Self
 class Cost:
     """Data class that collectes the different costs."""
 
-    latency: float
-    bandwidth: float
-    computation: float
-    max_memory_delta: float
+    latency: float = 0
+    bandwidth: float = 0
+    computation: float = 0
+    max_memory_delta: float = 0
 
     def __add__(self, other: Self):
         self.latency += other.latency
