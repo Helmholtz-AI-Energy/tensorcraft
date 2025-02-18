@@ -316,7 +316,7 @@ class Dist(ABC):
 
     @abstractmethod
     def all2all(
-        self, shape: torch.Size, from_tensor_axis: int, to_tensor_axis: int
+        self, shape: torch.Size, from_tensor_axis: int, to_tensor_axis: int, minor=True
     ) -> tuple[Self, float]:
         """
         Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
@@ -329,6 +329,8 @@ class Dist(ABC):
             The tensor axis to send data from.
         to_tensor_axis : int
             The tensor axis to receive data to.
+        minor: bool, Default false
+            If set to true, it will only exchange data between the minor distribution dimention of the source tensor axis.
 
         Returns
         -------

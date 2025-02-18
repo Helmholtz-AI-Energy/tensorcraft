@@ -89,6 +89,9 @@ class SlabDist(Dist):
 
         return p_list
 
+    def maxNumElements(self, shape):  # noqa: D102
+        raise NotImplementedError("maxNumElements is not implemented for SlabDist")
+
     def allGather(self, shape, mesh_axis=None):  # noqa: D102
         raise NotImplementedError("allGather is not implemented for SlabDist")
 
@@ -98,5 +101,5 @@ class SlabDist(Dist):
     def permute(self, shape, mesh_axis):  # noqa: D102
         raise NotImplementedError("permute is not implemented for SlabDist")
 
-    def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
+    def all2all(self, shape, from_tensor_axis, to_tensor_axis, minor=False):  # noqa: D102
         raise NotImplementedError("all2all is not implemented for SlabDist")

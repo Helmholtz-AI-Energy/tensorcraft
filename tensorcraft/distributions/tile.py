@@ -80,6 +80,9 @@ class TileDist(Dist):
 
         return p_list
 
+    def maxNumElements(self, shape):  # noqa: D102
+        raise NotImplementedError("maxNumElements is not implemented for TileDist")
+
     def allGather(self, shape, mesh_axis=None):  # noqa: D102
         raise NotImplementedError("allGather is not implemented for TileDist")
 
