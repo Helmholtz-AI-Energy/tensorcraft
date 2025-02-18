@@ -7,11 +7,6 @@ from typing import Optional, TypeAlias
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.distributions.util import (
-    all2all_bandwidth_cost,
-    allgather_bandwidth_cost,
-    permute_bandwith_cost,
-)
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
@@ -226,13 +221,7 @@ class MultiAxisDist(Dist):
             max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
             involved_procs = math.prod(self._pmesh)
 
-            print(
-                f"Communication volume: {max_block_size * max_n_blocks * involved_procs}"
-            )
-
-            return new_dist, allgather_bandwidth_cost(
-                involved_procs, max_block_size * max_n_blocks * involved_procs
-            )
+            return new_dist, max_n_blocks * max_block_size, involved_procs
         else:
             # Check that the mesh axis is valid
             tensor_axis = -1
@@ -282,7 +271,7 @@ class MultiAxisDist(Dist):
 
             comm_volume = max_n_blocks * max_block_size
             print(f"Communication volume: {comm_volume}")
-            return new_dist, allgather_bandwidth_cost(involved_procs, comm_volume)
+            return new_dist, comm_volume, involved_procs
 
     def split(self, shape, tensor_axis, mesh_dims, block_size=1):  # noqa: D102
         # This will just split a along the scatter axis
@@ -321,7 +310,7 @@ class MultiAxisDist(Dist):
                 "Tensor shape cannot be split with the given axis mapping and block size."
             )
         print(f"Communication volume: {0}")
-        return new_dist, 0
+        return new_dist, 0, 0
 
     def permute(self, shape, mesh_dims: tuple[int, int]):  # noqa: D102
         # check for compatibility and if it is distributed
@@ -359,7 +348,7 @@ class MultiAxisDist(Dist):
         comm_volume = max_n_blocks * max_block_size
         print(f"Communication volume: {comm_volume}")
 
-        return new_dim, permute_bandwith_cost(n_procs, comm_volume)
+        return new_dim, comm_volume, n_procs
 
     def all2all(self, shape, from_tensor_axis, to_tensor_axis, minor=False):  # noqa: D102
         if not self.isDistributed() or len(self._dims_mapping[from_tensor_axis]) == 0:
@@ -426,7 +415,7 @@ class MultiAxisDist(Dist):
         max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
         comm_volume = max_block_size * max_n_blocks
         print(f"Communication volume: {comm_volume}")
-        return new_dist, all2all_bandwidth_cost(n_procs, comm_volume)
+        return new_dist, comm_volume, n_procs
 
     def __str__(self):
         return (

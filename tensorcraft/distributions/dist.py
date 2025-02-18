@@ -237,7 +237,9 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def allGather(self, shape, mesh_axis: Optional[int] = None) -> tuple[Self, float]:
+    def allGather(
+        self, shape, mesh_axis: Optional[int] = None
+    ) -> tuple[Self, float, float]:
         """
         Return the distribution that results from gathering the tensor across the selected processor mesh axis.
 
@@ -253,7 +255,9 @@ class Dist(ABC):
         Dist
             The distribution that results from the all-gather. None if the tensor is not compatible with the distribution.
         float
-            The maximum expected communication cost.
+            The maximum expected communication volume (n_elements).
+        float
+            The number of involved processes in each sub communicator.
         """
         log.warning("allGather not implemented for abstract class Dist")
         raise NotImplementedError()
@@ -265,7 +269,7 @@ class Dist(ABC):
         tensor_axis: int,
         mesh_axis: int | tuple[int, ...],
         block_size=1,
-    ) -> tuple[Self, float]:
+    ) -> tuple[Self, float, float]:
         """
         Return the distribution that results from splitting the tensor across the selected tensor axis and processor mesh axis.
 
@@ -285,7 +289,9 @@ class Dist(ABC):
         Dist
             The distribution that results from the split. None if the tensor is not compatible with the distribution.
         float
-            The maximum expected communication cost.
+            The maximum expected communication volume (n_elements).
+        float
+            The number of involved processes in each sub communicator.
         """
         log.warning("split not implemented for abstract class Dist")
         raise NotImplementedError()
@@ -293,7 +299,7 @@ class Dist(ABC):
     @abstractmethod
     def permute(
         self, shape: torch.Size, mesh_axis: tuple[int, int]
-    ) -> tuple[Self, float]:
+    ) -> tuple[Self, float, float]:
         """
         Return the distribution that results from permuting the tensor across the selected processor mesh axes.
 
@@ -309,7 +315,9 @@ class Dist(ABC):
         Dist
             The distribution that results from the permutation. None if the tensor is not compatible with the distribution.
         float
-            The maximum expected communication cost.
+            The maximum expected communication volume (n_elements).
+        float
+            The number of involved processes in each sub communicator.
         """
         log.warning("permute not implemented for abstract class Dist")
         raise NotImplementedError()
@@ -317,7 +325,7 @@ class Dist(ABC):
     @abstractmethod
     def all2all(
         self, shape: torch.Size, from_tensor_axis: int, to_tensor_axis: int, minor=True
-    ) -> tuple[Self, float]:
+    ) -> tuple[Self, float, float]:
         """
         Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
 
@@ -337,7 +345,9 @@ class Dist(ABC):
         Dist
             The distribution that results from the all-to-all communication. None if the tensor is not compatible with the distribution.
         float
-            The maximum expected communication cost.
+            The maximum expected communication volume (n_elements).
+        float
+            The number of involved processes in each sub communicator.
         """
         log.warning("all2all not implemented for abstract class Dist")
         raise NotImplementedError()
