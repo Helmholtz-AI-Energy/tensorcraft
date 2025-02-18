@@ -175,6 +175,11 @@ class Dist(ABC):
         return linear2multiIndex(index, self._pmesh)
 
     @abstractmethod
+    def maxNumElements(self, shape: torch.Size) -> int:
+        """Max number of elements held by a process, given a tensor shape."""
+        raise NotImplementedError("Not implemented for abstract class")
+
+    @abstractmethod
     def processorView(self, shape: torch.Size) -> torch.Tensor:
         """
         Get the processor view of a tensor.

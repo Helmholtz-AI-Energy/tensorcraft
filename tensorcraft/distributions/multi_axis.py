@@ -185,6 +185,10 @@ class MultiAxisDist(Dist):
 
         return dim_distribution
 
+    def maxNumElements(self, shape):  # noqa: D102
+        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+        return max_n_blocks * max_block_size
+
     def _max_block_size_n_blocks(self, shape):
         max_block_size = 1
         max_n_blocks = 1
@@ -222,8 +226,12 @@ class MultiAxisDist(Dist):
             max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
             involved_procs = math.prod(self._pmesh)
 
+            print(
+                f"Communication volume: {max_block_size * max_n_blocks * involved_procs}"
+            )
+
             return new_dist, allgather_bandwidth_cost(
-                involved_procs, max_block_size * max_n_blocks
+                involved_procs, max_block_size * max_n_blocks * involved_procs
             )
         else:
             # Check that the mesh axis is valid
@@ -269,11 +277,12 @@ class MultiAxisDist(Dist):
             new_dist = MultiAxisDist(self._pmesh, new_mapping, new_block_sizes)
 
             # Cost of all-gather is the number of processors
+
             max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
 
-            return new_dist, allgather_bandwidth_cost(
-                involved_procs, max_block_size * max_n_blocks
-            )
+            comm_volume = max_n_blocks * max_block_size
+            print(f"Communication volume: {comm_volume}")
+            return new_dist, allgather_bandwidth_cost(involved_procs, comm_volume)
 
     def split(self, shape, tensor_axis, mesh_dims, block_size=1):  # noqa: D102
         # This will just split a along the scatter axis
@@ -311,6 +320,7 @@ class MultiAxisDist(Dist):
             raise ValueError(
                 "Tensor shape cannot be split with the given axis mapping and block size."
             )
+        print(f"Communication volume: {0}")
         return new_dist, 0
 
     def permute(self, shape, mesh_dims: tuple[int, int]):  # noqa: D102
@@ -345,38 +355,78 @@ class MultiAxisDist(Dist):
 
         max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
         n_procs = 2
-        return new_dim, permute_bandwith_cost(n_procs, max_block_size * max_n_blocks)
 
-    def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
+        comm_volume = max_n_blocks * max_block_size
+        print(f"Communication volume: {comm_volume}")
+
+        return new_dim, permute_bandwith_cost(n_procs, comm_volume)
+
+    def all2all(self, shape, from_tensor_axis, to_tensor_axis, minor=False):  # noqa: D102
         if not self.isDistributed() or len(self._dims_mapping[from_tensor_axis]) == 0:
             raise ValueError("From axis needs to be distributed.")
-
-        from_dim_map = self._dims_mapping[from_tensor_axis]
-        target_dim_map = self._dims_mapping[to_tensor_axis]
-        new_target_dim_map = from_dim_map + target_dim_map
-        new_block_size = self._block_sizes
+        if not self.compatible(shape):
+            raise ValueError("Not compatible starting shape for starting distribution.")
 
         new_dims_map_list = list(self._dims_mapping)
-        new_dims_map_list[from_tensor_axis] = ()
-        new_dims_map_list[to_tensor_axis] = new_target_dim_map
+        new_block_size_list = list(self._block_sizes)
 
-        new_dist = MultiAxisDist(self._pmesh, tuple(new_dims_map_list), new_block_size)
+        if minor:
+            moved_mesh_dims = (self._dims_mapping[from_tensor_axis][-1],)
+            relevant_procs = self._pmesh[moved_mesh_dims[0]]
+            n_procs = relevant_procs
+
+            # Find out new dims mapping
+            new_from_t_axis_mapping = self._dims_mapping[from_tensor_axis][:-1]
+            new_to_t_axis_mapping = self._dims_mapping[to_tensor_axis] + moved_mesh_dims
+
+            new_dims_map_list[from_tensor_axis] = new_from_t_axis_mapping
+            new_dims_map_list[to_tensor_axis] = new_to_t_axis_mapping
+        else:
+            moved_mesh_dims = self._dims_mapping[from_tensor_axis]
+            relevant_procs = [self._pmesh[x] for x in moved_mesh_dims]
+            n_procs = math.prod(relevant_procs)
+
+            # Find out new dims mapping
+            new_dims_map_list[from_tensor_axis] = ()
+            new_dims_map_list[to_tensor_axis] = (
+                self._dims_mapping[to_tensor_axis] + moved_mesh_dims
+            )
+
+        new_from_t_axis_bs = (
+            self._block_sizes[from_tensor_axis] * n_procs
+            if new_dims_map_list[from_tensor_axis] != ()
+            else 1
+        )
+
+        to_t_axis_bs = (
+            self._block_sizes[to_tensor_axis]
+            if self._dims_mapping[to_tensor_axis] != ()
+            else shape[to_tensor_axis]
+        )
+
+        if to_t_axis_bs % n_procs != 0:
+            raise ValueError(
+                "Incompatible resulting block size. The block size of the newly split tensor axis must be divisible by the involved mesh dimentions"
+            )
+        new_to_t_axis_bs = to_t_axis_bs // n_procs
+
+        new_block_size_list[from_tensor_axis] = new_from_t_axis_bs
+        new_block_size_list[to_tensor_axis] = new_to_t_axis_bs
+
+        new_dist = MultiAxisDist(
+            self._pmesh, tuple(new_dims_map_list), tuple(new_block_size_list)
+        )
 
         if not new_dist.compatible(shape):
             raise ValueError(
                 "Tensor shape cannot be redistributed with the given axis mapping and block size."
             )
 
-        # Cost
-        relevant_procs = [self._pmesh[x] for x in self._dims_mapping[from_tensor_axis]]
-        n_procs = math.prod(relevant_procs)
-        src_max_block_size, src_n_blocks = self._max_block_size_n_blocks(shape)
-        max_n_elements = src_max_block_size * src_n_blocks
-        print(max_n_elements)
-
-        return new_dist, all2all_bandwidth_cost(
-            n_procs=n_procs, n_elements=max_n_elements
-        )
+        # Communication volume
+        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+        comm_volume = max_block_size * max_n_blocks
+        print(f"Communication volume: {comm_volume}")
+        return new_dist, all2all_bandwidth_cost(n_procs, comm_volume)
 
     def __str__(self):
         return (
