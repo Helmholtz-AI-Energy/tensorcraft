@@ -270,7 +270,6 @@ class MultiAxisDist(Dist):
             max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
 
             comm_volume = max_n_blocks * max_block_size
-            print(f"Communication volume: {comm_volume}")
             return new_dist, comm_volume, involved_procs
 
     def split(self, shape, tensor_axis, mesh_dims, block_size=1):  # noqa: D102
@@ -309,7 +308,6 @@ class MultiAxisDist(Dist):
             raise ValueError(
                 "Tensor shape cannot be split with the given axis mapping and block size."
             )
-        print(f"Communication volume: {0}")
         return new_dist, 0, 0
 
     def permute(self, shape, mesh_dims: tuple[int, int]):  # noqa: D102
@@ -346,7 +344,6 @@ class MultiAxisDist(Dist):
         n_procs = 2
 
         comm_volume = max_n_blocks * max_block_size
-        print(f"Communication volume: {comm_volume}")
 
         return new_dim, comm_volume, n_procs
 
@@ -414,7 +411,6 @@ class MultiAxisDist(Dist):
         # Communication volume
         max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
         comm_volume = max_block_size * max_n_blocks
-        print(f"Communication volume: {comm_volume}")
         return new_dist, comm_volume, n_procs
 
     def __str__(self):
