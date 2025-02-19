@@ -199,9 +199,14 @@ class MultiAxisDist(Dist):
             )
             max_block_size *= max(axis_splits)
             max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
+
+        if isinstance(max_n_blocks, torch.Tensor):
+            max_n_blocks = float(max_n_blocks.item())
+        if isinstance(max_block_size, torch.Tensor):
+            max_block_size = float(max_block_size.item())
         return max_block_size, max_n_blocks
 
-    def allGather(self, shape, gather_dim=Optional[int]):  # noqa: D102
+    def allGather(self, shape, gather_dim=None):  # noqa: D102
         if not self.isDistributed():
             log.warning(
                 "The original distribution is not distributed, nothing is done."
@@ -219,7 +224,13 @@ class MultiAxisDist(Dist):
 
             # Cost of all-gather is the number of processors
             max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
-            involved_procs = math.prod(self._pmesh)
+            involved_dims = [
+                self._pmesh[mesh_dim]
+                for axis_map in self._dims_mapping
+                if len(axis_map) != 0
+                for mesh_dim in axis_map
+            ]
+            involved_procs = math.prod(involved_dims)
 
             return new_dist, max_n_blocks * max_block_size, involved_procs
         else:

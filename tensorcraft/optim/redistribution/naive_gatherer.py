@@ -1,10 +1,13 @@
 """NaiveGatherer Redistributor module."""
 
+import logging
 from typing import Any
 
 from tensorcraft.optim.cost import Cost
 
 from .redistributor import Redistributor
+
+log = logging.getLogger("tensorcraft")
 
 
 class NaiveGathererRedist(Redistributor):
@@ -33,6 +36,7 @@ class NaiveGathererRedist(Redistributor):
         # First allgather
         starting_memory_usage = start_dist.maxNumElements(shape)
         non_split_dist, comm_volume, n_procs = start_dist.allGather(shape)
+        log.info(f"Dist {non_split_dist}, volume: {comm_volume}, n_procs {n_procs}")
         non_split_memory_usage = non_split_dist.maxNumElements(shape)
         all_gather_cost = self._cm.allgather(n_procs, comm_volume)
         all_gather_cost.max_memory_delta = (

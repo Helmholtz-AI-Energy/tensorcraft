@@ -16,10 +16,12 @@ class Cost:
     max_memory_delta: float = 0
 
     def __add__(self, other: Self):
-        self.latency += other.latency
-        self.bandwidth += other.bandwidth
-        self.computation += other.computation
-        self.max_memory_delta = max(self.max_memory_delta, other.max_memory_delta)
+        return Cost(
+            self.latency + other.latency,
+            self.bandwidth + other.bandwidth,
+            self.computation + other.computation,
+            max(self.max_memory_delta, other.max_memory_delta),
+        )
 
 
 class CostModel(abc.ABC):

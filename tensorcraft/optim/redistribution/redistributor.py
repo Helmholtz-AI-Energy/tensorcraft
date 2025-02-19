@@ -32,7 +32,9 @@ class Redistributor(abc.ABC):
         """Redistributor setup."""
         raise NotImplementedError()
 
-    def _compatible(shape: torch.Size, start_dist: Dist, target_dist: Dist) -> bool:
+    def _compatible(
+        self, shape: torch.Size, start_dist: Dist, target_dist: Dist
+    ) -> bool:
         if not start_dist.compatible(shape):
             log.error("Shape is not compatible with starting distributions.")
             return False
