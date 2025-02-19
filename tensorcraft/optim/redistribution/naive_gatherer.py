@@ -24,12 +24,6 @@ class NaiveGathererRedist(Redistributor):
         if not self._compatible(shape, start_dist, target_dist):
             raise ValueError("Incompatible arguments.")
 
-        # This requirenment could be relax for this Redistributor
-        if start_dist.processorMesh != target_dist.processorMesh:
-            raise ValueError(
-                "Starting and target distributions needs to have the be on the same processor mesh."
-            )
-
         operations: list[tuple[str, tuple[Any], Cost]] = []
         total_cost = Cost()
 

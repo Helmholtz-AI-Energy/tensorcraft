@@ -41,6 +41,17 @@ class Redistributor(abc.ABC):
         if not target_dist.compatible(shape):
             log.error("Shape is not compatible with target distributions.")
             return False
+
+        if start_dist.processorMesh != target_dist.processorMesh:
+            log.error(
+                "Both source and target distributions should use the same processor mesh"
+            )
+            return False
+
+        if type(start_dist) is type(target_dist):
+            log.error("Both source and target distributions should be of the same type")
+            return False
+
         return True
 
     @abc.abstractmethod
