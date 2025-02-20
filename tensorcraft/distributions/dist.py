@@ -351,3 +351,30 @@ class Dist(ABC):
         """
         log.warning("all2all not implemented for abstract class Dist")
         raise NotImplementedError()
+
+    def change_block_size(
+        self, shape: torch.Size, tensor_axis: int, block_size: int
+    ) -> tuple[Self, float, float]:
+        """
+        Change the blocks size of a distributed tensor axis.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape of the tensor.
+        tensor_axis : int
+            The target tensor axis.
+        block_size : int
+            Desired block size.
+
+        Returns
+        -------
+        Dist
+            The distribution that results from the all-to-all communication. None if the tensor is not compatible with the distribution.
+        float
+            The maximum expected communication volume (n_elements).
+        float
+            The number of involved processes in each sub communicator.
+        """
+        log.warning("change_block_size not implemented for abstract class Dist")
+        raise NotImplementedError()

@@ -94,3 +94,6 @@ class TileDist(Dist):
 
     def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
         raise NotImplementedError("all2all is not implemented for TileDist")
+
+    def change_block_size(self, shape, tensor_axis, block_size):  # noqa: D102
+        raise NotImplementedError("change_block_size is not implemented for SlabDist")

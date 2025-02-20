@@ -424,6 +424,36 @@ class MultiAxisDist(Dist):
         comm_volume = max_block_size * max_n_blocks
         return new_dist, comm_volume, n_procs
 
+    def change_block_size(self, shape, tensor_axis, block_size):  # noqa: D102
+        if not self.isDistributed() or len(self._dims_mapping[tensor_axis]) == 0:
+            raise ValueError("From axis needs to be distributed.")
+        if not self.compatible(shape):
+            raise ValueError("Not compatible starting shape for starting distribution.")
+
+        new_block_size_list = list(self._block_sizes)
+
+        moved_mesh_dims = self._dims_mapping[tensor_axis]
+        involved_dims_sizes = [self._pmesh[x] for x in moved_mesh_dims]
+        n_procs = math.prod(involved_dims_sizes)
+
+        old_block_size = new_block_size_list[tensor_axis]
+        if old_block_size == new_block_size_list:
+            log.error(f"Block size is already {old_block_size}")
+            raise ValueError("Invalid arguments")
+
+        ## TODO: Very simplified shit. If implemented like this it would be extremely inefficient, as some of the redistributions would have a lot of empty alltoallw operations.
+        new_block_size_list[tensor_axis] = new_block_size_list
+        new_dist = MultiAxisDist(
+            self.processorMesh, self._dims_mapping, tuple(new_block_size_list)
+        )
+
+        if not new_dist.compatible(shape):
+            log.error("Tensor shape not compatible with new block size.")
+            raise ValueError("Incompatible redistribution.")
+
+        comm_volume = self.maxNumElements()
+        return new_dist, comm_volume, n_procs
+
     def __str__(self):
         return (
             f"MultiAxisDist({self._pmesh}, {self._dims_mapping}, {self._block_sizes})"
