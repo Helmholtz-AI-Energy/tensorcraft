@@ -454,7 +454,14 @@ class MultiAxisDist(Dist):
         comm_volume = self.maxNumElements()
         return new_dist, comm_volume, n_procs
 
+    def __eq__(self, other):
+        base_comp = super().__eq__(other)
+        if base_comp and isinstance(other, MultiAxisDist):
+            return (self._dims_mapping == other._dims_mapping) and (
+                self._block_sizes == other._block_sizes
+            )
+        else:
+            return False
+
     def __str__(self):
-        return (
-            f"MultiAxisDist({self._pmesh}, {self._dims_mapping}, {self._block_sizes})"
-        )
+        return f"MultiAxisDist(mesh={self._pmesh}, {{{self._dims_mapping}}}({self._block_sizes}))"

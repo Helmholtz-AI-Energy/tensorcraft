@@ -27,10 +27,9 @@ class Redistributor(abc.ABC):
         self._cm = costModel
         self._setup()
 
-    @abc.abstractmethod
     def _setup(self):
         """Redistributor setup."""
-        raise NotImplementedError()
+        return
 
     def _compatible(
         self, shape: torch.Size, start_dist: Dist, target_dist: Dist
@@ -48,7 +47,7 @@ class Redistributor(abc.ABC):
             )
             return False
 
-        if type(start_dist) is type(target_dist):
+        if type(start_dist) is not type(target_dist):
             log.error("Both source and target distributions should be of the same type")
             return False
 

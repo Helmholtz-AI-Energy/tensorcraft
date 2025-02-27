@@ -1,16 +1,28 @@
 """Memory Constrained Redistributor module."""
 
+import dataclasses
 import logging
-from typing import Any
+from typing import Any, Optional
 
 import torch
+from typing_extensions import Self
 
+from tensorcraft.distributions import Dist
 from tensorcraft.distributions.multi_axis import MultiAxisDist
 from tensorcraft.optim.cost import Cost
 
 from .redistributor import Redistributor
 
 log = logging.getLogger("tensorcraft")
+
+
+@dataclasses.dataclass
+class Node:
+    """Distribution graph nodes."""
+    parent_node: Optional[Self]
+    dist: Dist
+    children: dict[str, Self]
+    cost: Cost
 
 
 class MemoryConstrainedRedist(Redistributor):
@@ -28,8 +40,8 @@ class MemoryConstrainedRedist(Redistributor):
         if not self._compatible(shape, start_dist=start_dist, target_dist=target_dist):
             raise ValueError("Incompatible arguments.")
 
-        match start_dist.__qualname__:
-            case MultiAxisDist.__qualname__:
+        match start_dist:
+            case MultiAxisDist():
                 return self._redistribute_multi_axis(shape, start_dist, target_dist)
             case _:
                 raise NotImplementedError(
@@ -40,11 +52,13 @@ class MemoryConstrainedRedist(Redistributor):
         self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
     ):
         mesh = start_dist.processorMesh
+        log.info(start_dist)
+        log.info(target_dist)
 
         operations: list[tuple[str, tuple[Any], Cost]] = []
         total_cost = Cost()
 
-        # 1) Identify tensor axes with discrepancies
+        # 1) Identify tensor axes with discrepancies, and the relevant dims
         target_axes = [
             i
             for i, (x, y) in enumerate(
@@ -55,27 +69,37 @@ class MemoryConstrainedRedist(Redistributor):
         log.info(f"Target axes: {target_axes}")
 
         # 2) Identify replication dims
-        start_rep_dims = []
-        target_rep_dims = []
+        start_rep_dims = set()
+        target_rep_dims = set()
         for dim in range(len(mesh)):
             in_start = False
             in_target = False
-            for i in range(len(mesh)):
-                if in_start and (dim in start_dist._dims_mapping[i]):  # type: ignore
+            for i in range(len(shape)):
+                if not in_start and (dim in start_dist._dims_mapping[i]):  # type: ignore
                     in_start = True
-                if in_target and (dim in target_dist._dims_mapping[i]):  # type: ignore
+                if not in_target and (dim in target_dist._dims_mapping[i]):  # type: ignore
                     in_target = True
 
             if not in_start:
-                start_rep_dims.append(dim)
+                start_rep_dims.add(dim)
             if not in_target:
-                target_rep_dims.append(dim)
+                target_rep_dims.add(dim)
 
         log.info(
             f"Replicated dims: start - {start_rep_dims}, target - {target_rep_dims}"
         )
+        helper_dims = start_rep_dims & target_rep_dims
+        log.info(f"Helper dims: {helper_dims}")
 
         # 3) Move mesh dims around
+
+        open_nodes: list[Node] = []
+        close_nodes: list[Node] = []
+        starter_node = Node(None, start_dist, {}, Cost(0, 0, 0, 0))
+        open_nodes.append(starter_node)
+
+        while len(open_nodes) > 0:
+            current_node = open_nodes.pop(0)
 
         # 4) Adjust block sizes
 

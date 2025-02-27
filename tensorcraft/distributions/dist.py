@@ -3,7 +3,7 @@
 import logging
 import math
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from typing_extensions import Self
@@ -145,6 +145,20 @@ class Dist(ABC):
             The number of processors.
         """
         return math.prod(self._pmesh)
+
+    @abstractmethod
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Dist):
+            return self._pmesh == other._pmesh
+        else:
+            return NotImplemented
+
+    @abstractmethod
+    def __str__(self):
+        return f"Dist(mesh={self._pmesh})"
+
+    def __repr__(self):
+        return self.__str__()
 
     @property
     def processorMesh(self) -> torch.Size:
@@ -352,6 +366,7 @@ class Dist(ABC):
         log.warning("all2all not implemented for abstract class Dist")
         raise NotImplementedError()
 
+    @abstractmethod
     def change_block_size(
         self, shape: torch.Size, tensor_axis: int, block_size: int
     ) -> tuple[Self, float, float]:
