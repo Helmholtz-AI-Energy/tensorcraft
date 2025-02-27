@@ -200,7 +200,23 @@ class MemoryConstrainedRedist(Redistributor):
                                     log.debug(f"Failed operation {operation} on dis {current_node.dist} with shape {shape}")
                         
                         for e_dim in extra_dims:
-                            if 
+                            in_other_target_dim = False
+                            for other_t_axis in target_axes:
+                                if target_axis != other_t_axis:
+                                    c_map = current_node.dist._dims_mapping[other_t_axis]
+                                    if e_dim in c_map:
+                                        index = c_map.index(e_dim)
+                                        if index == 0 and len(c_map) == 1:
+
+                                            
+
+                                        if index == len(current_node.dist._dims_mapping[other_t_axis]) -1:
+                                        else:
+                                        
+                                        break
+                                    
+
+                            
                                 
                     
 
