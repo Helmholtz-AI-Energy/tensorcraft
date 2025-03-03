@@ -106,3 +106,6 @@ class SlabDist(Dist):
 
     def change_block_size(self, shape, tensor_axis, block_size):  # noqa: D102
         raise NotImplementedError("change_block_size is not implemented for SlabDist")
+
+    def neighbours(self, shape):  # noqa: D102
+        return super().neighbours(shape)

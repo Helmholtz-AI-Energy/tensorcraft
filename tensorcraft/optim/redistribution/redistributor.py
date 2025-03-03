@@ -15,7 +15,14 @@ log = logging.getLogger("tensorcraft")
 class Redistributor(abc.ABC):
     """Base redistributer class."""
 
-    def __init__(self, costModel: CostModel):
+    def __init__(
+        self,
+        costModel: CostModel,
+        alpha: float = 1,
+        beta: float = 1,
+        gamma: float = 1,
+        epsilon: float = 1,
+    ):
         """
         Redistributer initialization.
 
@@ -25,11 +32,23 @@ class Redistributor(abc.ABC):
             The cost model to be used for optimizing redistributions.
         """
         self._cm = costModel
+        self._alpha = alpha
+        self._beta = beta
+        self._gamma = gamma
+        self._epsilon = epsilon
         self._setup()
 
     def _setup(self):
         """Redistributor setup."""
         return
+
+    def _edge_weight(self, cost: Cost) -> float:
+        return (
+            cost.latency * self._alpha
+            + cost.bandwidth * self._beta
+            + self._gamma * cost.computation
+            + self._epsilon * cost.max_memory_delta
+        )
 
     def _compatible(
         self, shape: torch.Size, start_dist: Dist, target_dist: Dist

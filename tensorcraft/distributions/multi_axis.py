@@ -1,10 +1,12 @@
 """MultiAxisDist class."""
 
+import itertools
 import logging
 import math
 from typing import Optional, TypeAlias
 
 import torch
+from typing_extensions import Self
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
@@ -465,3 +467,107 @@ class MultiAxisDist(Dist):
 
     def __str__(self):
         return f"MultiAxisDist(mesh={self._pmesh}, {{{self._dims_mapping}}}({self._block_sizes}))"
+
+    def neighbours(self, shape: torch.Size) -> list[tuple[str, Self, float, float]]:  # noqa: D102
+        neighbours: list[tuple[str, Self, float, float]] = []
+
+        # Free dims:
+        free_dims = []
+        for dim in range(len(self._pmesh)):
+            is_free = True
+            for i in range(len(shape)):
+                if dim in self._dims_mapping[i]:  # type: ignore
+                    is_free = False
+                    break
+
+            if is_free:
+                free_dims.append(dim)
+
+        # split
+        for free_dim in free_dims:
+            for axis in len(shape):
+                operation = f"split_{axis}_{free_dim}_1"
+                try:
+                    new_dist, _, _ = self.split(shape, axis, free_dim, 1)
+                    log.debug(f"Landed in {new_dist}")
+
+                    neighbours.append((operation, new_dist, 0, 0))
+
+                except Exception:
+                    log.debug(
+                        f"Failed operation {operation} on dist {self} with shape {shape}"
+                    )
+
+        # allgather
+        try:
+            operation = "allgather_*"
+            new_dist, vol, n_procs = self.allGather(shape)
+            log.debug(f"New neighbour: {new_dist}")
+
+            neighbours.append((operation, new_dist, vol, n_procs))
+
+        except Exception:
+            log.debug(f"Failed operation {operation} on dist {self} with shape {shape}")
+
+        non_free_dims = list(set(range(len(self._pmesh))) - set(free_dim))
+        for non_free_dim in non_free_dims:
+            operation = f"allgather_{non_free_dim}"
+            try:
+                new_dist, vol, n_procs = self.allGather(shape, non_free_dim)
+                log.debug(f"New neighbour: {new_dist}")
+
+                neighbours.append((operation, new_dist, vol, n_procs))
+            except Exception:
+                log.debug(
+                    f"Failed operation {operation} on dist {self} with shape {shape}"
+                )
+
+        # permutation
+        for axis in range(len(shape)):
+            mapping = self._dims_mapping[axis]
+            if len(mapping) > 1:
+                possible_permutations = itertools.combinations(mapping, 2)
+                for combination in possible_permutations:
+                    operation = f"permuation_{combination[0]}_{combination[1]}"
+                    try:
+                        new_dist, vol, n_procs = self.permute(shape, combination)
+                        log.debug(f"New neighbour: {new_dist}")
+
+                        neighbours.append((operation, new_dist, vol, n_procs))
+                    except Exception:
+                        log.debug(
+                            f"Failed operation {operation} on dist {self} with shape {shape}"
+                        )
+
+        # alltoall
+        for source_axis in range(len(shape)):
+            if len(self._dims_mapping[source_axis]) != 0:
+                for target_axis in range(len(shape)):
+                    operation = f"alltoall_{source_axis}_{target_axis}"
+                    try:
+                        new_dist, vol, n_procs = self.all2all(
+                            shape, source_axis, target_axis
+                        )
+                        log.debug(f"New neighbour: {new_dist}")
+
+                        neighbours.append((operation, new_dist, vol, n_procs))
+                    except Exception:
+                        log.debug(
+                            f"Failed operation {operation} on dist {self} with shape {shape}"
+                        )
+
+                    if len(self._dims_mapping[source_axis]) > 1:
+                        operation = f"alltoall_minor_{source_axis}_{target_axis}"
+                        try:
+                            new_dist, vol, n_procs = self.all2all(
+                                shape, source_axis, target_axis, True
+                            )
+                            log.debug(f"New neighbour: {new_dist}")
+
+                            neighbours.append((operation, new_dist, vol, n_procs))
+
+                        except Exception:
+                            log.debug(
+                                f"Failed operation {operation} on dist {self} with shape {shape}"
+                            )
+        return neighbours

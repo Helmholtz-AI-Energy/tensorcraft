@@ -273,8 +273,7 @@ class Dist(ABC):
         float
             The number of involved processes in each sub communicator.
         """
-        log.warning("allGather not implemented for abstract class Dist")
-        raise NotImplementedError()
+        pass
 
     @abstractmethod
     def split(
@@ -307,8 +306,7 @@ class Dist(ABC):
         float
             The number of involved processes in each sub communicator.
         """
-        log.warning("split not implemented for abstract class Dist")
-        raise NotImplementedError()
+        pass
 
     @abstractmethod
     def permute(
@@ -333,8 +331,7 @@ class Dist(ABC):
         float
             The number of involved processes in each sub communicator.
         """
-        log.warning("permute not implemented for abstract class Dist")
-        raise NotImplementedError()
+        pass
 
     @abstractmethod
     def all2all(
@@ -363,8 +360,7 @@ class Dist(ABC):
         float
             The number of involved processes in each sub communicator.
         """
-        log.warning("all2all not implemented for abstract class Dist")
-        raise NotImplementedError()
+        pass
 
     @abstractmethod
     def change_block_size(
@@ -391,5 +387,25 @@ class Dist(ABC):
         float
             The number of involved processes in each sub communicator.
         """
-        log.warning("change_block_size not implemented for abstract class Dist")
-        raise NotImplementedError()
+        pass
+
+    @abstractmethod
+    def neighbours(self, shape: torch.Size) -> list[tuple[str, Self, float, float]]:
+        """
+        Neighboring elements for a given shape.
+
+        Parameters
+        ----------
+        shape : torch.Size
+            The shape for which to compute the neighbors.
+
+        Returns
+        -------
+        list of tuple
+            A list of tuples, each containing:
+            - str: A string identifier for the operation to reach the neighbour
+            - Dist: The neighbour distribution object itself.
+            - float: The communication volume.
+            - float: The number of involved processors.
+        """
+        pass
