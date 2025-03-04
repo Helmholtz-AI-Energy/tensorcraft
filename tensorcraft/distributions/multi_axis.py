@@ -13,7 +13,7 @@ from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
-DimsMapType: TypeAlias = tuple[Optional[tuple[int, ...]], ...]
+DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
 BlockSizesType: TypeAlias = int | tuple[int, ...]
 
 
@@ -43,7 +43,7 @@ class MultiAxisDist(Dist):
     def __init__(
         self,
         processor_mesh: int | torch.Size,
-        dims_mapping: DimsMapType,
+        dims_mapping: tuple[Optional[tuple[int, ...]], ...],
         block_sizes: BlockSizesType,
     ) -> None:
         super().__init__(processor_mesh=processor_mesh)
@@ -66,14 +66,18 @@ class MultiAxisDist(Dist):
 
         # Check that no processor mesh axis is repeated
         mesh_dims = []
+        dims_mapping_list: list[tuple[int, ...]] = []
         for dim_mapping in dims_mapping:
             if dim_mapping:
                 for axis in dim_mapping:
                     if axis in mesh_dims:
                         raise ValueError("The processor mesh axis must not be repeated")
                     mesh_dims.append(axis)
+                dims_mapping_list.append(dim_mapping)
+            else:
+                dims_mapping_list.append(())
 
-        self._dims_mapping = dims_mapping
+        self._dims_mapping: DimsMapType = tuple(dims_mapping_list)
         self._block_sizes = block_sizes
 
     def processorView(self, shape: torch.Size) -> torch.Tensor:
@@ -485,7 +489,7 @@ class MultiAxisDist(Dist):
 
         # split
         for free_dim in free_dims:
-            for axis in len(shape):
+            for axis in range(len(shape)):
                 operation = f"split_{axis}_{free_dim}_1"
                 try:
                     new_dist, _, _ = self.split(shape, axis, free_dim, 1)
@@ -509,7 +513,7 @@ class MultiAxisDist(Dist):
         except Exception:
             log.debug(f"Failed operation {operation} on dist {self} with shape {shape}")
 
-        non_free_dims = list(set(range(len(self._pmesh))) - set(free_dim))
+        non_free_dims = list(set(range(len(self._pmesh))) - {free_dim})
         for non_free_dim in non_free_dims:
             operation = f"allgather_{non_free_dim}"
             try:

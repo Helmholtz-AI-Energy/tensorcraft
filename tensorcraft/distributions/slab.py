@@ -109,3 +109,12 @@ class SlabDist(Dist):
 
     def neighbours(self, shape):  # noqa: D102
         return super().neighbours(shape)
+
+    def __eq__(self, other):
+        if super().__eq__(other) and isinstance(other, SlabDist):
+            return self._dim == other._dim and self._block_size == other._block_size
+        else:
+            return False
+
+    def __str__(self):
+        return f"SlabDist(dim={self._dim}, block_size={self._block_size}, processor_mesh={self.numProcessors})"

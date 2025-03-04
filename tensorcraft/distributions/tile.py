@@ -100,3 +100,10 @@ class TileDist(Dist):
 
     def neighbours(self, shape):  # noqa: D102
         return super().neighbours(shape)
+
+    def __eq__(self, other):
+        if super().__eq__(other) and isinstance(other, TileDist):
+            return self._tile_size == other._tile_size
+
+    def __str__(self):
+        return f"TileDist({self.numProcessors}, {self._tile_size})"
