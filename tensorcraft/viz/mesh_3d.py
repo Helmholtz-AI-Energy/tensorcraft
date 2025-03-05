@@ -1,6 +1,7 @@
 """3D mesh visualization module."""
-import torch
+
 import networkx as nx
+import torch
 from matplotlib.axes import Axes
 
 from tensorcraft.viz.util import get_n_colors, mesh_grid, rgba2hex

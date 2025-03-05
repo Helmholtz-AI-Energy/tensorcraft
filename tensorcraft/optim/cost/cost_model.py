@@ -52,6 +52,6 @@ class CostModel(abc.ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def all2all(n_procs: int, n_elements: int) -> Cost:
-        """Cost of doing an all2all on n_procs processors with n_elements each."""
+    def alltoall(n_procs: int, n_elements: int) -> Cost:
+        """Cost of doing an alltoall on n_procs processors with n_elements each."""
         raise NotImplementedError()

@@ -1,8 +1,10 @@
 """NaiveGatherer Redistributor module."""
 
 import logging
-from typing import Any
 
+import torch
+
+from tensorcraft.distributions import Dist, MultiAxisDist
 from tensorcraft.optim.cost import Cost
 
 from .redistributor import Redistributor
@@ -20,8 +22,10 @@ class NaiveGathererRedist(Redistributor):
     def _setup(self):  # noqa: D102
         return
 
-    def _redistribute_multi_axis(self, shape, start_dist, target_dist):
-        operations: list[tuple[str, tuple[Any], Cost]] = [(None, start_dist, Cost())]
+    def _redistribute_multi_axis(
+        self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
+    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
+        operations: list[tuple[str, Dist, Cost]] = [("", start_dist, Cost())]
         total_cost = Cost()
 
         # First allgather
@@ -45,3 +49,13 @@ class NaiveGathererRedist(Redistributor):
         total_cost += split_cost
 
         return operations, self._edge_weight(total_cost)
+
+    def _redistribute_slab(self, shape, start_dist, target_dist):
+        raise NotImplementedError(
+            "Slab redistribution is not supported by the NaiveGathererRedist."
+        )
+
+    def _redistribute_tile(self, shape, start_dist, target_dist):
+        raise NotImplementedError(
+            "Tile redistribution is not supported by the NaiveGathererRedist."
+        )

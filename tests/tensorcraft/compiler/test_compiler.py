@@ -1,15 +1,14 @@
 from typing import Callable
 
-import torch
 import hypothesis.extra.numpy as npst
 import networkx as nx
 import pytest
+import torch
 from hypothesis import given, note, settings
 from hypothesis import strategies as st
 
 import tensorcraft as tc
 from tensorcraft.compiler.model import Program
-
 
 TOL = 1e-14
 MIN_ABS = 1e-5
@@ -38,7 +37,6 @@ _operations = [
 ]
 
 index_names = ["i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
-
 
 
 @given(program=st.text())
@@ -134,7 +132,7 @@ def test_tensor_scalar_ops(op, shape):
 
     if not isinstance(expected, torch.Tensor):
         expected = torch.tensor(expected)
-    
+
     if expected.dtype != torch.float64:
         expected = expected.type(torch.float64)
     note(f"Expected: {expected}")
@@ -174,7 +172,7 @@ def test_tensor_elementwise_ops(op, shape):
     expected = op[1](a, b)
     if not isinstance(expected, torch.Tensor):
         expected = torch.tensor(expected)
-    
+
     if expected.dtype != torch.float64:
         expected = expected.type(torch.float64)
 

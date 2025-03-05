@@ -5,9 +5,8 @@ import logging
 from typing import Optional
 
 import torch
-from typing_extensions import Self
 
-from tensorcraft.distributions.multi_axis import MultiAxisDist
+from tensorcraft.distributions import Dist, MultiAxisDist
 from tensorcraft.optim.cost import Cost
 
 from .redistributor import Redistributor
@@ -19,17 +18,25 @@ log = logging.getLogger("tensorcraft")
 class Node:
     """Distribution graph nodes."""
 
-    parent_node: Optional[Self]
-    parent_node_op: Optional[str]
-    dist: MultiAxisDist
-    children: dict[str, Self]
+    parent_node: Optional["Node"]
+    parent_node_op: str
+    dist: Dist
+    children: dict[str, "Node"]
     edge_cost: Cost
     cum_cost: Cost
     depth: int = 0
 
-    def path_to_root(self) -> list[tuple[str, MultiAxisDist, Cost]]:
-        path = []
-        current_node = self
+    def path_to_root(self) -> list[tuple[str, Dist, Cost]]:
+        """
+        Get the path to the root node.
+
+        Returns
+        -------
+        list[tuple[str, Dist, Cost]]
+            The path to the root node.
+        """
+        path: list[tuple[str, Dist, Cost]] = []
+        current_node: "Node" | None = self
         while current_node:
             path.insert(
                 0,
@@ -53,14 +60,20 @@ class MemoryConstrainedRedist(Redistributor):
     Losely based on this: N. A. Rink, A. Paszke, D. Vytiniotis, and G. S. Schmid, “Memory-efficient array redistribution through portable collective communication,” Nov. 28, 2022, arXiv: arXiv:2112.01075. Accessed: Sep. 15, 2023. [Online]. Available: http://arxiv.org/abs/2112.01075
     """
 
-    def __init__(self, costModel, alpha=1, beta=1, gamma=1, epsilon=1, max_depth=5):
+    def __init__(self, costModel, alpha=1, beta=1, gamma=1, epsilon=0, max_depth=5):
         super().__init__(costModel, alpha, beta, gamma, epsilon)
-        self._epsilon = 0.0
-        self._max_depth = 5
+        self._epsilon = epsilon
+        self._max_depth = max_depth
+
+    def _redistribute_slab(self, shape, start_dist, target_dist):
+        raise NotImplementedError("Slab redistribution not implemented")
+
+    def _redistribute_tile(self, shape, start_dist, target_dist):
+        raise NotImplementedError("Tile redistribution not implemented")
 
     def _redistribute_multi_axis(
         self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
-    ):
+    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
         log.info(start_dist)
         log.info(target_dist)
 
@@ -71,7 +84,7 @@ class MemoryConstrainedRedist(Redistributor):
         nodes_dict: dict[str, tuple[Node, float]] = {}
 
         starter_node = Node(
-            None, None, start_dist, {}, Cost(0, 0, 0, 0), Cost(0, 0, 0, 0)
+            None, "", start_dist, {}, Cost(0, 0, 0, 0), Cost(0, 0, 0, 0)
         )
         open_nodes.append(starter_node)
 
@@ -82,7 +95,7 @@ class MemoryConstrainedRedist(Redistributor):
 
         current_depth = 0
         preferred_block_sizes = list(
-            set(filter(lambda x: x > 0, target_dist._block_sizes))
+            set(filter(lambda x: x > 0, target_dist.blockSizes))
         )
 
         while len(open_nodes) > 0 and current_depth < self._max_depth:
@@ -98,7 +111,9 @@ class MemoryConstrainedRedist(Redistributor):
             close_nodes.append(current_node)
             current_memory_usage = current_node.dist.maxNumElements(shape)
 
-            neighbours = current_node.dist.neighbours(shape, preferred_block_sizes)
+            neighbours: list[tuple[str, Dist, int, int]] = current_node.dist.neighbours(  # type: ignore
+                shape, preferred_block_sizes
+            )
             log.debug(f"Neighbours: {neighbours}")
             for id, n_dist, vol, n_procs in neighbours:
                 # 1) Check if the memory usage is within the limit
@@ -115,7 +130,7 @@ class MemoryConstrainedRedist(Redistributor):
                         mem_delta = n_dist.maxNumElements(shape) - current_memory_usage
                         edge_cost = Cost(0, 0, 0, mem_delta)
                     case "alltoall":
-                        edge_cost = self._cm.all2all(n_procs=n_procs, n_elements=vol)
+                        edge_cost = self._cm.alltoall(n_procs=n_procs, n_elements=vol)
                     case "allgather":
                         edge_cost = self._cm.allgather(n_procs=n_procs, n_elements=vol)
                     case "permute":

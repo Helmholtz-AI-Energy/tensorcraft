@@ -44,7 +44,7 @@ class IdealLowerBoundsCM(CostModel):
         )
 
     @staticmethod
-    def all2all(n_procs: int, n_elements: int) -> Cost:  # noqa: D102
+    def alltoall(n_procs: int, n_elements: int) -> Cost:  # noqa: D102
         return Cost(
             math.ceil(math.log2(n_procs)),
             (n_procs - 1) * n_elements * n_procs / n_procs,

@@ -128,6 +128,8 @@ class Dist(ABC):
 
         return True
 
+    __slots__ = ("_pmesh",)
+
     def __init__(self, processor_mesh: int | torch.Size):
         if isinstance(processor_mesh, int):
             self._pmesh = torch.Size([processor_mesh])
@@ -183,10 +185,14 @@ class Dist(ABC):
 
     @abstractmethod
     def __str__(self):
-        return f"Dist(mesh={self._pmesh})"
+        mesh_str = ",".join([str(x) for x in self._pmesh])
+        return f"D_[{mesh_str}]"
 
     def __repr__(self):
-        return self.__str__()
+        slot_str = ",".join(
+            f"{slot[2:]}={self.__slots__[i]}" for i, slot in enumerate(self.__slots__)
+        )
+        return f"{self.__class__.__name__}({slot_str})"
 
     @abstractmethod
     def maxNumElements(self, shape: torch.Size) -> int:
@@ -251,7 +257,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def neighbours(self, shape: torch.Size) -> list[tuple[str, Self, float, float]]:
+    def neighbours(self, shape: torch.Size) -> list[tuple[str, Self, int, int]]:
         """
         Neighboring elements for a given shape.
 
@@ -266,7 +272,7 @@ class Dist(ABC):
             A list of tuples, each containing:
             - str: A string identifier for the operation to reach the neighbour
             - Dist: The neighbour distribution object itself.
-            - float: The communication volume.
-            - float: The number of involved processors.
+            - int: The communication volume.
+            - int: The number of involved processors.
         """
         pass

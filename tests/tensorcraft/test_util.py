@@ -80,19 +80,19 @@ def test_order2npOrder():
     # Test case 1
     order = "C"
     expected_result = "F"
-    assert order2npOrder(order) == expected_result
+    assert order2npOrder(order) == expected_result  # type: ignore
 
     # Test case 2
     order = "R"
     expected_result = "C"
-    assert order2npOrder(order) == expected_result
+    assert order2npOrder(order) == expected_result  # type: ignore
 
     # Additional test cases...
     # Test case 3
     order = "A"
     # Assuming "A" is not a valid order, you can add an assertion to check for an expected exception
     try:
-        order2npOrder(order)
+        order2npOrder(order)  # type: ignore
         assert False, "Expected ValueError"
     except ValueError:
         assert True

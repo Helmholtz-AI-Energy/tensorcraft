@@ -29,25 +29,26 @@ class TileDist(Dist):
         Returns a boolean tensor indicating the processor assignment for each element in the tensor.
     getElementLocation(shape: torch.Size, index: int or torch.Size) -> torch.Tensor
         Returns a boolean tensor indicating the processor assignment for a specific element in the tensor.
-    allGather(shape, mesh_axis=None)
-        Not implemented. Raises NotImplementedError.
-    split(shape, tensor_axis, mesh_axis)
-        Not implemented. Raises NotImplementedError.
-    reduce_scatter(shape, mesh_axis=None)
-        Not implemented. Raises NotImplementedError.
-    permute(shape, mesh_axis=None)
-        Not implemented. Raises NotImplementedError.
-    all2all(shape, from_tensor_axis, to_tensor_axis)
-        Not implemented. Raises NotImplementedError.
     """
+
+    __slots__ = ("__tile_size",)
 
     def __init__(self, processor_mesh: int | torch.Size, tile_size: int) -> None:
         super().__init__(processor_mesh=processor_mesh)
-        self._tile_size = tile_size
+        self.__tile_size = tile_size
+
+    def __eq__(self, other):
+        if super().__eq__(other) and isinstance(other, TileDist):
+            return self.__tile_size == other.__tile_size
+        else:
+            return False
+
+    def __str__(self):
+        return f"D_[{self.numProcessors}]⊥{self.__tile_size}"
 
     def compatible(self, shape: torch.Size):  # noqa: D102
         for dim, dim_size in enumerate(shape):
-            if dim_size % self._tile_size != 0:
+            if dim_size % self.__tile_size != 0:
                 log.debug("Tile shape not divisible by tile size along dimension ", dim)
                 return False
 
@@ -71,8 +72,8 @@ class TileDist(Dist):
         if isinstance(index, int):
             index = multi2linearIndex(shape, index)
 
-        shrinked_index = torch.tensor(index) // self._tile_size
-        shrinked_shape = torch.tensor(shape) // self._tile_size
+        shrinked_index = torch.tensor(index) // self.__tile_size
+        shrinked_shape = torch.tensor(shape) // self.__tile_size
         shrinked_linear_index = multi2linearIndex(
             shrinked_shape, shrinked_index, order=torch.arange(len(shape)).flip(0)
         )
@@ -84,11 +85,8 @@ class TileDist(Dist):
 
         return p_list
 
-    def __eq__(self, other):
-        if super().__eq__(other) and isinstance(other, TileDist):
-            return self._tile_size == other._tile_size
-        else:
-            return False
+    def maxNumElements(self, shape):  # noqa: D102
+        raise NotImplementedError("Not implemented for TileDist")
 
-    def __str__(self):
-        return f"TileDist({self.numProcessors}, {self._tile_size})"
+    def neighbours(self, shape):  # noqa: D102
+        raise NotImplementedError("Not implemented for TileDist")

@@ -121,7 +121,21 @@ def draw_2d_processor_view(
 
 def draw_processor_grid(
     fig: Figure, tensor_shape: torch.Size, dist: Dist, cbar: bool = False
-) -> None:
+):
+    """
+    Plot the processor grid of a 2D tensor.
+
+    Parameters
+    ----------
+    fig : Figure
+        The figure to plot the tensor on.
+    tensor_shape : torch.Size
+        The shape of the tensor.
+    distribution : Dist
+        The distribution of the tensor.
+    cbar : bool, optional
+        Whether to show the color bar (default is True).
+    """
     mesh = dist.processorMesh
 
     subplot_x = mesh[0]
