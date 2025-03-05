@@ -1,10 +1,14 @@
 # ruff: noqa: D102
 """Block distribution module."""
 
+import logging
+
 import torch
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util import multi2linearIndex
+
+log = logging.getLogger("tensorcraft")
 
 
 class SlabDist(Dist):
@@ -37,13 +41,13 @@ class SlabDist(Dist):
     def compatible(self, shape: torch.Size) -> bool:
         # Check that tensor has at least self._dim + 1 number of dimensions
         if len(shape) <= self._dim:
-            print(f"Tensor must have at least {self._dim + 1} dimensions")
+            log.debug(f"Tensor must have at least {self._dim + 1} dimensions")
             return False
 
         if not self.compatibleAxis(
             self._dim, shape[self._dim], self._block_size, self.numProcessors
         ):
-            print(f"Axis {self._dim}: Incompatible axis with distribution scheme")
+            log.debug(f"Axis {self._dim}: Incompatible axis with distribution scheme")
             return False
 
         return True
@@ -88,27 +92,6 @@ class SlabDist(Dist):
         p_list[block_idx % self.numProcessors] = True
 
         return p_list
-
-    def maxNumElements(self, shape):  # noqa: D102
-        raise NotImplementedError("maxNumElements is not implemented for SlabDist")
-
-    def allGather(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("allGather is not implemented for SlabDist")
-
-    def split(self, shape, tensor_axis, mesh_axis):  # noqa: D102
-        raise NotImplementedError("split is not implemented for SlabDist")
-
-    def permute(self, shape, mesh_axis):  # noqa: D102
-        raise NotImplementedError("permute is not implemented for SlabDist")
-
-    def all2all(self, shape, from_tensor_axis, to_tensor_axis, minor=False):  # noqa: D102
-        raise NotImplementedError("all2all is not implemented for SlabDist")
-
-    def change_block_size(self, shape, tensor_axis, block_size):  # noqa: D102
-        raise NotImplementedError("change_block_size is not implemented for SlabDist")
-
-    def neighbours(self, shape):  # noqa: D102
-        return super().neighbours(shape)
 
     def __eq__(self, other):
         if super().__eq__(other) and isinstance(other, SlabDist):

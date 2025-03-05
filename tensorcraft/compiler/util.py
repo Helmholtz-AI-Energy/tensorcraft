@@ -74,7 +74,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
         for node in sorted_nodes:
             if node in kwargs:
                 result = kwargs[node]
-                # print(f"Node: {node}, Result: {result}")
+                # log.debug(f"Node: {node}, Result: {result}")
             elif node.split(" ")[0] in _torch_ops:
                 op_id = node.split(" ")[0]
                 op_inputs = [results[inp] for inp in op_graph.predecessors(node)]
@@ -91,7 +91,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
                     if not isinstance(result, torch.Tensor):
                         result = torch.tensor(result)
 
-                # print(f"Node: {node}, Inputs: {op_inputs}, Result: {result}")
+                # log.debug(f"Node: {node}, Inputs: {op_inputs}, Result: {result}")
             else:
                 result = (
                     torch.tensor(int(node))

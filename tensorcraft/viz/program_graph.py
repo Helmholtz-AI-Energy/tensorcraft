@@ -1,5 +1,6 @@
 """Module for visualizing the program graph using networkx."""
 
+import logging
 import math
 from typing import Any
 
@@ -8,6 +9,8 @@ import networkx as nx
 from tensorcraft.compiler import Program, TensorExpression
 
 from .util import get_n_colors, rgba2hex
+
+log = logging.getLogger("tensorcraft")
 
 
 def draw_program_graph(program: Program, color_by="loops") -> None:
@@ -37,7 +40,7 @@ def draw_expression_graph(tensor_expression: TensorExpression) -> None:
     tensor_expressoin : TensorExpression
         Object containing the tensor expression graph.
     """
-    inputs = [f'{name}[{",".join(shape)}]' for name, shape in tensor_expression.inputs]
+    inputs = [f"{name}[{','.join(shape)}]" for name, shape in tensor_expression.inputs]
     node_pos = _position_nodes(tensor_expression.op_graph, inputs)
     neg_attributes = nx.get_node_attributes(tensor_expression.op_graph, "neg")
     node_labels = {
@@ -72,7 +75,7 @@ def _position_nodes(
         The positions of the nodes in the graph.
 
     """
-    print("Positioning nodes")
+    log.debug("Positioning nodes")
     positions = {}
 
     # Root nodes on level 0

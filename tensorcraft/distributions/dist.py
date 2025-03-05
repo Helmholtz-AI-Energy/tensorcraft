@@ -3,7 +3,7 @@
 import logging
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from typing_extensions import Self
@@ -108,20 +108,20 @@ class Dist(ABC):
         """
         # 1) Number of processors must be less or equal the axis size, otherwise there are empty processors
         if axis_size < num_procs:
-            print(
+            log.debug(
                 f"Axis {axis_index}: Number of processors must be less or equal the axis size to avoid empty processors"
             )
             return False
 
         # 2.a) Block size must be greater or equal 0
         if block_size < 0:
-            print(f"Axis {axis_index}: Block size must be greater or equal 0")
+            log.debug(f"Axis {axis_index}: Block size must be greater or equal 0")
             return False
 
         # 2.b) Block size must ensure that each of the processors has access to at least one element
         max_block_size = Dist.maxBlockSize(axis_size, num_procs)
         if block_size > max_block_size:
-            print(
+            log.debug(
                 f"Axis {axis_index}: Block size is too big for the number of processors and tensor axis size"
             )
             return False
@@ -145,20 +145,6 @@ class Dist(ABC):
             The number of processors.
         """
         return math.prod(self._pmesh)
-
-    @abstractmethod
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Dist):
-            return self._pmesh == other._pmesh
-        else:
-            return NotImplemented
-
-    @abstractmethod
-    def __str__(self):
-        return f"Dist(mesh={self._pmesh})"
-
-    def __repr__(self):
-        return self.__str__()
 
     @property
     def processorMesh(self) -> torch.Size:
@@ -189,9 +175,23 @@ class Dist(ABC):
         return linear2multiIndex(index, self._pmesh)
 
     @abstractmethod
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Dist):
+            return self._pmesh == other._pmesh
+        else:
+            return NotImplemented
+
+    @abstractmethod
+    def __str__(self):
+        return f"Dist(mesh={self._pmesh})"
+
+    def __repr__(self):
+        return self.__str__()
+
+    @abstractmethod
     def maxNumElements(self, shape: torch.Size) -> int:
         """Max number of elements held by a process, given a tensor shape."""
-        raise NotImplementedError("Not implemented for abstract class")
+        pass
 
     @abstractmethod
     def processorView(self, shape: torch.Size) -> torch.Tensor:
@@ -247,145 +247,6 @@ class Dist(ABC):
         -------
         bool
             True if the tensor is compatible, False otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def allGather(
-        self, shape, mesh_axis: Optional[int] = None
-    ) -> tuple[Self, float, float]:
-        """
-        Return the distribution that results from gathering the tensor across the selected processor mesh axis.
-
-        Parameters
-        ----------
-        shape : torch.Size
-            The shape of the tensor.
-        mesh_axis : int, optional
-            The processor mesh axis, by default None, signifying an all-gather over all the processors.
-
-        Returns
-        -------
-        Dist
-            The distribution that results from the all-gather. None if the tensor is not compatible with the distribution.
-        float
-            The maximum expected communication volume (n_elements).
-        float
-            The number of involved processes in each sub communicator.
-        """
-        pass
-
-    @abstractmethod
-    def split(
-        self,
-        shape: torch.Size,
-        tensor_axis: int,
-        mesh_axis: int | tuple[int, ...],
-        block_size=1,
-    ) -> tuple[Self, float, float]:
-        """
-        Return the distribution that results from splitting the tensor across the selected tensor axis and processor mesh axis.
-
-        Parameters
-        ----------
-        shape : torch.Size
-            The shape of the tensor.
-        tensor_axis : int
-            The tensor axis to split.
-        mesh_axis : int | tuple[int, ...]
-            The processor mesh axis to split.
-        block_size : int, optional
-            The size of the blocks, by default 1.
-
-        Returns
-        -------
-        Dist
-            The distribution that results from the split. None if the tensor is not compatible with the distribution.
-        float
-            The maximum expected communication volume (n_elements).
-        float
-            The number of involved processes in each sub communicator.
-        """
-        pass
-
-    @abstractmethod
-    def permute(
-        self, shape: torch.Size, mesh_axis: tuple[int, int]
-    ) -> tuple[Self, float, float]:
-        """
-        Return the distribution that results from permuting the tensor across the selected processor mesh axes.
-
-        Parameters
-        ----------
-        shape : torch.Size
-            The shape of the tensor.
-        mesh_axis : tuple[int, int]
-            The processor mesh axes.
-
-        Returns
-        -------
-        Dist
-            The distribution that results from the permutation. None if the tensor is not compatible with the distribution.
-        float
-            The maximum expected communication volume (n_elements).
-        float
-            The number of involved processes in each sub communicator.
-        """
-        pass
-
-    @abstractmethod
-    def all2all(
-        self, shape: torch.Size, from_tensor_axis: int, to_tensor_axis: int, minor=True
-    ) -> tuple[Self, float, float]:
-        """
-        Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
-
-        Parameters
-        ----------
-        shape : torch.Size
-            The shape of the tensor.
-        from_tensor_axis : int
-            The tensor axis to send data from.
-        to_tensor_axis : int
-            The tensor axis to receive data to.
-        minor: bool, Default false
-            If set to true, it will only exchange data between the minor distribution dimention of the source tensor axis.
-
-        Returns
-        -------
-        Dist
-            The distribution that results from the all-to-all communication. None if the tensor is not compatible with the distribution.
-        float
-            The maximum expected communication volume (n_elements).
-        float
-            The number of involved processes in each sub communicator.
-        """
-        pass
-
-    @abstractmethod
-    def change_block_size(
-        self, shape: torch.Size, tensor_axis: int, block_size: int
-    ) -> tuple[Self, float, float]:
-        """
-        Change the blocks size of a distributed tensor axis.
-
-        Parameters
-        ----------
-        shape : torch.Size
-            The shape of the tensor.
-        tensor_axis : int
-            The target tensor axis.
-        block_size : int
-            Desired block size.
-
-        Returns
-        -------
-        Dist
-            The distribution that results from the all-to-all communication. None if the tensor is not compatible with the distribution.
-        float
-            The maximum expected communication volume (n_elements).
-        float
-            The number of involved processes in each sub communicator.
         """
         pass
 

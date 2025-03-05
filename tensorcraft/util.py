@@ -26,10 +26,10 @@ def multi2linearIndex(
 
     Parameters
     ----------
-    dims : torch.Size 
+    dims : torch.Size
         An array containing the dimensions of the tensor.
 
-    indices : torch.Size 
+    indices : torch.Size
         An array containing the multi-dimensional index.
 
     order : torch.Size
@@ -70,14 +70,14 @@ def multi2linearIndex(
     else:
         if len(order) == 0 or len(order) > len(dims):
             raise ValueError("Invalid order dimensions")
-        # print("Dims:", dims)
-        # print("Order:", order)
-        # print("Indices:", torch.tensor(indices))
+        # log.debug("Dims:", dims)
+        # log.debug("Order:", order)
+        # log.debug("Indices:", torch.tensor(indices))
         order = torch.tensor(order)
         indices_reorderd = torch.tensor(indices)[order].flip(0)
         dims_reorderd = torch.tensor(dims)[order].flip(0)
-        # print("Indices reordered:", indices_reorderd)
-        # print("Dims reordered:", dims_reorderd)
+        # log.debug("Indices reordered:", indices_reorderd)
+        # log.debug("Dims reordered:", dims_reorderd)
 
     if not torch.all(indices_reorderd >= 0) or not torch.all(
         indices_reorderd < dims_reorderd
@@ -88,9 +88,9 @@ def multi2linearIndex(
     if indices_reorderd.size() == tuple():
         indices_reorderd = indices_reorderd.unsqueeze(-1)
         dims_reorderd = dims_reorderd.unsqueeze(-1)
-        
-    # print("Indices: ", indices_reorderd)
-    # print("Dims: ", dims_reorderd)
+
+    # log.debug("Indices: ", indices_reorderd)
+    # log.debug("Dims: ", dims_reorderd)
     for i in range(len(indices_reorderd)):
         result += indices_reorderd[i] * torch.prod(dims_reorderd[:i])
     return result

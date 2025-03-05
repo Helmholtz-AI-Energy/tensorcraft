@@ -1,5 +1,6 @@
 """Visualization of tensor operations."""
 
+import logging
 import math
 from typing import Optional
 
@@ -7,6 +8,8 @@ import drawsvg as draw
 import torch
 
 from tensorcraft.compiler.model import TensorExpression
+
+log = logging.getLogger("tensorcraft")
 
 
 def _highlight_index(
@@ -25,9 +28,6 @@ def _orthogonal_projection(theta: float, gamma: float, phi: float) -> torch.tens
     # R = Rz * Ry * Rx
 
     # Rotation around the x axis
-    print(theta)
-    print(gamma)
-    print(phi)
     Rx = torch.tensor(
         [
             [1, 0, 0],
@@ -262,11 +262,11 @@ def draw_op(
 
     # Draw the output tensor
     index_variables = op.index_variables
-    print(f"Index variables: {index_variables}")
+    log.debug(f"Index variables: {index_variables}")
     output_shape = tensor_shapes[op.output[0]]
     output_index_variables = op.output[1]
-    print(f"Output shape: {output_shape}")
-    print(f"Output index variables: {output_index_variables}")
+    log.debug(f"Output shape: {output_shape}")
+    log.debug(f"Output index variables: {output_index_variables}")
 
     if mindex_highlight is None:
         mindex_highlight = tuple([0 for _ in output_shape])
@@ -276,9 +276,9 @@ def draw_op(
         output_shape[1] * cell_size if len(output_shape) > 1 else cell_size
     )
     current_x = padding_marging - canvas_w / 2
-    print(f"Current x: {current_x}")
+    log.debug(f"Current x: {current_x}")
     next_x = current_x + output_tensor_width
-    group = draw.Group(transform=f"translate({current_x + output_tensor_width/2}, 0)")
+    group = draw.Group(transform=f"translate({current_x + output_tensor_width / 2}, 0)")
     draw_tensor(group, output_shape, cell_size, mindex_highlight=mindex_highlight)
     d.append(group)
 
@@ -296,7 +296,7 @@ def draw_op(
 
     # Draw the equal sign
     current_x = next_x + padding_marging
-    print(f"Current x: {current_x}")
+    log.debug(f"Current x: {current_x}")
     next_x = current_x + font_size_ops / 2
     sign = op.assignment_type.value
     d.append(draw.Text(sign, 8, current_x, 0, center=True))
@@ -308,7 +308,7 @@ def draw_op(
             tensor_shape[1] * cell_size if len(tensor_shape) > 1 else cell_size
         )
         current_x = next_x + padding_marging
-        group = draw.Group(transform=f"translate({current_x + tensor_width/2}, 0)")
+        group = draw.Group(transform=f"translate({current_x + tensor_width / 2}, 0)")
         t_mindx_h = tuple(
             [
                 mindex_highlight[output_index_variables.index(idx_var)]
@@ -317,7 +317,7 @@ def draw_op(
                 for idx_var in tensor_idx_exp
             ]
         )
-        print(f"Tensor {tensor_name} highlight: {t_mindx_h}")
+        log.debug(f"Tensor {tensor_name} highlight: {t_mindx_h}")
         draw_tensor(group, tensor_shape, cell_size, mindex_highlight=t_mindx_h)  # type: ignore
         d.append(group)
 

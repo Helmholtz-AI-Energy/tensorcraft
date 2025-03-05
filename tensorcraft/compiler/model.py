@@ -1,13 +1,14 @@
 """A module containing classes for representing a tensor expression and a program."""
-import math
-import torch
+
 import enum
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Optional
 
 import networkx as nx
+import torch
 
 from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
 from tensorcraft.util import linear2multiIndex
@@ -190,11 +191,13 @@ class TensorExpression:
                 if len(input_data) == 0:
                     output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
                 elif len(input_data) == 1:
-                    output_array = torch.zeros(output_shape_hint, dtype=list(input_data.values())[0].dtype)
+                    output_array = torch.zeros(
+                        output_shape_hint, dtype=list(input_data.values())[0].dtype
+                    )
                 elif len(input_data) == 2:
                     dtype = torch.result_type(*input_data.values())
                     output_array = torch.zeros(output_shape_hint, dtype=dtype)
-                else: 
+                else:
                     output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
 
                 if not idx_exp_compatible(
@@ -223,9 +226,9 @@ class TensorExpression:
                 f"{var}[{','.join(idxs)}]": (var, idxs) for (var, idxs) in self.inputs
             }
 
-            reduction_last = ((self.assignment_type != AssignmentType.ASSIGN) and (
+            reduction_last = (self.assignment_type != AssignmentType.ASSIGN) and (
                 self.output[0] not in input_data
-            ))
+            )
 
             # Write directly on the output array, because there is no reduction or because it is also part of the input
             if reduction_last:
@@ -266,9 +269,9 @@ class TensorExpression:
                     elementwise_inputs[var_id] = value
 
                 for index_var in index_var_names:
-                    elementwise_inputs[index_var] = torch.tensor(loop_mindex[
-                        index_var_names.index(index_var)
-                    ])
+                    elementwise_inputs[index_var] = torch.tensor(
+                        loop_mindex[index_var_names.index(index_var)]
+                    )
 
                 value = op_func(**elementwise_inputs)
 
@@ -299,27 +302,32 @@ class TensorExpression:
                             tmp_output_array[output_midx] *= value  # type: ignore
                         case AssignmentType.DIV:
                             tmp_output_array[output_midx] /= value  # type: ignore
-                
 
             if reduction_last:
-                print("Reduction last")
+                log.debug(f"Reduction last: {self.output[0]}")
                 axis_tuple = tuple(range(len(self.output[1]), len(tmp_output_idx_expr)))
                 match self.assignment_type:
                     case AssignmentType.ADD:
-                        output_array += torch.sum(tmp_output_array, dim=axis_tuple, dtype=output_array.dtype)
+                        output_array += torch.sum(
+                            tmp_output_array, dim=axis_tuple, dtype=output_array.dtype
+                        )
                     case AssignmentType.SUB:
                         output_array -= torch.sum(
-                            tmp_output_array, axis=axis_tuple
-                        , dtype=output_array.dtype)
+                            tmp_output_array, axis=axis_tuple, dtype=output_array.dtype
+                        )
                     case AssignmentType.MUL:
                         for axis in axis_tuple[::-1]:
-                            tmp_output_array = torch.prod(tmp_output_array, dim=axis, dtype=output_array.dtype)
+                            tmp_output_array = torch.prod(
+                                tmp_output_array, dim=axis, dtype=output_array.dtype
+                            )
                         output_array *= tmp_output_array
                     case AssignmentType.DIV:
                         for axis in axis_tuple[::-1]:
-                            tmp_output_array = torch.prod(tmp_output_array, dim=axis, dtype=output_array.dtype)
+                            tmp_output_array = torch.prod(
+                                tmp_output_array, dim=axis, dtype=output_array.dtype
+                            )
                         output_array /= tmp_output_array
-                
+
             else:
                 output_array = tmp_output_array.clone().detach()
         return output_array

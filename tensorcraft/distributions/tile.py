@@ -1,9 +1,13 @@
 """TileDist class."""
 
+import logging
+
 import torch
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util import linear2multiIndex, multi2linearIndex
+
+log = logging.getLogger("tensorcraft")
 
 
 class TileDist(Dist):
@@ -44,7 +48,7 @@ class TileDist(Dist):
     def compatible(self, shape: torch.Size):  # noqa: D102
         for dim, dim_size in enumerate(shape):
             if dim_size % self._tile_size != 0:
-                print("Tile shape not divisible by tile size along dimension ", dim)
+                log.debug("Tile shape not divisible by tile size along dimension ", dim)
                 return False
 
         return True
@@ -74,36 +78,17 @@ class TileDist(Dist):
         )
 
         p_list = torch.zeros((self.numProcessors,), dtype=torch.bool)
-        # print(f"Index: {index}, Shrinked index: {shrinked_index}, Shrinked shape: {shrinked_shape}, Shrinked linear index: {shrinked_linear_index}, p: {shrinked_linear_index % self._num_processors}")
+        # log.debug(f"Index: {index}, Shrinked index: {shrinked_index}, Shrinked shape: {shrinked_shape}, Shrinked linear index: {shrinked_linear_index}, p: {shrinked_linear_index % self._num_processors}")
 
         p_list[shrinked_linear_index % self.numProcessors] = True
 
         return p_list
 
-    def maxNumElements(self, shape):  # noqa: D102
-        raise NotImplementedError("maxNumElements is not implemented for TileDist")
-
-    def allGather(self, shape, mesh_axis=None):  # noqa: D102
-        raise NotImplementedError("allGather is not implemented for TileDist")
-
-    def split(self, shape, tensor_axis, mesh_axis):  # noqa: D102
-        raise NotImplementedError("split is not implemented for TileDist")
-
-    def permute(self, shape, mesh_axis):  # noqa: D102
-        raise NotImplementedError("permute is not implemented for TileDist")
-
-    def all2all(self, shape, from_tensor_axis, to_tensor_axis):  # noqa: D102
-        raise NotImplementedError("all2all is not implemented for TileDist")
-
-    def change_block_size(self, shape, tensor_axis, block_size):  # noqa: D102
-        raise NotImplementedError("change_block_size is not implemented for SlabDist")
-
-    def neighbours(self, shape):  # noqa: D102
-        return super().neighbours(shape)
-
     def __eq__(self, other):
         if super().__eq__(other) and isinstance(other, TileDist):
             return self._tile_size == other._tile_size
+        else:
+            return False
 
     def __str__(self):
         return f"TileDist({self.numProcessors}, {self._tile_size})"

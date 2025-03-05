@@ -1,13 +1,19 @@
 """3D tensor visualization."""
 
+import logging
+
 import torch
-from tensorcraft.distributions import Dist
 from matplotlib.axes import Axes
 
-from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors, rgba2hex
+from tensorcraft.distributions import Dist
+from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors
+
+log = logging.getLogger("tensorcraft")
 
 
-def draw_3d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False) -> None:
+def draw_3d_tensor(
+    axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
+) -> None:
     """
     Plot a 3D tensor.
 
@@ -38,7 +44,7 @@ def draw_3d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
     for a in processorView.reshape(-1, dist.numProcessors).unbind(0):
         facecolors.append(colors[a.nonzero()])
         edgecolors.append(colors_edges[a.nonzero()])
-    
+
     facecolors = torch.stack(facecolors).reshape(shape + (4,))
     edgecolors = torch.stack(edgecolors).reshape(shape + (4,))
 
@@ -47,18 +53,20 @@ def draw_3d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
     fcolors_2 = explode(facecolors)
     ecolors_2 = explode(edgecolors)
 
-    print(filled_2.shape, fcolors_2.shape, ecolors_2.shape)
+    log.debug(filled_2.shape, fcolors_2.shape, ecolors_2.shape)
     # Shrink the gaps
 
     # x, y, z = torch.meshgrid(torch.arange(shape[0]), torch.arange(shape[1]), torch.arange(shape[2]))  # type: ignore
     # x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2  # type: ignore
     x, y, z = torch.meshgrid(
-        torch.arange(filled_2.shape[0] + 1), torch.arange(filled_2.shape[1] + 1), torch.arange(filled_2.shape[2] + 1)
+        torch.arange(filled_2.shape[0] + 1),
+        torch.arange(filled_2.shape[1] + 1),
+        torch.arange(filled_2.shape[2] + 1),
     )
     x = x.contiguous().float()
     y = y.contiguous().float()
     z = z.contiguous().float()
-    
+
     x[0::2, :, :] += 0.1
     y[:, 0::2, :] += 0.1
     z[:, :, 0::2] += 0.1
@@ -66,7 +74,14 @@ def draw_3d_tensor(axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
     y[:, 1::2, :] += 0.9
     z[:, :, 1::2] += 0.9
 
-    axes.voxels(x, y, z, filled_2.numpy(), facecolors=fcolors_2.numpy(), edgecolors=ecolors_2.numpy())
+    axes.voxels(
+        x,
+        y,
+        z,
+        filled_2.numpy(),
+        facecolors=fcolors_2.numpy(),
+        edgecolors=ecolors_2.numpy(),
+    )
 
     axes.view_init(25, -135, 0)
     axes.set_proj_type("persp")

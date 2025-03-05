@@ -2,11 +2,10 @@
 
 import abc
 import logging
-from typing import Any
 
 import torch
 
-from tensorcraft.distributions import Dist
+from tensorcraft.distributions import Dist, MultiAxisDist, SlabDist, TileDist
 from tensorcraft.optim.cost import Cost, CostModel
 
 log = logging.getLogger("tensorcraft")
@@ -72,10 +71,9 @@ class Redistributor(abc.ABC):
 
         return True
 
-    @abc.abstractmethod
     def redistribute(
         self, shape: torch.Size, start_dist: Dist, target_dist: Dist
-    ) -> tuple[list[tuple[str, tuple[Any], Cost]], Cost]:
+    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
         """
         Given a tensor shape, a starting distribution, and a target distribution, it will return a sequence of collective operations to reach the target distribution.
 
@@ -90,7 +88,35 @@ class Redistributor(abc.ABC):
 
         Returns
         -------
-        list of (str, tuple of Any)
-            A list of collective operations required to transform the tensor from the starting distribution to the target distribution.
+        tuple[list[tuple[str, Dist, Cost]], Cost]
+            A list of collective operations required to transform the tensor from the starting distribution to the target distribution. And the total cost of the redistribution.
         """
-        raise NotImplementedError("Abstract methods.")
+        if not self._compatible(shape, start_dist, target_dist):
+            raise ValueError("Incompatible arguments.")
+
+        if isinstance(start_dist, MultiAxisDist):
+            return self._redistribute_multi_axis(shape, start_dist, target_dist)  # type: ignore
+        elif isinstance(start_dist, TileDist):
+            return self._redistribute_tile(shape, start_dist, target_dist)  # type: ignore
+        elif isinstance(start_dist, SlabDist):
+            return self._redistribute_slab(shape, start_dist, target_dist)  # type: ignore
+        else:
+            raise ValueError("Unsupported distribution type.")
+
+    @abc.abstractmethod
+    def _redistribute_multi_axis(
+        self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
+    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _redistribute_tile(
+        self, shape: torch.Size, start_dist: TileDist, target_dist: TileDist
+    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _redistribute_slab(
+        self, shape: torch.Size, start_dist: SlabDist, target_dist: SlabDist
+    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
+        raise NotImplementedError
