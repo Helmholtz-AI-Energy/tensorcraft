@@ -24,6 +24,7 @@ class Node:
     dist: MultiAxisDist
     children: dict[str, Self]
     cost: Cost
+    depth: int = 0
 
 
 class MemoryConstrainedRedist(Redistributor):
@@ -109,12 +110,45 @@ class MemoryConstrainedRedist(Redistributor):
         base_memory = start_dist.maxNumElements()
         memory_limit = max(base_memory, target_dist.maxNumElements())
 
-        depth = 0
-        while len(open_nodes) > 0 and depth < self._max_depth:
+        while len(open_nodes) > 0:
             current_node = open_nodes.pop(0)
             close_nodes.append(current_node)
             current_memory_usage = current_node.dist.maxNumElements(shape)
+            
+            neighbours = current_node.dist.neighbours(shape)
+            for id, n_dist, vol, n_procs in neighbours:
+            
+                mem_delta = n_dist.maxNumElements(shape) - current_memory_usage
 
-            depth += 1
+                match id.split("_")[0]:
+                    case "split":
+                        mem_delta = n_dist.maxNumElements(shape) - current_memory_usage
+                        edge_cost = Cost(0, 0, 0, mem_delta)
+                    case "alltoall":
+                        edge_cost = self._cm.all2all(n_procs=n_procs, vol=vol)
+                    case "allgather":
+                        edge_cost = self._cm.allgather(n_procs=n_procs, vol=vol)
+                    case "permute":
+                        edge_cost = self._cm.permute(n_procs=n_procs, vol=vol)
+                    case _:
+                        log.warning(f"Unknown operation: {id}. Ignoring.")
+                        continue
+                
+                n_node = Node(current_node, n_dist, {}, edge_cost, current_node.depth + 1)
+                path_cost = self._edge_weight(edge_cost + current_node.cost)
+                if n_dist in nodes_dict:
+                    node, alternate_path_cost = nodes_dict[n_dist]
+                    
+                    if  alternate_path_cost > path_cost:
+                        nodes_dict[n_dist] = (n_node, path_cost)
+                
+                else:
+                    nodes_dict[n_dist] = (n_node, path_cost)
+                        
+
+
+
+
+
 
         return operations, total_cost
