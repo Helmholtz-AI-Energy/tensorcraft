@@ -31,34 +31,34 @@ class SlabDist(Dist):
 
     """
 
-    __slots__ = ("__dim", "__block_size")
+    __slots__ = ("_dim", "_block_size")
 
     def __init__(
         self, processor_mesh: int | torch.Size, dim: int = 0, block_size: int = 0
     ) -> None:
         super().__init__(processor_mesh=processor_mesh)
-        self.__dim = dim
-        self.__block_size = block_size
+        self._dim = dim
+        self._block_size = block_size
 
     def __eq__(self, other):
         if super().__eq__(other) and isinstance(other, SlabDist):
-            return self.__dim == other.__dim and self.__block_size == other.__block_size
+            return self._dim == other._dim and self._block_size == other._block_size
         else:
             return False
 
     def __str__(self):
-        return f"D_[{self.numProcessors}]⊥{self.__dim}({self.__block_size})"
+        return f"D_[{self.numProcessors}]⊥{self._dim}({self._block_size})"
 
     def compatible(self, shape: torch.Size) -> bool:
         # Check that tensor has at least self._dim + 1 number of dimensions
-        if len(shape) <= self.__dim:
-            log.debug(f"Tensor must have at least {self.__dim + 1} dimensions")
+        if len(shape) <= self._dim:
+            log.debug(f"Tensor must have at least {self._dim + 1} dimensions")
             return False
 
         if not self.compatibleAxis(
-            self.__dim, shape[self.__dim], self.__block_size, self.numProcessors
+            self._dim, shape[self._dim], self._block_size, self.numProcessors
         ):
-            log.debug(f"Axis {self.__dim}: Incompatible axis with distribution scheme")
+            log.debug(f"Axis {self._dim}: Incompatible axis with distribution scheme")
             return False
 
         return True
@@ -68,7 +68,7 @@ class SlabDist(Dist):
             raise ValueError("The tensor is not compatible with the distribution")
 
         _, tile_ends = self.axisSplits(
-            shape[self.__dim], self.__block_size, self.numProcessors
+            shape[self._dim], self._block_size, self.numProcessors
         )
 
         processor_view = torch.zeros((*shape, self.numProcessors), dtype=torch.bool)
@@ -77,7 +77,7 @@ class SlabDist(Dist):
         for p, next_idx in enumerate(tile_ends):
             processor = p % self.numProcessors
             slice_idx: tuple[slice | int, ...] = tuple(
-                slice(None) if j != self.__dim else slice(prev_idx, next_idx)
+                slice(None) if j != self._dim else slice(prev_idx, next_idx)
                 for j in range(len(shape))
             )
             slice_idx += (processor,)
@@ -92,11 +92,11 @@ class SlabDist(Dist):
             mindex = index
 
         _, tile_ends = self.axisSplits(
-            shape[self.__dim],
-            self.__block_size,
+            shape[self._dim],
+            self._block_size,
             self.numProcessors,  # type: ignore
         )
-        dim_index = mindex[self.__dim]
+        dim_index = mindex[self._dim]
         block_idx = torch.where(dim_index < tile_ends)[0][0]
 
         p_list = torch.zeros((self.numProcessors,), dtype=torch.bool)

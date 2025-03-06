@@ -188,11 +188,24 @@ class Dist(ABC):
         mesh_str = ",".join([str(x) for x in self._pmesh])
         return f"D_[{mesh_str}]"
 
+    @abstractmethod
+    def latexStr(self):
+        """
+        Get the LaTeX representation of the distribution.
+
+        Returns
+        -------
+        str
+            The LaTeX representation of the distribution.
+        """
+        mesh_str = ",".join([str(x) for x in self._pmesh])
+        return f"$D\_\[{mesh_str}\]$"
+
     def __repr__(self):
         slot_str = ",".join(
-            f"{slot[2:]}={self.__slots__[i]}" for i, slot in enumerate(self.__slots__)
+            f"{slot[1:]}={getattr(self, slot)}" for slot in self.__slots__
         )
-        return f"{self.__class__.__name__}({slot_str})"
+        return f"{self.__class__.__name__}(pmesh={self._pmesh},{slot_str})"
 
     @abstractmethod
     def maxNumElements(self, shape: torch.Size) -> int:
