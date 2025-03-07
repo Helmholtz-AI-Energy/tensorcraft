@@ -8,7 +8,7 @@ from typing import Any
 import torch
 from typing_extensions import Self
 
-from tensorcraft.util import linear2multiIndex
+from tensorcraft.util.axis_utils import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
 

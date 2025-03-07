@@ -9,7 +9,7 @@ import torch
 from typing_extensions import override
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util import linear2multiIndex, multi2linearIndex
+from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 

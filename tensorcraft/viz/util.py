@@ -4,7 +4,7 @@ import matplotlib as mpl
 import torch
 from matplotlib.axes import Axes
 
-from tensorcraft.util import linear2multiIndex
+from tensorcraft.util.axis_utils import linear2multiIndex
 
 
 def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:

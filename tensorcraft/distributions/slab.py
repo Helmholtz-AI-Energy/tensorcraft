@@ -6,7 +6,7 @@ import logging
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util import multi2linearIndex
+from tensorcraft.util.axis_utils import multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 

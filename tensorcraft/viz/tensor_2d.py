@@ -7,7 +7,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from tensorcraft.distributions import Dist
-from tensorcraft.util import linear2multiIndex, multi2linearIndex
+from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 from tensorcraft.viz.util import draw_2d_grid, draw_color_bar, get_n_colors
 
 

@@ -5,7 +5,11 @@ from hypothesis import given, note, settings
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import array_shapes
 
-from tensorcraft.util import linear2multiIndex, multi2linearIndex, order2npOrder
+from tensorcraft.util.axis_utils import (
+    linear2multiIndex,
+    multi2linearIndex,
+    order2npOrder,
+)
 
 
 @given(

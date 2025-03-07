@@ -11,7 +11,7 @@ import networkx as nx
 import torch
 
 from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
-from tensorcraft.util import linear2multiIndex
+from tensorcraft.util.axis_utils import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
 

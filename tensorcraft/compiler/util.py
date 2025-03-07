@@ -7,7 +7,7 @@ from typing import Callable
 import networkx as nx
 import torch
 
-from tensorcraft.util import multi2linearIndex
+from tensorcraft.util.axis_utils import multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
