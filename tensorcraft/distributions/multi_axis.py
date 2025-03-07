@@ -323,7 +323,11 @@ class MultiAxisDist(Dist):
             ]
             involved_procs = math.prod(involved_dims)
 
-            return new_dist, max_n_blocks * max_block_size, involved_procs
+            return (
+                new_dist,
+                max_n_blocks * max_block_size * involved_procs,
+                involved_procs,
+            )
         else:
             # Check that the mesh axis is valid
             tensor_axis = -1
@@ -335,7 +339,10 @@ class MultiAxisDist(Dist):
                         log.debug(
                             f"Gather along axis {gather_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
                         )
-                        return self, 0, 0
+                        raise ValueError(
+                            "Gather along axis leads to an undefined data distribution"
+                        )
+
                     tensor_axis = axis
                     break
 
@@ -343,7 +350,9 @@ class MultiAxisDist(Dist):
                 log.debug(
                     "Tensor is not distributed along the specified axis, doing nothing"
                 )
-                return self, 0, 0
+                raise ValueError(
+                    "The tensor is not distributed along the specified axis"
+                )
 
             log.debug(f"Tensor axis: {tensor_axis}")
             log.debug(f"Mesh axis: {gather_dim}")
@@ -370,7 +379,7 @@ class MultiAxisDist(Dist):
 
             max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
 
-            comm_volume = max_n_blocks * max_block_size
+            comm_volume = max_n_blocks * max_block_size * involved_procs
             return new_dist, comm_volume, involved_procs
 
     def split(
@@ -616,7 +625,7 @@ class MultiAxisDist(Dist):
             # Find out new dims mapping
             new_dims_map_list[from_tensor_axis] = ()
             new_dims_map_list[to_tensor_axis] = (
-                self._dims_mapping[to_tensor_axis] + moved_mesh_dims
+                moved_mesh_dims + self._dims_mapping[to_tensor_axis]
             )
 
             new_from_t_axis_bs = -1
@@ -640,9 +649,8 @@ class MultiAxisDist(Dist):
             )
 
         # Communication volume
-        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
-        comm_volume = max_block_size * max_n_blocks
-        return new_dist, comm_volume, n_procs
+        comm_volume = self.maxNumElements(shape)
+        return new_dist, comm_volume * n_procs, n_procs
 
     def change_block_size(
         self, shape: torch.Size, tensor_axis: int, block_size: int
@@ -723,7 +731,10 @@ class MultiAxisDist(Dist):
                 free_dims.append(dim)
 
         # split
-        b_sizes = prefered_b_size if len(prefered_b_size) > 1 else [1]
+        if prefered_b_size:
+            b_sizes = prefered_b_size if 1 in prefered_b_size else [1] + prefered_b_size
+        else:
+            b_sizes = [1]
         for free_dim in free_dims:
             for b_size in b_sizes:
                 for axis in range(len(shape)):
@@ -781,7 +792,7 @@ class MultiAxisDist(Dist):
             if len(mapping) > 1:
                 possible_permutations = itertools.combinations(mapping, 2)
                 for combination in possible_permutations:
-                    operation = f"permuation_{combination[0]}_{combination[1]}"
+                    operation = f"permute_{combination[0]}_{combination[1]}"
                     try:
                         new_dist, vol, n_procs = self.permute(shape, combination)
                         log.debug(f"New neighbour: {new_dist}")

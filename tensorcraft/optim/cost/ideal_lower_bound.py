@@ -16,7 +16,7 @@ class IdealLowerBoundsCM(CostModel):
     def allgather(n_procs: int, n_elements: int) -> Cost:  # noqa: D102
         return Cost(
             math.ceil(math.log2(n_procs)),
-            (n_procs - 1) * n_elements * n_procs / n_procs,
+            (n_procs - 1) * float(n_elements) / n_procs,
             0,
             0,
         )
@@ -29,8 +29,8 @@ class IdealLowerBoundsCM(CostModel):
     def allreduce(n_procs: int, n_elements: int):  # noqa: D102
         return Cost(
             math.ceil(math.log2(n_procs)),
-            2 * (n_procs - 1) * n_elements * n_procs / n_procs,
-            (n_procs - 1) * n_elements * n_procs / n_procs,
+            2 * (n_procs - 1) * n_elements / n_procs,
+            (n_procs - 1) * n_elements / n_procs,
             0,
         )
 
@@ -38,7 +38,7 @@ class IdealLowerBoundsCM(CostModel):
     def reduce_scatter(n_procs: int, n_elements: int) -> Cost:  # noqa: D102
         return Cost(
             math.ceil(math.log2(n_procs)),
-            (n_procs - 1) * n_elements * n_procs / n_procs,
+            (n_procs - 1) * n_elements / n_procs,
             (n_procs - 1) * n_elements / n_procs,
             0,
         )
@@ -47,7 +47,7 @@ class IdealLowerBoundsCM(CostModel):
     def alltoall(n_procs: int, n_elements: int) -> Cost:  # noqa: D102
         return Cost(
             math.ceil(math.log2(n_procs)),
-            (n_procs - 1) * n_elements * n_procs / n_procs,
+            (n_procs - 1) * n_elements / n_procs,
             0,
             0,
         )

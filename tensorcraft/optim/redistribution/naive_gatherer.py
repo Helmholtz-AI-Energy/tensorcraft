@@ -24,8 +24,8 @@ class NaiveGathererRedist(Redistributor):
 
     def _redistribute_multi_axis(
         self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
-    ) -> tuple[list[tuple[str, Dist, Cost]], float]:
-        operations: list[tuple[str, Dist, Cost]] = [("", start_dist, Cost())]
+    ) -> tuple[list[tuple[str, Dist, float]], float]:
+        operations: list[tuple[str, Dist, float]] = [("", start_dist, 0)]
         total_cost = Cost()
 
         # First allgather
@@ -39,12 +39,14 @@ class NaiveGathererRedist(Redistributor):
         )
 
         total_cost += all_gather_cost
+        operations.append(
+            ("allgather_*", non_split_dist, self._edge_weight(all_gather_cost))
+        )
 
         # Then split
-        operations.append(("allgather_*", non_split_dist, all_gather_cost))
         post_split_memory = target_dist.maxNumElements(shape)
         split_cost = Cost(0, 0, 0, post_split_memory - non_split_memory_usage)
-        operations.append(("split_*", target_dist, split_cost))
+        operations.append(("split_*", target_dist, 0))
 
         total_cost += split_cost
 

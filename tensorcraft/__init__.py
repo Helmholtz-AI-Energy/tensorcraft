@@ -10,27 +10,25 @@ import torch
 
 torch.autograd.set_grad_enabled(False)
 
-# Classes to be used as tc.<class> / tc.<func>()
-# Modules to be used as tc.<module>.<function>
+# Stack
+import tensorcraft.compiler as compiler
 
+# Lower level modules
 import tensorcraft.distributions as dist
+
+# High level modules
 import tensorcraft.optim as optim
-from tensorcraft import compiler, mpi4torch, viz
-from tensorcraft.util import linear2multiIndex, multi2linearIndex, order2npOrder
+import tensorcraft.util as util
+import tensorcraft.viz as viz
 
 _compiler = compiler.Compiler()
 compile = _compiler.compile
 
 
 __all__ = [
+    "util",
     "dist",
     "compiler",
     "viz",
     "optim",
-    "mpi4torch",
-    "Shape",
-    "Tensor",
-    "multi2linearIndex",
-    "linear2multiIndex",
-    "order2npOrder",
 ]
