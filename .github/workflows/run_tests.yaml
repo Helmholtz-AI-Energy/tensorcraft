@@ -31,7 +31,7 @@ jobs:
       - name: Test with pytest and cmdline commands
         run: |
           coverage run
-          mpirun -n 4 coverage run tests/tensorcraft/mpi4py/test_util.py
+          mpirun -n 2 coverage run tests/tensorcraft/util/test_mpi_utils.py
           coverage combine
           coverage xml
       - name: Test notebooks
