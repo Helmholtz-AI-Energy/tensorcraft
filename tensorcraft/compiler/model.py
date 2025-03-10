@@ -2,16 +2,16 @@
 
 import enum
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Optional
 
 import networkx as nx
-import numpy as np
+import torch
 
 from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
-from tensorcraft.types import MIndex, TensorType, is_scalar_type
-from tensorcraft.util import linear2multiIndex
+from tensorcraft.util.axis_utils import linear2multiIndex
 
 log = logging.getLogger("tensorcraft")
 
@@ -101,26 +101,26 @@ class TensorExpression:
 
     def __call__(
         self,
-        input_data: dict[str, TensorType],
-        output_shape_hint: Optional[MIndex] = None,
-    ) -> TensorType:
+        input_data: dict[str, torch.Tensor],
+        output_shape_hint: Optional[torch.Size] = None,
+    ) -> torch.Tensor:
         """Evaluate the tensor expression.
 
         Parameters
         ----------
-        inputs : dict[str, np.ndarray]
+        inputs : dict[str, torch.Tensor]
             Dictionary containing the input arrays. Keys are the variable names.
         output_shape : tuple[int], optional
             Shape of the output array. If None, the shape is inferred from the input arrays.
 
         Returns
         -------
-        np.ndarray
+        torch.Tensor
             The output array resulting from the evaluation of the expression.
         """
         # If there are no index variables, evaluate the expression directly, it is a scalar operation
         op_func = opGraph2Func(self.op_graph)
-        output_array: TensorType = 0
+        output_array: torch.Tensor = torch.tensor(0.0)
 
         if len(self.index_variables) == 0:
             elementwise_inputs = {}
@@ -189,10 +189,16 @@ class TensorExpression:
 
                 # Initialize the output array
                 if len(input_data) == 0:
-                    output_array = np.zeros(output_shape_hint, dtype=np.float64)
+                    output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
+                elif len(input_data) == 1:
+                    output_array = torch.zeros(
+                        output_shape_hint, dtype=list(input_data.values())[0].dtype
+                    )
+                elif len(input_data) == 2:
+                    dtype = torch.result_type(*input_data.values())
+                    output_array = torch.zeros(output_shape_hint, dtype=dtype)
                 else:
-                    dtype = np.result_type(*input_data.values())
-                    output_array = np.zeros(output_shape_hint, dtype=dtype)
+                    output_array = torch.zeros(output_shape_hint, dtype=torch.float64)
 
                 if not idx_exp_compatible(
                     self.output[0],
@@ -237,20 +243,20 @@ class TensorExpression:
                         for c in reduced_idx_variables
                     ]
                 )
-                tmp_output_array: TensorType = np.zeros(
+                tmp_output_array = torch.zeros(
                     tmp_output_idx_dims,
                     dtype=output_array.dtype,  # type: ignore
                 )
             else:
                 tmp_output_array = output_array
 
-            for i in range(np.prod(index_var_dims)):
+            for i in range(math.prod(index_var_dims)):
                 # Read elements from input arrays, write them on the operation string and evaluate
-                loop_mindex = np.array(linear2multiIndex(i, index_var_dims))
+                loop_mindex = linear2multiIndex(i, index_var_dims)
                 elementwise_inputs = {}
 
                 for var_id, (var_name, idx_exp_list) in var_idx_exp_dict.items():
-                    if is_scalar_type(input_data[var_name]):
+                    if len(input_data[var_name].shape) == 0:
                         value = input_data[var_name]
                     else:
                         var_midx = idx_exp2multiIdx(
@@ -263,9 +269,9 @@ class TensorExpression:
                     elementwise_inputs[var_id] = value
 
                 for index_var in index_var_names:
-                    elementwise_inputs[index_var] = loop_mindex[
-                        index_var_names.index(index_var)
-                    ]
+                    elementwise_inputs[index_var] = torch.tensor(
+                        loop_mindex[index_var_names.index(index_var)]
+                    )
 
                 value = op_func(**elementwise_inputs)
 
@@ -298,24 +304,32 @@ class TensorExpression:
                             tmp_output_array[output_midx] /= value  # type: ignore
 
             if reduction_last:
-                print("Reducing the classic way")
+                log.debug(f"Reduction last: {self.output[0]}")
                 axis_tuple = tuple(range(len(self.output[1]), len(tmp_output_idx_expr)))
                 match self.assignment_type:
                     case AssignmentType.ADD:
-                        output_array = np.add.reduce(tmp_output_array, axis=axis_tuple)
+                        output_array += torch.sum(
+                            tmp_output_array, dim=axis_tuple, dtype=output_array.dtype
+                        )
                     case AssignmentType.SUB:
-                        output_array = np.subtract.reduce(
-                            tmp_output_array, axis=axis_tuple
+                        output_array -= torch.sum(
+                            tmp_output_array, axis=axis_tuple, dtype=output_array.dtype
                         )
                     case AssignmentType.MUL:
-                        output_array = np.multiply.reduce(
-                            tmp_output_array, axis=axis_tuple
-                        )
+                        for axis in axis_tuple[::-1]:
+                            tmp_output_array = torch.prod(
+                                tmp_output_array, dim=axis, dtype=output_array.dtype
+                            )
+                        output_array *= tmp_output_array
                     case AssignmentType.DIV:
-                        output_array = np.divide.reduce(
-                            tmp_output_array, axis=axis_tuple
-                        )
+                        for axis in axis_tuple[::-1]:
+                            tmp_output_array = torch.prod(
+                                tmp_output_array, dim=axis, dtype=output_array.dtype
+                            )
+                        output_array /= tmp_output_array
 
+            else:
+                output_array = tmp_output_array.clone().detach()
         return output_array
 
 
@@ -403,8 +417,8 @@ class Program:
         return self._tensor_expressions
 
     def execute(
-        self, inputs: dict[str, TensorType], shape_hints: dict[str, MIndex]
-    ) -> dict[str, TensorType]:
+        self, inputs: dict[str, torch.Tensor], shape_hints: dict[str, torch.Size]
+    ) -> dict[str, torch.Tensor]:
         """Execute the program.
 
         Parameters
@@ -422,7 +436,7 @@ class Program:
             if var_name in self.input_variables:
                 if var_name not in inputs:
                     raise ValueError(f"Input {var_name} is missing.")
-                if not is_scalar_type(inputs[var_name]):
+                if len(inputs[var_name].shape) > 0:
                     if var_metadata.order != len(inputs[var_name].shape):  # type: ignore
                         raise ValueError(f"Input {var_name} has an incompatible order.")
                 else:
@@ -436,7 +450,7 @@ class Program:
 
         # 2. Execute the expressions
         nodes = list(nx.topological_sort(self.graph))
-        outputs: dict[str, TensorType] = {}
+        outputs: dict[str, torch.Tensor] = {}
         for node in nodes:
             if isinstance(node, int):
                 # Execute the expression

@@ -1,14 +1,13 @@
 """3D mesh visualization module."""
 
 import networkx as nx
-import numpy as np
+import torch
 from matplotlib.axes import Axes
 
-from tensorcraft.tensor import Tensor
-from tensorcraft.viz.util import getNColors, meshGrid, rgba2hex
+from tensorcraft.viz.util import get_n_colors, mesh_grid, rgba2hex
 
 
-def draw3DMesh(axes: Axes, mesh: Tensor) -> None:
+def draw_3d_mesh(axes: Axes, mesh: torch.Size) -> None:
     """
     Draw a 3D mesh using matplotlib.
 
@@ -26,16 +25,16 @@ def draw3DMesh(axes: Axes, mesh: Tensor) -> None:
     -------
     None
     """
-    if mesh.order != 3:
+    if len(mesh) != 3:
         raise ValueError("Must provide a 3D mesh")
 
-    graph = nx.grid_graph(dim=tuple(mesh.shape[::-1]))
-    colors = getNColors(mesh.size)
+    graph = nx.grid_graph(dim=tuple(mesh[::-1]))
+    colors = get_n_colors(mesh.numel())
     hexColors = [rgba2hex(color) for color in colors]
-    pos = meshGrid(mesh)
+    pos = mesh_grid(mesh)
 
-    node_xyz = np.array([pos[v] for v in graph.nodes()])
-    edge_xyz = np.array([[pos[u], pos[v]] for u, v in graph.edges()])
+    node_xyz = torch.stack([pos[v] for v in graph.nodes()])
+    edge_xyz = torch.stack([torch.stack([pos[u], pos[v]]) for u, v in graph.edges()])
 
     axes.scatter(*node_xyz.T, c=hexColors, s=100, alpha=1.0)
     for node, node_pos in zip(graph.nodes(), node_xyz):

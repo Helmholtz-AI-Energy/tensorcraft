@@ -2,16 +2,33 @@
 
 __version__ = "0.0.0"
 
-# Import everything and put it into __all__
-from tensorcraft import compiler, logging, viz
-from tensorcraft.tensor import Tensor
-from tensorcraft.types import MIndex
-from tensorcraft.util import multi2linearIndex, order2npOrder
+from tensorcraft.logging import init_logging
 
-logging.init_logging("WARNING")
+init_logging("INFO")
+
+import torch
+
+torch.autograd.set_grad_enabled(False)
+
+# Stack
+import tensorcraft.compiler as compiler
+
+# Lower level modules
+import tensorcraft.distributions as dist
+
+# High level modules
+import tensorcraft.optim as optim
+import tensorcraft.util as util
+import tensorcraft.viz as viz
 
 _compiler = compiler.Compiler()
 compile = _compiler.compile
 
 
-__all__ = ["compiler", "viz", "MIndex", "Tensor", "multi2linearIndex", "order2npOrder"]
+__all__ = [
+    "util",
+    "dist",
+    "compiler",
+    "viz",
+    "optim",
+]

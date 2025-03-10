@@ -1,15 +1,18 @@
 """3D tensor visualization."""
 
-import numpy as np
-from matplotlib.axis import Axis
+import logging
+
+import torch
+from matplotlib.axes import Axes
 
 from tensorcraft.distributions import Dist
-from tensorcraft.tensor import Tensor
-from tensorcraft.viz.util import drawColorBar, explode, getNColors, rgba2hex
+from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors
+
+log = logging.getLogger("tensorcraft")
 
 
-def draw3DTensor(
-    axes: Axis, tensor: Tensor, distribution: Dist, cbar: bool = False
+def draw_3d_tensor(
+    axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
 ) -> None:
     """
     Plot a 3D tensor.
@@ -27,33 +30,43 @@ def draw3DTensor(
     -------
     None
     """
-    if tensor.order != 3:
+    if len(shape) != 3:
         raise ValueError("Only 3D tensors are supported")
 
-    processorView = distribution.processorView(tensor)
-    colors = getNColors(distribution.numProcessors)
-    colors_hex = [rgba2hex(color) for color in colors]
-    colors_edges = [rgba2hex(color * 0.8) for color in colors]
-
-    x, y, z = np.indices(tensor.shape)  # type: ignore
+    processorView = dist.processorView(shape)
+    colors = get_n_colors(dist.numProcessors)
+    colors_edges = [color * 0.8 for color in colors]
 
     # build up the numpy logo
-    filled = np.ones(tensor.shape)
-    facecolors = np.apply_along_axis(
-        lambda a: colors_hex[np.argmax(a)], -1, processorView
-    )
-    edgecolors = np.apply_along_axis(
-        lambda a: colors_edges[np.argmax(a)], -1, processorView
-    )
+    filled = torch.ones(shape, dtype=torch.float)
+    facecolors = []
+    edgecolors = []
+    for a in processorView.reshape(-1, dist.numProcessors).unbind(0):
+        facecolors.append(colors[a.nonzero()])
+        edgecolors.append(colors_edges[a.nonzero()])
+
+    facecolors = torch.stack(facecolors).reshape(shape + (4,))
+    edgecolors = torch.stack(edgecolors).reshape(shape + (4,))
 
     # upscale the above voxel image, leaving gaps
     filled_2 = explode(filled)
     fcolors_2 = explode(facecolors)
     ecolors_2 = explode(edgecolors)
 
+    log.debug(filled_2.shape, fcolors_2.shape, ecolors_2.shape)
     # Shrink the gaps
 
-    x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2  # type: ignore
+    # x, y, z = torch.meshgrid(torch.arange(shape[0]), torch.arange(shape[1]), torch.arange(shape[2]))  # type: ignore
+    # x, y, z = np.indices(np.array(filled_2.shape) + 1).astype(float) // 2  # type: ignore
+    x, y, z = torch.meshgrid(
+        torch.arange(filled_2.shape[0] + 1),
+        torch.arange(filled_2.shape[1] + 1),
+        torch.arange(filled_2.shape[2] + 1),
+    )
+    x = x.contiguous().float()
+    y = y.contiguous().float()
+    z = z.contiguous().float()
+
     x[0::2, :, :] += 0.1
     y[:, 0::2, :] += 0.1
     z[:, :, 0::2] += 0.1
@@ -61,7 +74,14 @@ def draw3DTensor(
     y[:, 1::2, :] += 0.9
     z[:, :, 1::2] += 0.9
 
-    axes.voxels(x, y, z, filled_2, facecolors=fcolors_2, edgecolors=ecolors_2)
+    axes.voxels(
+        x,
+        y,
+        z,
+        filled_2.numpy(),
+        facecolors=fcolors_2.numpy(),
+        edgecolors=ecolors_2.numpy(),
+    )
 
     axes.view_init(25, -135, 0)
     axes.set_proj_type("persp")
@@ -75,4 +95,4 @@ def draw3DTensor(
     axes.grid(False)
 
     if cbar:
-        drawColorBar(axes.get_figure(), axes, colors)
+        draw_color_bar(axes.get_figure(), axes, colors)

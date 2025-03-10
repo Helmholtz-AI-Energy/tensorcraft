@@ -1,15 +1,18 @@
 """2D tensor visualization functions."""
 
-import numpy as np
+import math
+
+import torch
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from tensorcraft.distributions import Dist
-from tensorcraft.tensor import Tensor
-from tensorcraft.viz.util import draw2DGrid, drawColorBar, getNColors
+from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
+from tensorcraft.viz.util import draw_2d_grid, draw_color_bar, get_n_colors
 
 
-def draw2DTensor(
-    axes: Axes, tensor: Tensor, distribution: Dist, cbar: bool = False
+def draw_2d_tensor(
+    axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
 ) -> None:
     """
     Plot a 2D tensor.
@@ -18,7 +21,7 @@ def draw2DTensor(
     ----------
     tensor : Tensor
         The 2D tensor to plot.
-    distribution : PMeshDist
+    distribution : MultiAxisDist
         The distribution of the tensor.
     cbar : bool, optional
         Whether to show the color bar (default is True).
@@ -27,40 +30,42 @@ def draw2DTensor(
     -------
     None
     """
-    if tensor.order > 2:
+    if len(shape) > 2:
         raise ValueError(
-            f"Only 2D tensors are supported, the provided tensor has {tensor.order}"
+            f"Only 2D tensors are supported, the provided tensor has {len(shape)} dimensions"
         )
 
-    if len(distribution.processorArrangement) > 2:
-        raise ValueError("Only 2D meshes are supported")
+    # if len(tensor.dist.processorArrangement) > 2:
+    #     raise ValueError("Only 2D meshes are supported")
 
-    processor_view = distribution.processorView(tensor)
+    processor_view = dist.processorView(shape)
 
-    if tensor.order == 1:
-        img_shape = np.array(tensor.shape).reshape(-1, 1)
+    if len(shape) == 1:
+        img_shape = torch.Size([shape[0], 1])
+    elif len(shape) == 0:
+        img_shape = torch.Size([1, 1])
     else:
-        img_shape = np.array(tensor.shape)
+        img_shape = shape
 
-    colors = getNColors(distribution.numProcessors)
-    img = np.zeros((*img_shape, 4))
-    for i in range(tensor.size):
-        m_idx = tensor.getMultiIndex(i)
+    colors = get_n_colors(dist.numProcessors)
+    img = torch.zeros((*img_shape, 4))
+    for i in range(shape.numel()):
+        m_idx = linear2multiIndex(i, img_shape)
         img[m_idx[0], m_idx[1], :] = colors[
-            np.argmax(processor_view[m_idx[0], m_idx[1], :])
+            processor_view[m_idx[0], m_idx[1], :].nonzero()
         ]
 
-    axes.imshow(img[::-1], origin="lower", aspect="equal")
+    axes.imshow(img.flip(0), origin="lower", aspect="equal")
 
     # Ticks
-    draw2DGrid(axes, img_shape)
+    draw_2d_grid(axes, img_shape)
 
     if cbar:
-        drawColorBar(axes.get_figure(), axes, colors)
+        draw_color_bar(axes.get_figure(), axes, colors)
 
 
-def draw2DProcessorView(
-    axes: Axes, tensor: Tensor, distribution: Dist, processor: int, cbar: bool = False
+def draw_2d_processor_view(
+    axes: Axes, shape: torch.Size, dist: Dist, processor: int, cbar: bool = False
 ) -> None:
     """
     Plot the processor view of a 2D tensor.
@@ -78,36 +83,78 @@ def draw2DProcessorView(
     -------
     None
     """
-    if tensor.order > 2:
+    if len(shape) > 2:
         raise ValueError(
             "Only 2D tensors are supported, please provide the dimensions to print"
         )
 
-    if len(distribution.processorArrangement) > 2:
-        raise ValueError("Only 2D meshes are supported")
+    if dist is None:
+        raise ValueError("The tensor is not distributed")
 
-    processor_view = distribution.processorView(tensor)
+    processor_view = dist.processorView(shape)
 
-    if tensor.order == 1:
-        img_shape = np.array(tensor.shape).reshape(-1, 1)
+    if len(shape) == 1:
+        img_shape = torch.tensor(shape).reshape(-1, 1)
     else:
-        img_shape = np.array(tensor.shape)
+        img_shape = torch.tensor(shape)
 
-    colors = getNColors(distribution.numProcessors)
+    colors = get_n_colors(dist.numProcessors)
 
-    p_midx = distribution.getProcessorMultiIndex(processor)
+    p_midx = dist.getProcessorMultiIndex(processor)
 
-    img = np.apply_along_axis(
-        lambda a: colors[processor] if a[processor] else [0.0, 0.0, 0.0, 0.0],
-        -1,
-        processor_view,
-    )
+    img = torch.stack(
+        [
+            colors[processor] if a[processor] else torch.zeros(4, dtype=torch.float32)
+            for a in processor_view.reshape(-1, dist.numProcessors).unbind(0)
+        ]
+    ).reshape(*shape, 4)
     axes.imshow(img, origin="upper", aspect="equal")
-    draw2DGrid(axes, img_shape)
+    draw_2d_grid(axes, img_shape)
 
     axes.title.set_text(f"P {[int(x) for x in p_midx]}")
 
     ## Add discrete colorbar with the processor index and colors
 
     if cbar:
-        drawColorBar(axes.get_figure(), axes, colors)
+        draw_color_bar(axes.get_figure(), axes, colors)
+
+
+def draw_processor_grid(
+    fig: Figure, tensor_shape: torch.Size, dist: Dist, cbar: bool = False
+):
+    """
+    Plot the processor grid of a 2D tensor.
+
+    Parameters
+    ----------
+    fig : Figure
+        The figure to plot the tensor on.
+    tensor_shape : torch.Size
+        The shape of the tensor.
+    distribution : Dist
+        The distribution of the tensor.
+    cbar : bool, optional
+        Whether to show the color bar (default is True).
+    """
+    mesh = dist.processorMesh
+
+    subplot_x = mesh[0]
+    subplot_y = math.prod(mesh[1:]) if len(mesh) > 1 else 1
+
+    gs = fig.add_gridspec(nrows=subplot_x, ncols=subplot_y)
+    axs = gs.subplots(
+        sharex=True,
+        sharey=True,
+    )
+
+    for p in range(dist.numProcessors):
+        p_midx = dist.getProcessorMultiIndex(p)
+
+        y_idx = multi2linearIndex(mesh[1:], p_midx[1:]) if len(mesh) > 1 else 0
+        if subplot_y == 1:
+            draw_2d_processor_view(axs[p_midx[0]], tensor_shape, dist, p)
+        else:
+            draw_2d_processor_view(axs[p_midx[0], y_idx], tensor_shape, dist, p)
+
+    if cbar:
+        draw_color_bar(fig, axs, get_n_colors(dist.numProcessors), shrink=0.5)

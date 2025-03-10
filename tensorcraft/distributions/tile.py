@@ -1,79 +1,95 @@
 """TileDist class."""
 
-import numpy as np
+import logging
+
+import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util import multi2linearIndex
+from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
+
+log = logging.getLogger("tensorcraft")
 
 
 class TileDist(Dist):
     """
-    A distribution class for tiling tensors across multiple processors.
-
-    Splits a tensor into regular tiles, n-dimensional boxes of equal side lenght, and assigns each tile to a processor in a round-robin fashion.
+    TileDist is a distribution class that divides a tensor into tiles and assigns each tile to a processor.
 
     Parameters
     ----------
-    num_processors : int
-        The number of processors to distribute the tensor across.
+    processor_mesh : int or torch.Size
+        The number of processors or the size of the processor mesh.
     tile_size : int
         The size of each tile.
 
-    Attributes
-    ----------
-    numProcessors : int
-        The number of processors.
-    processorArrangement : numpy.ndarray
-        The arrangement of processors.
+    Methods
+    -------
+    compatible(shape: torch.Size) -> bool
+        Checks if the given shape is compatible with the tile size.
+    processorView(shape: torch.Size) -> torch.Tensor
+        Returns a boolean tensor indicating the processor assignment for each element in the tensor.
+    getElementLocation(shape: torch.Size, index: int or torch.Size) -> torch.Tensor
+        Returns a boolean tensor indicating the processor assignment for a specific element in the tensor.
     """
 
-    def __init__(self, num_processors: int, tile_size: int) -> None:
-        self._num_processors = num_processors
+    __slots__ = ("_tile_size",)
+
+    def __init__(self, processor_mesh: int | torch.Size, tile_size: int) -> None:
+        super().__init__(processor_mesh=processor_mesh)
         self._tile_size = tile_size
 
-    @property
-    def numProcessors(self):  # noqa: D102
-        return self._num_processors
+    def __eq__(self, other):
+        if super().__eq__(other) and isinstance(other, TileDist):
+            return self._tile_size == other._tile_size
+        else:
+            return False
 
-    @property
-    def processorArrangement(self):  # noqa: D102
-        return np.array((self._num_processors, 1))
+    def __str__(self):
+        return f"D_[{self.numProcessors}]⊥({self._tile_size})"
 
-    def compatible(self, tensor):  # noqa: D102
-        for dim, dim_size in enumerate(tensor.shape):
+    def latexStr(self):  # noqa: D102
+        return f"T_(\\perp\\{{ {self._tile_size} \\}})"
+
+    def compatible(self, shape: torch.Size):  # noqa: D102
+        for dim, dim_size in enumerate(shape):
             if dim_size % self._tile_size != 0:
-                print("Tile shape not divisible by tile size along dimension ", dim)
+                log.debug("Tile shape not divisible by tile size along dimension ", dim)
                 return False
 
         return True
 
-    def getProcessorMultiIndex(self, index):  # noqa: D102
-        return np.array((index,))
-
-    def processorView(self, tensor):  # noqa: D102
-        if not self.compatible(tensor):
+    def processorView(self, shape: torch.Size):  # noqa: D102
+        if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        processor_view = np.zeros((*tensor.shape, self._num_processors), dtype=np.bool_)
-        for i in range(tensor.size):
-            i_mi = tensor.getMultiIndex(i)
-            processor_view[tuple(i_mi) + (None,)] = self.getIndexLocation(tensor, i_mi)
+        processor_view = torch.zeros((*shape, self.numProcessors), dtype=torch.bool)
+        for i in range(shape.numel()):
+            i_mi = linear2multiIndex(i, shape)
+            processor_view[tuple(i_mi) + (None,)] = self.getElementLocation(shape, i_mi)
 
         return processor_view
 
-    def getIndexLocation(self, tensor, index):  # noqa: D102
-        if not self.compatible(tensor):
+    def getElementLocation(self, shape: torch.Size, index: int | torch.Size):  # noqa: D102
+        if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        shrinked_index = np.array(index) // self._tile_size
-        shrinked_shape = np.array(tensor.shape) // self._tile_size
+        if isinstance(index, int):
+            index = multi2linearIndex(shape, index)
+
+        shrinked_index = torch.tensor(index) // self._tile_size
+        shrinked_shape = torch.tensor(shape) // self._tile_size
         shrinked_linear_index = multi2linearIndex(
-            shrinked_shape, shrinked_index, order=np.arange(tensor.order)[::-1]
+            shrinked_shape, shrinked_index, order=torch.arange(len(shape)).flip(0)
         )
 
-        p_list = np.zeros((self._num_processors,), dtype=np.bool_)
-        # print(f"Index: {index}, Shrinked index: {shrinked_index}, Shrinked shape: {shrinked_shape}, Shrinked linear index: {shrinked_linear_index}, p: {shrinked_linear_index % self._num_processors}")
+        p_list = torch.zeros((self.numProcessors,), dtype=torch.bool)
+        # log.debug(f"Index: {index}, Shrinked index: {shrinked_index}, Shrinked shape: {shrinked_shape}, Shrinked linear index: {shrinked_linear_index}, p: {shrinked_linear_index % self._num_processors}")
 
-        p_list[shrinked_linear_index % self._num_processors] = True
+        p_list[shrinked_linear_index % self.numProcessors] = True
 
         return p_list
+
+    def maxNumElements(self, shape):  # noqa: D102
+        raise NotImplementedError("Not implemented for TileDist")
+
+    def neighbours(self, shape):  # noqa: D102
+        raise NotImplementedError("Not implemented for TileDist")

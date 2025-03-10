@@ -1,33 +1,41 @@
 """Visualization tools for tensorcraft."""
 
-from tensorcraft.viz.mesh_2d import draw2DMesh
-from tensorcraft.viz.mesh_3d import draw3DMesh
+from tensorcraft.viz.mesh_2d import draw_2d_mesh
+from tensorcraft.viz.mesh_3d import draw_3d_mesh
+from tensorcraft.viz.ops import draw_op, draw_tensor
 from tensorcraft.viz.program_graph import draw_expression_graph, draw_program_graph
-from tensorcraft.viz.tensor_2d import draw2DProcessorView, draw2DTensor
-from tensorcraft.viz.tensor_3d import draw3DTensor
+from tensorcraft.viz.tensor_2d import (
+    draw_2d_processor_view,
+    draw_2d_tensor,
+    draw_processor_grid,
+)
+from tensorcraft.viz.tensor_3d import draw_3d_tensor
 from tensorcraft.viz.util import (
-    draw2DGrid,
-    drawColorBar,
+    draw_2d_grid,
+    draw_color_bar,
     explode,
-    getNColors,
+    get_n_colors,
     latex2figSize,
-    meshGrid,
+    mesh_grid,
     rgba2hex,
 )
 
 __all__ = [
-    "draw2DGrid",
-    "drawColorBar",
+    "draw_2d_grid",
+    "draw_color_bar",
     "explode",
-    "getNColors",
+    "get_n_colors",
     "latex2figSize",
-    "meshGrid",
+    "mesh_grid",
     "rgba2hex",
-    "draw2DMesh",
-    "draw3DMesh",
-    "draw2DProcessorView",
-    "draw2DTensor",
-    "draw3DTensor",
+    "draw_2d_mesh",
+    "draw_3d_mesh",
+    "draw_2d_processor_view",
+    "draw_2d_tensor",
+    "draw_processor_grid",
+    "draw_3d_tensor",
     "draw_program_graph",
     "draw_expression_graph",
+    "draw_tensor",
+    "draw_op",
 ]
