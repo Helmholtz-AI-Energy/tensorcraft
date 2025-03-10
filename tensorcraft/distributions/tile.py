@@ -44,7 +44,10 @@ class TileDist(Dist):
             return False
 
     def __str__(self):
-        return f"D_[{self.numProcessors}]⊥{self._tile_size}"
+        return f"D_[{self.numProcessors}]⊥({self._tile_size})"
+
+    def latexStr(self):  # noqa: D102
+        return f"T_(\\perp\\{{ {self._tile_size} \\}})"
 
     def compatible(self, shape: torch.Size):  # noqa: D102
         for dim, dim_size in enumerate(shape):

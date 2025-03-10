@@ -49,6 +49,9 @@ class SlabDist(Dist):
     def __str__(self):
         return f"D_[{self.numProcessors}]⊥{self._dim}({self._block_size})"
 
+    def latexStr(self):
+        return f"T_{{\\perp\\{{ {self._dim} \\}}({self._block_size})}}"
+
     def compatible(self, shape: torch.Size) -> bool:
         # Check that tensor has at least self._dim + 1 number of dimensions
         if len(shape) <= self._dim:
