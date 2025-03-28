@@ -85,7 +85,7 @@ def multi2linearIndex(
         dims_reorderd = dims_reorderd.unsqueeze(-1)
 
     for i in range(len(indices_reorderd)):
-        result +=indices_reorderd[i] * torch.prod(dims_reorderd[:i])
+        result += indices_reorderd[i] * torch.prod(dims_reorderd[:i])
     return result
 
 

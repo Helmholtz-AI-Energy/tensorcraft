@@ -23,7 +23,7 @@ def get_n_colors(n: int, colormap: str = "viridis") -> torch.Tensor:
     ndarray
         An array of n colors.
     """
-    x = [1.0/(n-1) * i for i in range(n)] 
+    x = [1.0 / (n - 1) * i for i in range(n)]
     return torch.tensor(mpl.colormaps[colormap](x))
 
 
