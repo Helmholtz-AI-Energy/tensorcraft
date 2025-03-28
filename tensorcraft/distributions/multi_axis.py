@@ -167,7 +167,7 @@ class MultiAxisDist(Dist):
 
         dist_axis_list = [self._distributeDim(i, shape[i]) for i in range(len(shape))]
         for i in range(shape.numel()):
-            m_idx = linear2multiIndex(i, shape) + (None,)
+            m_idx = tuple(linear2multiIndex(i, shape)) + (None,)
             for j in range(len(shape)):
                 processor_view[m_idx] &= dist_axis_list[j][m_idx[j], :]
 

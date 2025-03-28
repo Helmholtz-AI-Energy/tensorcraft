@@ -144,9 +144,9 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
     log.debug(f"tensor_shape: {tensor_shape}")
     log.debug(f"tensor_dtype: {tensor_dtype}")
 
-    if tensor.is_contiguous():
-        buffer = as_buffer(tensor, tensor_offset)
+    buffer = as_buffer(tensor, int(tensor_offset))
 
+    if tensor.is_contiguous():
         n_elements = tensor.numel()
         # Check
         if n_elements > MPI_INT_MAX:
@@ -161,7 +161,6 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
             return buffer, n_elements, torch_type2mpi_type[tensor_dtype]
     else:
         # Check if the tensor stride is arranged in decending order
-        buffer = as_buffer(tensor, tensor_offset)
         recursive_dt = _create_recursive_vector(tensor)
         type_count = 1
         return buffer, type_count, recursive_dt

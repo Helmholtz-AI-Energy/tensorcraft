@@ -66,7 +66,7 @@ class RouteNode(Generic[T]):
 
         return path_depth, path_cost
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Node: {self.obj}, Cost: {self.edge_cost}, parent_op: {self.parent_node_edge_op}"
 
 
@@ -78,9 +78,9 @@ def find_routes(
     start_node: RouteNode,
     end_node: RouteNode,
     neighbours: neighbours_type,
-    priority_func: Optional[priority_func_type] = None,
+    priority_func: priority_func_type | None = None,
     max_depth: int = -1,
-    node_limit=1000,
+    node_limit: int = 1000,
 ) -> list[tuple[list[tuple[str, Any, float]], float]]:
     """
     Find routes between two nodes.

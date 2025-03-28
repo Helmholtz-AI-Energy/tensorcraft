@@ -7,7 +7,7 @@ from matplotlib.axes import Axes
 from tensorcraft.util.axis_utils import linear2multiIndex
 
 
-def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
+def get_n_colors(n: int, colormap: str = "viridis") -> torch.Tensor:
     """
     Get an array of n colors from a colormap.
 
@@ -23,7 +23,8 @@ def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
     ndarray
         An array of n colors.
     """
-    return torch.tensor(mpl.colormaps[colormap].resampled(n).colors)
+    x = [1.0/(n-1) * i for i in range(n)] 
+    return torch.tensor(mpl.colormaps[colormap](x))
 
 
 def rgba2hex(rgba: torch.Tensor) -> str:

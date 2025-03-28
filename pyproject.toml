@@ -39,7 +39,8 @@ dependencies = [
     "matplotlib",
     "networkx",
     "drawsvg",
-    "mpi4py"
+    "mpi4py",
+    "jellyfish"
 ]
 
 [project.optional-dependencies]
@@ -67,11 +68,35 @@ Changelog = "https://github.com/Helmholtz-AI-Energy/tensorcraft/blob/main/CHANGE
 
 # Mypy
 [tool.mypy]
-check_untyped_defs = true
+python_version="3.11"
+packages=["tensorcraft"]
+exclude=[
+    'tests/',
+    'examples/'
+]
+
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+check_untyped_defs=true
+warn_return_any=true
+show_error_codes =true
+warn_unused_ignores=true
+follow_imports = "normal"
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module =[
+    "tensorcraft.util/mpi_utils"
+]
+disallow_any_unimported = false
+
+
+
 
 # Ruff
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["notebooks/*"]
 
 [tool.ruff.lint]

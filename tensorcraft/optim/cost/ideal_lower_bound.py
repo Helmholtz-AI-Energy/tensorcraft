@@ -26,7 +26,7 @@ class IdealLowerBoundsCM(CostModel):
         return Cost(1, n_elements * n_procs, 0, 0)
 
     @staticmethod
-    def allreduce(n_procs: int, n_elements: int):  # noqa: D102
+    def allreduce(n_procs: int, n_elements: int) -> Cost:  # noqa: D102
         return Cost(
             math.ceil(math.log2(n_procs)),
             2 * (n_procs - 1) * n_elements / n_procs,

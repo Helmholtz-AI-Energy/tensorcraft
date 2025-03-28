@@ -111,7 +111,7 @@ def draw_2d_processor_view(
     axes.imshow(img, origin="upper", aspect="equal")
     draw_2d_grid(axes, img_shape)
 
-    axes.title.set_text(f"P {[int(x) for x in p_midx]}")
+    axes.title.set_text(f"{[int(x) for x in p_midx]}")
 
     ## Add discrete colorbar with the processor index and colors
 

@@ -1,7 +1,7 @@
 """Utility functions for tensorcraft."""
 
 import math
-from typing import Literal, Optional
+from typing import Literal, cast
 
 import torch
 
@@ -14,7 +14,7 @@ _order2npOrder: dict[MemLayout, MemLayoutNP] = {"C": "F", "R": "C"}
 def multi2linearIndex(
     dims: torch.Size,
     indices: torch.Size,
-    order: Optional[torch.Size] = None,
+    order: torch.Size | None = None,
 ) -> int:
     """Convert a multi-dimensional index to a linear index.
 
@@ -32,7 +32,7 @@ def multi2linearIndex(
     indices : torch.Size
         An array containing the multi-dimensional index.
 
-    order : torch.Size
+    order : torch.Size, optional
         An array specifying the order in which the dimensions should be considered
         when calculating the linear index. If None, the dimensions are considered
         in the default order, which is the same as the input order.
@@ -70,14 +70,9 @@ def multi2linearIndex(
     else:
         if len(order) == 0 or len(order) > len(dims):
             raise ValueError("Invalid order dimensions")
-        # log.debug("Dims:", dims)
-        # log.debug("Order:", order)
-        # log.debug("Indices:", torch.tensor(indices))
-        order = torch.tensor(order)
-        indices_reorderd = torch.tensor(indices)[order].flip(0)
-        dims_reorderd = torch.tensor(dims)[order].flip(0)
-        # log.debug("Indices reordered:", indices_reorderd)
-        # log.debug("Dims reordered:", dims_reorderd)
+        order_t = torch.tensor(order)
+        indices_reorderd = torch.tensor(indices)[order_t].flip(0)
+        dims_reorderd = torch.tensor(dims)[order_t].flip(0)
 
     if not torch.all(indices_reorderd >= 0) or not torch.all(
         indices_reorderd < dims_reorderd
@@ -89,10 +84,8 @@ def multi2linearIndex(
         indices_reorderd = indices_reorderd.unsqueeze(-1)
         dims_reorderd = dims_reorderd.unsqueeze(-1)
 
-    # log.debug("Indices: ", indices_reorderd)
-    # log.debug("Dims: ", dims_reorderd)
     for i in range(len(indices_reorderd)):
-        result += indices_reorderd[i] * torch.prod(dims_reorderd[:i])
+        result +=indices_reorderd[i] * torch.prod(dims_reorderd[:i])
     return result
 
 
@@ -119,20 +112,24 @@ def linear2multiIndex(
     ValueError
         If the index is out of bounds.
     """
-    if index < 0 or index >= math.prod(dims):  # type: ignore
+    if index < 0 or index >= math.prod(dims):
         raise ValueError("Index out of bounds")
 
     index_tensor = torch.tensor(index)
 
     if order == "R":
-        return tuple(dim.item() for dim in torch.unravel_index(index_tensor, dims))
+        return torch.Size(
+            [cast(int, dim.item()) for dim in torch.unravel_index(index_tensor, dims)]
+        )
     else:
-        return tuple(
-            dim.item()
-            for dim in torch.unravel_index(
-                index_tensor,
-                dims[::-1],
-            )
+        return torch.Size(
+            [
+                cast(int, dim.item())
+                for dim in torch.unravel_index(
+                    index_tensor,
+                    dims[::-1],
+                )
+            ]
         )
 
 
