@@ -1,5 +1,6 @@
 """Route finder module."""
 
+import bisect
 import dataclasses
 import logging
 from typing import Any, Callable, Generic, Optional, TypeAlias, TypeVar
@@ -152,10 +153,10 @@ def find_routes(
                 continue
             else:
                 nodes_dict[id] = n_node
-                open_nodes.append(n_node)
-
-        if priority_func:
-            open_nodes.sort(key=priority_func)
+                if priority_func:
+                    bisect.bisect(open_nodes, n_node, key=priority_func)
+                else:
+                    open_nodes.append(n_node)
 
     paths = []
     for end_node in end_nodes:

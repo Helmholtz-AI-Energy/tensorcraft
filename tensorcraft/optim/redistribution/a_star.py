@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+import jellyfish
 import torch
 
 from tensorcraft.distributions import MultiAxisDist
@@ -23,15 +24,16 @@ class AStarRedistributor(Redistributor):
     def __init__(
         self,
         costModel: CostModel,
-        alpha: float = 1.0,
-        beta: float = 1.0,
-        gamma: float = 1.0,
-        epsilon: float = 0.0,
+        alpha: float = 1.0,  # Operation Latency Cost
+        beta: float = 1.0,  # Communication volume cost / per element
+        gamma: float = 1.0,  # Computation cost / per element
+        epsilon: float = 0.0,  # Memory Cost
         **kwargs: Any,
     ):
         super().__init__(costModel, alpha, beta, gamma, epsilon)
-        self._epsilon = epsilon
         self._kwargs = kwargs
+        self._path_cost_w = kwargs["path_cost_w"] if "path_cost_w" in kwargs else 1.0
+        self._estimate_w = kwargs["estimate_w"] if "estimete_w" in kwargs else 1.0
 
     def _redistribute_slab(
         self, shape: torch.Size, start_dist: SlabDist, target_dist: SlabDist
@@ -96,11 +98,32 @@ class AStarRedistributor(Redistributor):
 
             return real_neighbours
 
+        def priority_func(node: RouteNode[MultiAxisDist]) -> float:
+            elements = shape.numel()
+            estimate_dist: int = 0
+            for i in range(len(shape)):
+                str1 = ",".join(node.obj._dims_mapping[i])
+                str2 = ",".join(target_dist._dims_mapping[i])
+                estimate_dist += jellyfish.damerau_levenshtein_distance(str1, str2)
+
+            str1 = ",".join(node.obj._block_sizes)
+            str2 = ",".join(target_dist._block_sizes)
+            estimate_dist = jellyfish.damerau_levenshtein_distance(str1, str2)
+
+            _, cost = node.path_depth_cost
+            f1 = self._path_cost_w * cost
+            f2 = self._estimate_w * estimate_dist * elements
+            log.debug(
+                f"Path cost: {self._path_cost_w} * {cost} ={f1}, Estimate cost:{self._estimate_w} * {estimate_dist} * {elements} = {f2}"
+            )
+            value = f1 + f2
+            return value
+
         paths = find_routes(
             RouteNode(None, "", start_dist, {}, 0),
             RouteNode(None, "", target_dist, {}, 0),
             neighbours,
-            **self._kwargs,
+            priority_func**self._kwargs,
         )
 
         best_path = min(paths, key=lambda x: x[1])
