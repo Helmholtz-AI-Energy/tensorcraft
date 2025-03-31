@@ -13,7 +13,7 @@ from .util import get_n_colors, rgba2hex
 log = logging.getLogger("tensorcraft")
 
 
-def draw_program_graph(program: Program, color_by="loops") -> None:
+def draw_program_graph(program: Program, color_by: str = "loops") -> None:
     """Draw the program graph using networkx.
 
     Parameters

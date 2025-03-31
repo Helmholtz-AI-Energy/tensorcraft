@@ -3,6 +3,7 @@
 import matplotlib as mpl
 import torch
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from tensorcraft.util.axis_utils import linear2multiIndex
 
@@ -46,7 +47,9 @@ def rgba2hex(rgba: torch.Tensor) -> str:
     return "#{:02x}{:02x}{:02x}{:02x}".format(*RGBA)
 
 
-def draw_2d_grid(ax: Axes, shape: tuple | torch.Tensor, color: str = "black") -> None:
+def draw_2d_grid(
+    ax: Axes, shape: tuple[int, ...] | torch.Size, color: str = "black"
+) -> None:
     """
     Set the axis ticks and labels for a 2D tensor plot.
 
@@ -83,8 +86,12 @@ def draw_2d_grid(ax: Axes, shape: tuple | torch.Tensor, color: str = "black") ->
 
 
 def draw_color_bar(
-    fig, axs, colors: torch.Tensor, shrink=1.0, orientation="horizontal"
-):
+    fig: Figure,
+    axs: Axes,
+    colors: torch.Tensor,
+    shrink: float = 1.0,
+    orientation: str = "horizontal",
+) -> None:
     """
     Draw a color bar for the given colors.
 
@@ -94,8 +101,13 @@ def draw_color_bar(
         The figure object.
     axs : Axes
         The axes object.
-    colors : ndarray
+    colors : torch.Tensor
         An array of colors.
+    shrink: float, optional
+        Factor by which to shrink the color bar.
+    orientation: str, optional
+        The orientation of the colorbar. Either "horizontal" or "vertical".
+
 
     Returns
     -------
@@ -146,7 +158,7 @@ def explode(data: torch.Tensor) -> torch.Tensor:
     return data_e
 
 
-def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
+def mesh_grid(mesh: torch.Size) -> dict[tuple[int, ...], torch.Tensor]:
     """
     Generate a mesh grid based on the given tensor.
 
@@ -157,7 +169,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
 
     Returns
     -------
-    dict[tuple[int], torch.Tensor]
+    dict[tuple[int, ...], torch.Tensor]
         A dictionary containing the positions of each element in the mesh grid.
     """
     positions = {}

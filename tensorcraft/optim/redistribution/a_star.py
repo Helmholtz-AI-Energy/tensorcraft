@@ -1,14 +1,18 @@
 """Memory Constrained Redistributor module."""
 
 import logging
+from typing import Any
 
 import torch
 
-from tensorcraft.distributions import Dist, MultiAxisDist
+from tensorcraft.distributions import MultiAxisDist
+from tensorcraft.distributions.slab import SlabDist
+from tensorcraft.distributions.tile import TileDist
 from tensorcraft.optim import Cost
+from tensorcraft.optim.cost.cost_model import CostModel
 from tensorcraft.util.route_finder import RouteNode, find_routes
 
-from .redistributor import Redistributor
+from .redistributor import OperationSchedule, Redistributor
 
 log = logging.getLogger("tensorcraft")
 
@@ -16,20 +20,32 @@ log = logging.getLogger("tensorcraft")
 class AStarRedistributor(Redistributor):
     """Redistributor that tries to reach the target as fast as possible using the A* algorithm."""
 
-    def __init__(self, costModel, alpha=1, beta=1, gamma=1, epsilon=0, **kwargs):
+    def __init__(
+        self,
+        costModel: CostModel,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        gamma: float = 1.0,
+        epsilon: float = 0.0,
+        **kwargs: Any,
+    ):
         super().__init__(costModel, alpha, beta, gamma, epsilon)
         self._epsilon = epsilon
         self._kwargs = kwargs
 
-    def _redistribute_slab(self, shape, start_dist, target_dist):
+    def _redistribute_slab(
+        self, shape: torch.Size, start_dist: SlabDist, target_dist: SlabDist
+    ) -> tuple[OperationSchedule, float]:
         raise NotImplementedError("Slab redistribution not implemented")
 
-    def _redistribute_tile(self, shape, start_dist, target_dist):
+    def _redistribute_tile(
+        self, shape: torch.Size, start_dist: TileDist, target_dist: TileDist
+    ) -> tuple[OperationSchedule, float]:
         raise NotImplementedError("Tile redistribution not implemented")
 
     def _redistribute_multi_axis(
         self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
-    ) -> tuple[list[tuple[str, Dist, float]], float]:
+    ) -> tuple[OperationSchedule, float]:
         log.info(start_dist)
         log.info(target_dist)
 
@@ -61,6 +77,8 @@ class AStarRedistributor(Redistributor):
                         edge_cost = self._cm.allgather(n_procs=n_procs, n_elements=vol)
                     case "permute":
                         edge_cost = self._cm.permute(n_procs=n_procs, n_elements=vol)
+                    case "changeBlockSize":
+                        edge_cost = self._cm.alltoall(n_procs=n_procs, n_elements=vol)
                     case _:
                         log.warning(f"Unknown operation: {op_id}. Ignoring.")
                         continue

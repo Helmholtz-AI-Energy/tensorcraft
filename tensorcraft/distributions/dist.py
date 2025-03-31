@@ -85,7 +85,7 @@ class Dist(ABC):
 
     @staticmethod
     def compatibleAxis(
-        axis_index, axis_size: int, block_size: int, num_procs: int
+        axis_index: int, axis_size: int, block_size: int, num_procs: int
     ) -> bool:
         """
         Given an axis size, block size, and number of processors, check if the axis can be distributed.
@@ -184,12 +184,12 @@ class Dist(ABC):
             return NotImplemented
 
     @abstractmethod
-    def __str__(self):
+    def __str__(self) -> str:
         mesh_str = ",".join([str(x) for x in self._pmesh])
         return f"D_[{mesh_str}]"
 
     @abstractmethod
-    def latexStr(self):
+    def latexStr(self) -> str:
         """
         Get the LaTeX representation of the distribution.
 
@@ -201,7 +201,7 @@ class Dist(ABC):
         mesh_str = ",".join([str(x) for x in self._pmesh])
         return f"$D\_\[{mesh_str}\]$"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         slot_str = ",".join(
             f"{slot[1:]}={getattr(self, slot)}" for slot in self.__slots__
         )

@@ -20,7 +20,7 @@ _torch_ops: dict[str, Callable[..., torch.Tensor]] = {
     "/": torch.divide,
     "<": torch.less,
     "<=": torch.less_equal,
-    "==": torch.equal,
+    "==": torch.eq,
     "!=": torch.not_equal,
     ">=": torch.greater_equal,
     ">": torch.greater,
@@ -83,9 +83,9 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
                     "!=",
                 ]:
                     if op_id == "==":
-                        result = torch.lt(torch.abs(torch.subtract(*op_inputs)), TOL)  # type: ignore
+                        result = torch.lt(torch.abs(torch.subtract(*op_inputs)), TOL)
                     elif op_id == "!=":
-                        result = torch.ge(torch.abs(torch.subtract(*op_inputs)), TOL)  # type: ignore
+                        result = torch.ge(torch.abs(torch.subtract(*op_inputs)), TOL)
                 else:
                     result = _torch_ops[op_id](*op_inputs)
                     if not isinstance(result, torch.Tensor):

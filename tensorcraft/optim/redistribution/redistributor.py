@@ -10,6 +10,8 @@ from tensorcraft.optim.cost import Cost, CostModel
 
 log = logging.getLogger("tensorcraft")
 
+OperationSchedule = list[tuple[str, Dist, float]]
+
 
 class Redistributor(abc.ABC):
     """Base redistributer class."""
@@ -37,7 +39,7 @@ class Redistributor(abc.ABC):
         self._epsilon = epsilon
         self._setup()
 
-    def _setup(self):
+    def _setup(self) -> None:
         """Redistributor setup."""
         return
 
@@ -73,7 +75,7 @@ class Redistributor(abc.ABC):
 
     def redistribute(
         self, shape: torch.Size, start_dist: Dist, target_dist: Dist
-    ) -> tuple[list[tuple[str, Dist, float]], float]:
+    ) -> tuple[OperationSchedule, float]:
         """
         Given a tensor shape, a starting distribution, and a target distribution, it will return a sequence of collective operations to reach the target distribution.
 
@@ -106,17 +108,17 @@ class Redistributor(abc.ABC):
     @abc.abstractmethod
     def _redistribute_multi_axis(
         self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
-    ) -> tuple[list[tuple[str, Dist, float]], float]:
+    ) -> tuple[OperationSchedule, float]:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _redistribute_tile(
         self, shape: torch.Size, start_dist: TileDist, target_dist: TileDist
-    ) -> tuple[list[tuple[str, Dist, float]], float]:
+    ) -> tuple[OperationSchedule, float]:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _redistribute_slab(
         self, shape: torch.Size, start_dist: SlabDist, target_dist: SlabDist
-    ) -> tuple[list[tuple[str, Dist, float]], float]:
+    ) -> tuple[OperationSchedule, float]:
         raise NotImplementedError

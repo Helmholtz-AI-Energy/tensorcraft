@@ -164,27 +164,35 @@ class ProgramTransformer(lark.Transformer):
         return program
 
     @lark.v_args(meta=True)
-    def assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+    def assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]) -> TensorExpression:
         """Process assignment tensor expression."""
         return self._handle_tensor_exp(AssignmentType.ASSIGN, meta, expr)
 
     @lark.v_args(meta=True)
-    def add_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+    def add_assign(
+        self, meta: lark.tree.Meta, expr: list[lark.Tree]
+    ) -> TensorExpression:
         """Process add and assign tensor expression."""
         return self._handle_tensor_exp(AssignmentType.ADD, meta, expr)
 
     @lark.v_args(meta=True)
-    def sub_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+    def sub_assign(
+        self, meta: lark.tree.Meta, expr: list[lark.Tree]
+    ) -> TensorExpression:
         """Process substract and assign tensor expression."""
         return self._handle_tensor_exp(AssignmentType.SUB, meta, expr)
 
     @lark.v_args(meta=True)
-    def mul_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+    def mul_assign(
+        self, meta: lark.tree.Meta, expr: list[lark.Tree]
+    ) -> TensorExpression:
         """Process multiply and assign tensor expression."""
         return self._handle_tensor_exp(AssignmentType.MUL, meta, expr)
 
     @lark.v_args(meta=True)
-    def div_assign(self, meta: lark.tree.Meta, expr: list[lark.Tree]):
+    def div_assign(
+        self, meta: lark.tree.Meta, expr: list[lark.Tree]
+    ) -> TensorExpression:
         """Process divide and assign tensor expression."""
         return self._handle_tensor_exp(AssignmentType.DIV, meta, expr)
 
@@ -235,143 +243,143 @@ class ProgramTransformer(lark.Transformer):
         self._op_count_dict = {}
         return op
 
-    def add(self, children: list[lark.Tree]):
+    def add(self, children: list[lark.Tree]) -> str:
         """Process an addition operation."""
         return self._op_handler(children, "+")
 
-    def sub(self, children: list[lark.Tree]):
+    def sub(self, children: list[lark.Tree]) -> str:
         """Process a subtraction operation."""
         return self._op_handler(children, "-")
 
-    def prod(self, children: list[lark.Tree]):
+    def prod(self, children: list[lark.Tree]) -> str:
         """Process a multiplication operation."""
         return self._op_handler(children, "*")
 
-    def div(self, children: list[lark.Tree]):
+    def div(self, children: list[lark.Tree]) -> str:
         """Process a division operation."""
         return self._op_handler(children, "/")
 
-    def equal(self, children: list[lark.Tree]):
+    def equal(self, children: list[lark.Tree]) -> str:
         """Process an equality operation."""
         return self._op_handler(children, "==")
 
-    def nequal(self, children: list[lark.Tree]):
+    def nequal(self, children: list[lark.Tree]) -> str:
         """Process a non-equality operation."""
         return self._op_handler(children, "!=")
 
-    def bool_and(self, children: list[lark.Tree]):
+    def bool_and(self, children: list[lark.Tree]) -> str:
         """Process a boolean AND operation."""
         return self._op_handler(children, "&&")
 
-    def bool_or(self, children: list[lark.Tree]):
+    def bool_or(self, children: list[lark.Tree]) -> str:
         """Process a boolean OR operation."""
         return self._op_handler(children, "||")
 
-    def gt(self, children: list[lark.Tree]):
+    def gt(self, children: list[lark.Tree]) -> str:
         """Process a greater than operation."""
         return self._op_handler(children, ">")
 
-    def lt(self, children: list[lark.Tree]):
+    def lt(self, children: list[lark.Tree]) -> str:
         """Process a less than operation."""
         return self._op_handler(children, "<")
 
-    def ge(self, children: list[lark.Tree]):
+    def ge(self, children: list[lark.Tree]) -> str:
         """Process a greater than or equal operation."""
         return self._op_handler(children, ">=")
 
-    def le(self, children: list[lark.Tree]):
+    def le(self, children: list[lark.Tree]) -> str:
         """Process a less than or equal operation."""
         return self._op_handler(children, "<=")
 
-    def pow(self, children: list[lark.Tree]):
+    def pow(self, children: list[lark.Tree]) -> str:
         """Process a power operation."""
         return self._op_handler(children, "^")
 
-    def parenthesis(self, children: list[lark.Tree]):
+    def parenthesis(self, children: list[lark.Tree]) -> lark.Tree:
         """Process a parenthesis operation."""
         return children[0]
 
-    def ceil(self, children: list[lark.Tree]):
+    def ceil(self, children: list[lark.Tree]) -> str:
         """Process a ceil operation."""
         return self._op_handler(children, "ceil")
 
-    def floor(self, children: list[lark.Tree]):
+    def floor(self, children: list[lark.Tree]) -> str:
         """Process a floor operation."""
         return self._op_handler(children, "floor")
 
-    def sin(self, children: list[lark.Tree]):
+    def sin(self, children: list[lark.Tree]) -> str:
         """Process a sin operation."""
         return self._op_handler(children, "sin")
 
-    def cos(self, children: list[lark.Tree]):
+    def cos(self, children: list[lark.Tree]) -> str:
         """Process a cos operation."""
         return self._op_handler(children, "cos")
 
-    def tan(self, children: list[lark.Tree]):
+    def tan(self, children: list[lark.Tree]) -> str:
         """Process a tan operation."""
         return self._op_handler(children, "tan")
 
-    def asin(self, children: list[lark.Tree]):
+    def asin(self, children: list[lark.Tree]) -> str:
         """Process a asin operation."""
         return self._op_handler(children, "asin")
 
-    def acos(self, children: list[lark.Tree]):
+    def acos(self, children: list[lark.Tree]) -> str:
         """Process a acos operation."""
         return self._op_handler(children, "acos")
 
-    def atan(self, children: list[lark.Tree]):
+    def atan(self, children: list[lark.Tree]) -> str:
         """Process a atan operation."""
         return self._op_handler(children, "atan")
 
-    def sinh(self, children: list[lark.Tree]):
+    def sinh(self, children: list[lark.Tree]) -> str:
         """Process a sinh operation."""
         return self._op_handler(children, "sinh")
 
-    def cosh(self, children: list[lark.Tree]):
+    def cosh(self, children: list[lark.Tree]) -> str:
         """Process a cosh operation."""
         return self._op_handler(children, "cosh")
 
-    def tanh(self, children: list[lark.Tree]):
+    def tanh(self, children: list[lark.Tree]) -> str:
         """Process a tanh operation."""
         return self._op_handler(children, "tanh")
 
-    def asinh(self, children: list[lark.Tree]):
+    def asinh(self, children: list[lark.Tree]) -> str:
         """Process a asinh operation."""
         return self._op_handler(children, "asinh")
 
-    def acosh(self, children: list[lark.Tree]):
+    def acosh(self, children: list[lark.Tree]) -> str:
         """Process a acosh operation."""
         return self._op_handler(children, "acosh")
 
-    def atanh(self, children: list[lark.Tree]):
+    def atanh(self, children: list[lark.Tree]) -> str:
         """Process a atanh operation."""
         return self._op_handler(children, "atanh")
 
-    def exp(self, children: list[lark.Tree]):
+    def exp(self, children: list[lark.Tree]) -> str:
         """Process a exp operation."""
         return self._op_handler(children, "exp")
 
-    def log(self, children: list[lark.Tree]):
+    def log(self, children: list[lark.Tree]) -> str:
         """Process a log operation."""
         return self._op_handler(children, "log")
 
-    def log2(self, children: list[lark.Tree]):
+    def log2(self, children: list[lark.Tree]) -> str:
         """Process a log2 operation."""
         return self._op_handler(children, "log2")
 
-    def log10(self, children: list[lark.Tree]):
+    def log10(self, children: list[lark.Tree]) -> str:
         """Process a log10 operation."""
         return self._op_handler(children, "log10")
 
-    def sqrt(self, children: list[lark.Tree]):
+    def sqrt(self, children: list[lark.Tree]) -> str:
         """Process a sqrt operation."""
         return self._op_handler(children, "sqrt")
 
-    def abs(self, children: list[lark.Tree]):
+    def abs(self, children: list[lark.Tree]) -> str:
         """Process a abs operation."""
         return self._op_handler(children, "abs")
 
-    def _op_handler(self, children: list[lark.Tree], op: str):
+    def _op_handler(self, children: list[lark.Tree], op: str) -> str:
         if isinstance(children[0], lark.Tree):
             op_0 = children[0].children[0]
         else:
@@ -392,11 +400,11 @@ class ProgramTransformer(lark.Transformer):
         self._op_count += 1
         return node_name
 
-    def function(self, children: list[lark.Tree]):
+    def function(self, children: list[lark.Tree]) -> lark.Tree:
         """Process a function operation."""
         return children[0]
 
-    def operand(self, children: list[lark.Token]):
+    def operand(self, children: list[lark.Token]) -> str:
         """
         Process an operand and adds it to the current tensor expression variables.
 
@@ -404,6 +412,11 @@ class ProgramTransformer(lark.Transformer):
         ----------
         children : list
             The children of the operand.
+
+        Return
+        ------
+        str
+            Operand name.
 
         """
         if isinstance(children[0], lark.Tree):
@@ -433,7 +446,7 @@ class ProgramTransformer(lark.Transformer):
 
         return operand_name
 
-    def tensor(self, children: list[lark.Tree]):
+    def tensor(self, children: list[lark.Tree]) -> tuple[str, list[str]]:
         """
         Process a tensor and adds it to the current variables.
 
@@ -441,6 +454,13 @@ class ProgramTransformer(lark.Transformer):
         ----------
         children : list
             The children of the tensor.
+
+        Return
+        ------
+        str
+            Node string id.
+        list[str]
+            List with related index variables to the tensor.
 
         """
         name = children[0].value
@@ -462,7 +482,7 @@ class ProgramTransformer(lark.Transformer):
 
         return name, self._current_exp_multi_idx_exp[-1]
 
-    def var_idx(self, children: list[lark.Token]):
+    def var_idx(self, children: list[lark.Token]) -> str:
         """
         Process an index variable and adds it to the current tensor index variables.
 
@@ -471,13 +491,18 @@ class ProgramTransformer(lark.Transformer):
         children : list
             The children of the index variable.
 
+        Return
+        ------
+        str
+            Token string id.
+
         """
         result = children[0].value
         self._current_exp_index_vars.update(result)
         self._current_tensor_multi_index.append(result)
         return children[0].value
 
-    def scalar_idx(self, children: list[lark.Token]):
+    def scalar_idx(self, children: list[lark.Token]) -> str:
         """
         Process a scalar index and adds it to the current tensor index variables.
 
@@ -486,12 +511,17 @@ class ProgramTransformer(lark.Transformer):
         children : list
             The children of the scalar index.
 
+        Return
+        ------
+        str
+            Node string id.
+
         """
         result = children[0].value
         self._current_tensor_multi_index.append(result)
         return result
 
-    def joined_idx(self, children: list[lark.Token]):
+    def joined_idx(self, children: list[lark.Token]) -> str:
         """
         Process a joined index and adds it to the current tensor index variables.
 
@@ -499,6 +529,11 @@ class ProgramTransformer(lark.Transformer):
         ----------
         children : list
             The children of the joined index.
+
+        Return
+        ------
+        str
+            Joined index string.
 
         """
         self._current_exp_index_vars.update(child.value for child in children)

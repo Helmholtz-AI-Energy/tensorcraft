@@ -837,4 +837,17 @@ class MultiAxisDist(Dist):
                                 log.debug(
                                     f"Failed operation {operation} on dist {self} with shape {shape}"
                                 )
+
+        # change_block_size
+        for axis in range(len(shape)):
+            for b_size in b_sizes:
+                operation = f"changeBlockSize_{axis}_{b_size}"
+                try:
+                    new_dist, vol, n_procs = self.change_block_size(shape, axis, b_size)
+                    log.debug(f"New neighbour: {new_dist}")
+                    neighbours.append((operation, new_dist, vol, n_procs))
+                except Exception:
+                    log.debug(
+                        f"Failed operation {operation} on dist {self} with shape {shape}"
+                    )
         return neighbours
