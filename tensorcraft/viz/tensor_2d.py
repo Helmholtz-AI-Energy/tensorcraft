@@ -1,10 +1,12 @@
 """2D tensor visualization functions."""
 
 import math
+from typing import cast
 
 import torch
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from numpy import ndarray
 
 from tensorcraft.distributions import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
@@ -121,7 +123,7 @@ def draw_2d_processor_view(
 
 def draw_processor_grid(
     fig: Figure, tensor_shape: torch.Size, dist: Dist, cbar: bool = False
-):
+) -> None:
     """
     Plot the processor grid of a 2D tensor.
 
@@ -142,9 +144,12 @@ def draw_processor_grid(
     subplot_y = math.prod(mesh[1:]) if len(mesh) > 1 else 1
 
     gs = fig.add_gridspec(nrows=subplot_x, ncols=subplot_y)
-    axs = gs.subplots(
-        sharex=True,
-        sharey=True,
+    axs = cast(
+        ndarray,
+        gs.subplots(
+            sharex=True,
+            sharey=True,
+        ),
     )
 
     for p in range(dist.numProcessors):

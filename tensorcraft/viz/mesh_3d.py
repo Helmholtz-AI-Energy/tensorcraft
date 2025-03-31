@@ -36,9 +36,9 @@ def draw_3d_mesh(axes: Axes, mesh: torch.Size) -> None:
     node_xyz = torch.stack([pos[v] for v in graph.nodes()])
     edge_xyz = torch.stack([torch.stack([pos[u], pos[v]]) for u, v in graph.edges()])
 
-    axes.scatter(*node_xyz.T, c=hexColors, s=100, alpha=1.0)
+    axes.scatter(*node_xyz.T, c=hexColors, s=100, alpha=1.0)  # type: ignore[misc]
     for node, node_pos in zip(graph.nodes(), node_xyz):
-        axes.text(*node_pos, f"{node}", fontsize=8, ha="right", va="bottom")
+        axes.text(*node_pos, f"{node}", fontsize=8, ha="right", va="bottom")  # type: ignore[call-arg]
     for edge in edge_xyz:
         axes.plot(*edge.T, c="black", alpha=0.5, linewidth=0.5)
 

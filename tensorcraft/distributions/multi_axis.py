@@ -3,7 +3,7 @@
 import itertools
 import logging
 import math
-from typing import Optional, TypeAlias
+from typing import Any, Optional, TypeAlias
 
 import torch
 from typing_extensions import override
@@ -109,7 +109,7 @@ class MultiAxisDist(Dist):
         """
         return self._block_sizes
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         base_comp = super().__eq__(other)
         if base_comp and isinstance(other, MultiAxisDist):
             return (self._dims_mapping == other._dims_mapping) and (
@@ -118,7 +118,7 @@ class MultiAxisDist(Dist):
         else:
             return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         mesh_str = ",".join([str(x) for x in self._pmesh])
         map_str = "{"
         for m in self._dims_mapping:
@@ -132,7 +132,7 @@ class MultiAxisDist(Dist):
         b_str = ",".join([str(x) if x != -1 else "∅" for x in self._block_sizes])
         return f"D_[{mesh_str}]⊥{map_str}({b_str})"
 
-    def latexStr(self):  # noqa: D102
+    def latexStr(self) -> str:  # noqa: D102
         map_str = ""
         for m in self._dims_mapping:
             if len(m) == 0:
@@ -189,7 +189,9 @@ class MultiAxisDist(Dist):
                 break
         return dist
 
-    def getElementLocation(self, shape, index):  # noqa: D102
+    def getElementLocation(  # noqa: D102
+        self, shape: torch.Size, index: int | torch.Size
+    ) -> torch.Tensor:
         if isinstance(index, int):
             mindex = linear2multiIndex(index, shape)
         else:
@@ -202,7 +204,7 @@ class MultiAxisDist(Dist):
 
         return p_list
 
-    def compatible(self, shape):  # noqa: D102
+    def compatible(self, shape: torch.Size) -> bool:  # noqa: D102
         # Ensure that the tensor order and the number of dimensions in the distribution match
         if len(shape) != len(self._dims_mapping) or len(shape) != len(
             self._block_sizes
@@ -237,7 +239,7 @@ class MultiAxisDist(Dist):
         dim_distribution = torch.ones((dim_size, num_process), dtype=torch.bool)
         mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
         block_size = self._block_sizes[dim]
-        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, math.prod(mesh_dims))  # type: ignore
+        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, math.prod(mesh_dims))
         start_idx = 0
         for chunk_idx, end_idx in enumerate(axis_chunk_ends):
             left_eq = chunk_idx % math.prod(mesh_dims)
@@ -245,14 +247,14 @@ class MultiAxisDist(Dist):
                 p_mi = self.getProcessorMultiIndex(j)
                 right_eq = multi2linearIndex(
                     self._pmesh, p_mi, order=mesh_dims_idx
-                ) % math.prod(mesh_dims)  # type: ignore
+                ) % math.prod(mesh_dims)
                 dim_distribution[start_idx:end_idx, j] = left_eq == right_eq
 
             start_idx = end_idx
 
         return dim_distribution
 
-    def maxNumElements(self, shape):  # noqa: D102
+    def maxNumElements(self, shape: torch.Size) -> int:  # noqa: D102
         max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
         return max_n_blocks * max_block_size
 
@@ -586,8 +588,8 @@ class MultiAxisDist(Dist):
             moved_mesh_dims: tuple[int, ...] = (
                 self._dims_mapping[from_tensor_axis][-1],
             )
-            relevant_procs = self._pmesh[moved_mesh_dims[0]]
-            n_procs = relevant_procs
+            relevant_proc = self._pmesh[moved_mesh_dims[0]]
+            n_procs = relevant_proc
 
             # Find out new dims mapping
             new_from_t_axis_mapping = self._dims_mapping[from_tensor_axis][:-1]

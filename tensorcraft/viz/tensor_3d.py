@@ -3,7 +3,7 @@
 import logging
 
 import torch
-from matplotlib.axes import Axes
+from mpl_toolkits.mplot3d.axes3d import Axes3D
 
 from tensorcraft.distributions import Dist
 from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors
@@ -12,7 +12,7 @@ log = logging.getLogger("tensorcraft")
 
 
 def draw_3d_tensor(
-    axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
+    axes: Axes3D, shape: torch.Size, dist: Dist, cbar: bool = False
 ) -> None:
     """
     Plot a 3D tensor.
@@ -39,14 +39,14 @@ def draw_3d_tensor(
 
     # build up the numpy logo
     filled = torch.ones(shape, dtype=torch.float)
-    facecolors = []
-    edgecolors = []
+    facecolors_list = []
+    edgecolors_list = []
     for a in processorView.reshape(-1, dist.numProcessors).unbind(0):
-        facecolors.append(colors[a.nonzero()])
-        edgecolors.append(colors_edges[a.nonzero()])
+        facecolors_list.append(colors[a.nonzero()])
+        edgecolors_list.append(colors_edges[a.nonzero()])
 
-    facecolors = torch.stack(facecolors).reshape(shape + (4,))
-    edgecolors = torch.stack(edgecolors).reshape(shape + (4,))
+    facecolors = torch.stack(facecolors_list).reshape(shape + (4,))
+    edgecolors = torch.stack(edgecolors_list).reshape(shape + (4,))
 
     # upscale the above voxel image, leaving gaps
     filled_2 = explode(filled)
@@ -87,7 +87,7 @@ def draw_3d_tensor(
     axes.set_proj_type("persp")
     axes.set_xticklabels(labels=[])
     axes.set_yticklabels(labels=[])
-    axes.set_zticklabels(labels=[])
+    axes.set_zticklabels(labels=[])  # type: ignore[operator]
     axes.set_xlabel("Axis 0", labelpad=-15)
     axes.set_ylabel("Axis 1", labelpad=-15)
     axes.set_zlabel("Axis 2", labelpad=-15)

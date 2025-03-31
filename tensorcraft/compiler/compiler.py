@@ -2,6 +2,7 @@
 
 import importlib.resources
 import logging
+from typing import cast
 
 import lark
 import lark.ast_utils
@@ -20,7 +21,7 @@ log = logging.getLogger("tensorcraft")
 class Compiler:
     """A class for compiling code using a tensor notation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Compiler class."""
         try:
             self._grammar = (
@@ -54,7 +55,7 @@ class Compiler:
         except Exception as e:
             log.error(f"Invalid program: {e}")
             raise ValueError(f"Invalid program: {e}")
-        program = ProgramTransformer(code).transform(ast)
+        program = cast(Program, ProgramTransformer(code).transform(ast))
         return program
 
 
@@ -444,7 +445,7 @@ class ProgramTransformer(lark.Transformer):
             operand_name = children[0].value
             self._op_graph.add_node(operand_name)
 
-        return operand_name
+        return cast(str, operand_name)
 
     def tensor(self, children: list[lark.Tree]) -> tuple[str, list[str]]:
         """
@@ -463,7 +464,7 @@ class ProgramTransformer(lark.Transformer):
             List with related index variables to the tensor.
 
         """
-        name = children[0].value
+        name = children[0].value  # type: ignore[attr-defined]
         order = len(self._current_tensor_multi_index)
 
         if name in self._variables:
@@ -497,10 +498,10 @@ class ProgramTransformer(lark.Transformer):
             Token string id.
 
         """
-        result = children[0].value
+        result = cast(str, children[0].value)
         self._current_exp_index_vars.update(result)
         self._current_tensor_multi_index.append(result)
-        return children[0].value
+        return result
 
     def scalar_idx(self, children: list[lark.Token]) -> str:
         """
@@ -517,7 +518,7 @@ class ProgramTransformer(lark.Transformer):
             Node string id.
 
         """
-        result = children[0].value
+        result = cast(str, children[0].value)
         self._current_tensor_multi_index.append(result)
         return result
 

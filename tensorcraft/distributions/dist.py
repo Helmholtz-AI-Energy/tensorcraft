@@ -232,9 +232,7 @@ class Dist(ABC):
         pass
 
     @abstractmethod
-    def getElementLocation(
-        self, shape: torch.Size, index: torch.Size
-    ) -> torch.BoolTensor:
+    def getElementLocation(self, shape: torch.Size, index: torch.Size) -> torch.Tensor:
         """
         Get the processors that hold a specific element of a tensor.
 
@@ -247,7 +245,7 @@ class Dist(ABC):
 
         Returns
         -------
-        torch.BoolTensor
+        torch.Tensor
             Boolean array marking the processors that hold the element.
         """
         pass

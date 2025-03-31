@@ -1,7 +1,7 @@
 """Utility functions for tensorcraft."""
 
 import math
-from typing import Literal, cast
+from typing import Literal, Sequence, cast
 
 import torch
 
@@ -12,9 +12,9 @@ _order2npOrder: dict[MemLayout, MemLayoutNP] = {"C": "F", "R": "C"}
 
 
 def multi2linearIndex(
-    dims: torch.Size,
-    indices: torch.Size,
-    order: torch.Size | None = None,
+    dims: Sequence[int],
+    indices: Sequence[int],
+    order: Sequence[int] | None = None,
 ) -> int:
     """Convert a multi-dimensional index to a linear index.
 
@@ -26,13 +26,13 @@ def multi2linearIndex(
 
     Parameters
     ----------
-    dims : torch.Size
+    dims : Sequence[int]
         An array containing the dimensions of the tensor.
 
-    indices : torch.Size
+    indices : Sequence[int]
         An array containing the multi-dimensional index.
 
-    order : torch.Size, optional
+    order : Sequence[int], optional
         An array specifying the order in which the dimensions should be considered
         when calculating the linear index. If None, the dimensions are considered
         in the default order, which is the same as the input order.
@@ -90,7 +90,7 @@ def multi2linearIndex(
 
 
 def linear2multiIndex(
-    index: int, dims: torch.Size, order: MemLayout = "R"
+    index: int, dims: Sequence[int], order: MemLayout = "R"
 ) -> torch.Size:
     """
     Convert a linear index to multi-dimensional indices.
@@ -99,6 +99,8 @@ def linear2multiIndex(
     ----------
     index : int
         The linear index.
+    dims: Iterable[int]
+        Dimensions
     order : str, optional
         The order of the multi-dimensional indices. Defaults to "R" (row-major order).
 

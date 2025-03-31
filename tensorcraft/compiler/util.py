@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Callable
+from typing import Callable, Sequence
 
 import networkx as nx
 import torch
@@ -68,7 +68,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
     """
     sorted_nodes = list(nx.topological_sort(op_graph))
 
-    def compute(**kwargs: torch.Tensor) -> dict[str, torch.Tensor]:
+    def compute(**kwargs: torch.Tensor) -> torch.Tensor:
         results: dict[str, torch.Tensor] = {}
 
         for node in sorted_nodes:
@@ -108,7 +108,7 @@ def opGraph2Func(op_graph: nx.DiGraph) -> Callable[..., torch.Tensor]:
 
 def idx_exp_compatible(
     var_name: str,
-    idx_exp: list[str],
+    idx_exp: Sequence[str],
     tensor: torch.Tensor,
     idx_var_sizes: dict[str, int],
 ) -> bool:
@@ -132,7 +132,7 @@ def idx_exp_compatible(
     bool
         True if the index expression is compatible with the tensor, False otherwise.
     """
-    data_shape = tensor.shape  # type: ignore
+    data_shape = tensor.shape
     data_order = len(data_shape)
 
     if data_order != len(idx_exp):
@@ -169,10 +169,10 @@ def idx_exp_compatible(
 
 
 def idx_exp2multiIdx(
-    idx_exp: list[str],
-    idx_var_names: list[str],
-    current_loop_midx: list[int],
-    idx_var_sizes: list[int],
+    idx_exp: Sequence[str],
+    idx_var_names: Sequence[str],
+    current_loop_midx: Sequence[int],
+    idx_var_sizes: Sequence[int],
 ) -> torch.Size:
     """Convert an index expression to a multi-index.
 
@@ -183,13 +183,13 @@ def idx_exp2multiIdx(
 
     Parameters
     ----------
-    idx_exp : list[str]
+    idx_exp : Sequence[str]
         The index expression to convert.
-    idx_var_names : list[str]
+    idx_var_names : Sequence[str]
         A list of index variable names.
-    current_loop_midx : list[int]
+    current_loop_midx : Sequence[int]
         A list of the current values of the index variables.
-    idx_var_sizes : list[int]
+    idx_var_sizes : Sequence[int]
         A list of the sizes of the index variables.
 
     Returns

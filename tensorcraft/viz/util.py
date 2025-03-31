@@ -4,6 +4,7 @@ import matplotlib as mpl
 import torch
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure, SubFigure
+from numpy import ndarray
 
 from tensorcraft.util.axis_utils import linear2multiIndex
 
@@ -87,7 +88,7 @@ def draw_2d_grid(
 
 def draw_color_bar(
     fig: Figure | SubFigure | None,
-    axs: Axes,
+    axs: Axes | ndarray,
     colors: torch.Tensor,
     shrink: float = 1.0,
     orientation: str = "horizontal",
@@ -174,7 +175,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int, ...], torch.Tensor]:
     dict[tuple[int, ...], torch.Tensor]
         A dictionary containing the positions of each element in the mesh grid.
     """
-    positions = {}
+    positions: dict[tuple[int, ...], torch.Tensor] = {}
     for i in range(mesh.numel()):
         mindex = linear2multiIndex(i, mesh)
         pos = [
@@ -183,7 +184,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int, ...], torch.Tensor]:
         if len(mesh) <= 1:
             pos += [0.5]
             pos[-1] = 1 - pos[-1]
-            positions[mindex[0]] = torch.tensor(pos).flip(0)
+            positions[(mindex[0],)] = torch.tensor(pos).flip(0)
         else:
             pos[-1] = 1 - pos[-1]
             positions[tuple(mindex)] = torch.tensor(pos).flip(0)
@@ -192,7 +193,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int, ...], torch.Tensor]:
 
 
 def latex2figSize(
-    width: float, fraction: float = 1, ratio=16 / 9
+    width: float, fraction: float = 1, ratio: float = 16.0 / 9.0
 ) -> tuple[float, float]:
     """Set figure dimensions to avoid scaling in LaTeX.
 
