@@ -94,9 +94,9 @@ def draw_2d_processor_view(
     processor_view = dist.processorView(shape)
 
     if len(shape) == 1:
-        img_shape = torch.tensor(shape).reshape(-1, 1)
+        img_shape = torch.Size(torch.tensor(shape).reshape(-1, 1))
     else:
-        img_shape = torch.tensor(shape)
+        img_shape = shape
 
     colors = get_n_colors(dist.numProcessors)
 

@@ -3,7 +3,7 @@
 import matplotlib as mpl
 import torch
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 
 from tensorcraft.util.axis_utils import linear2multiIndex
 
@@ -86,7 +86,7 @@ def draw_2d_grid(
 
 
 def draw_color_bar(
-    fig: Figure,
+    fig: Figure | SubFigure | None,
     axs: Axes,
     colors: torch.Tensor,
     shrink: float = 1.0,
@@ -97,7 +97,7 @@ def draw_color_bar(
 
     Parameters
     ----------
-    fig : Figure
+    fig : Figure | SubFigure | None
         The figure object.
     axs : Axes
         The axes object.
@@ -113,6 +113,8 @@ def draw_color_bar(
     -------
     None
     """
+    if not fig:
+        return
     np_colors = colors.numpy()
     location = "bottom" if orientation == "horizontal" else "right"
     cmap = mpl.colors.ListedColormap(np_colors)
