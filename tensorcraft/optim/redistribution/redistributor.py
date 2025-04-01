@@ -19,10 +19,10 @@ class Redistributor(abc.ABC):
     def __init__(
         self,
         costModel: CostModel,
-        alpha: float = 1,
-        beta: float = 1,
-        gamma: float = 1,
-        epsilon: float = 1,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        gamma: float = 1.0,
+        epsilon: float = 0.0,
     ):
         """
         Redistributer initialization.

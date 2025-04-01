@@ -691,14 +691,14 @@ class MultiAxisDist(Dist):
 
         old_block_size = new_block_size_list[tensor_axis]
         if old_block_size == block_size:
-            log.error(f"Block size is already {old_block_size}")
+            log.info(f"Block size is already {old_block_size}")
             raise ValueError("Invalid arguments")
 
         if block_size > old_block_size and block_size % old_block_size != 0:
-            log.error("New block size must be a multiple of the old block size")
+            log.info("New block size must be a multiple of the old block size")
             raise ValueError("Invalid arguments")
         elif block_size < old_block_size and old_block_size % block_size != 0:
-            log.error("Old block size must be a multiple of the new block size")
+            log.info("Old block size must be a multiple of the new block size")
             raise ValueError("Invalid arguments")
 
         ## TODO: Very simplified shit. If implemented like this it would be extremely inefficient, as some of the redistributions would have a lot of empty alltoallw buffers.
@@ -708,7 +708,7 @@ class MultiAxisDist(Dist):
         )
 
         if not new_dist.compatible(shape):
-            log.error("Tensor shape not compatible with new block size.")
+            log.info("Tensor shape not compatible with new block size.")
             raise ValueError("Incompatible redistribution.")
 
         comm_volume = self.maxNumElements(shape)

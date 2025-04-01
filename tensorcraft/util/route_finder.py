@@ -19,6 +19,7 @@ class RouteNode(Generic[T]):
     obj: T
     children: dict[str, "RouteNode"]
     edge_cost: float
+    modified: bool = True
 
     def path_to_root(self) -> tuple[list[tuple[str, T, float]], float]:
         """
@@ -82,6 +83,7 @@ def find_routes(
     priority_func: priority_func_type | None = None,
     max_depth: int = -1,
     node_limit: int = 1000,
+    top_k: int = -1,
 ) -> list[tuple[list[tuple[str, Any, float]], float]]:
     """
     Find routes between two nodes.
@@ -116,7 +118,7 @@ def find_routes(
 
     node_count = 0
 
-    while len(open_nodes) > 0 and node_count < node_limit:
+    while len(open_nodes) > 0 and node_count < node_limit and len(end_nodes) != top_k:
         log.debug(f"Open nodes: {len(open_nodes)}")
         log.debug(f"Close nodes: {len(close_nodes)}")
         log.debug(f"End nodes: {len(end_nodes)}")
@@ -154,10 +156,15 @@ def find_routes(
             else:
                 nodes_dict[id] = n_node
                 if priority_func:
-                    bisect.bisect(open_nodes, n_node, key=priority_func)
+                    score = priority_func(n_node)
+                    score_list: list[float] = list(map(priority_func, open_nodes))
+
+                    idx = bisect.bisect(score_list, score)
+                    open_nodes.insert(idx, n_node)
                 else:
                     open_nodes.append(n_node)
 
+    print(f"Explored {node_count} nodes, found {len(end_nodes)} possible paths.")
     paths = []
     for end_node in end_nodes:
         paths.append(end_node.path_to_root())

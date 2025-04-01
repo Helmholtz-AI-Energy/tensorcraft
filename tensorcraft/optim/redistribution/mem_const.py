@@ -85,6 +85,8 @@ class MemoryConstrainedRedist(Redistributor):
                         edge_cost = self._cm.allgather(n_procs=n_procs, n_elements=vol)
                     case "permute":
                         edge_cost = self._cm.permute(n_procs=n_procs, n_elements=vol)
+                    case "changeBlockSize":
+                        edge_cost = self._cm.alltoall(n_procs=n_procs, n_elements=vol)
                     case _:
                         log.warning(f"Unknown operation: {op_id}. Ignoring.")
                         continue

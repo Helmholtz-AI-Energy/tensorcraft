@@ -4,7 +4,7 @@ __version__ = "0.0.0"
 
 from tensorcraft.logging import init_logging
 
-init_logging("INFO")
+init_logging("WARN")
 
 import torch
 

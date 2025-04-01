@@ -1,7 +1,11 @@
 """Optimization package."""
 
 from .cost import Cost, CostModel, IdealLowerBoundsCM
-from .redistribution import MemoryConstrainedRedist, NaiveGathererRedist
+from .redistribution import (
+    AStarRedistributor,
+    MemoryConstrainedRedist,
+    NaiveGathererRedist,
+)
 
 __all__ = [
     "Cost",
@@ -9,4 +13,5 @@ __all__ = [
     "IdealLowerBoundsCM",
     "NaiveGathererRedist",
     "MemoryConstrainedRedist",
+    "AStarRedistributor",
 ]
