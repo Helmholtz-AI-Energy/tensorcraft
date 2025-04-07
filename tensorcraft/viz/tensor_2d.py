@@ -1,7 +1,7 @@
 """2D tensor visualization functions."""
 
 import math
-from typing import cast
+from typing import Any, cast
 
 import torch
 from matplotlib.axes import Axes
@@ -14,7 +14,11 @@ from tensorcraft.viz.util import draw_2d_grid, draw_color_bar, get_n_colors
 
 
 def draw_2d_tensor(
-    axes: Axes, shape: torch.Size, dist: Dist, cbar: bool = False
+    axes: Axes,
+    shape: torch.Size,
+    dist: Dist,
+    colorscheme: str = "viridis",
+    cbar: bool = False,
 ) -> None:
     """
     Plot a 2D tensor.
@@ -25,6 +29,8 @@ def draw_2d_tensor(
         The 2D tensor to plot.
     distribution : MultiAxisDist
         The distribution of the tensor.
+    colorscheme : str, optional
+        The color scheme to use (default is "viridis").
     cbar : bool, optional
         Whether to show the color bar (default is True).
 
@@ -49,7 +55,7 @@ def draw_2d_tensor(
     else:
         img_shape = shape
 
-    colors = get_n_colors(dist.numProcessors)
+    colors = get_n_colors(dist.numProcessors, colorscheme)
     img = torch.zeros((*img_shape, 4))
     for i in range(shape.numel()):
         m_idx = linear2multiIndex(i, img_shape)
@@ -67,7 +73,13 @@ def draw_2d_tensor(
 
 
 def draw_2d_processor_view(
-    axes: Axes, shape: torch.Size, dist: Dist, processor: int, cbar: bool = False
+    axes: Axes,
+    shape: torch.Size,
+    dist: Dist,
+    processor: int,
+    cbar: bool = False,
+    colorscheme: str = "viridis",
+    monochrome: bool = False,
 ) -> None:
     """
     Plot the processor view of a 2D tensor.
@@ -80,6 +92,10 @@ def draw_2d_processor_view(
         The distribution of the tensor.
     cbar : bool, optional
         Whether to show the color bar (default is True).
+    colorscheme : str, optional
+        The color scheme to use (default is "viridis").
+    monochrome : bool, optional
+        Whether to use a monochrome color map (default is False).
 
     Returns
     -------
@@ -100,7 +116,10 @@ def draw_2d_processor_view(
     else:
         img_shape = shape
 
-    colors = get_n_colors(dist.numProcessors)
+    if monochrome:
+        colors = torch.tensor([[0.2, 0.2, 0.2, 1.0] for _ in range(dist.numProcessors)])
+    else:
+        colors = get_n_colors(dist.numProcessors, colorscheme)
 
     p_midx = dist.getProcessorMultiIndex(processor)
 
@@ -122,7 +141,7 @@ def draw_2d_processor_view(
 
 
 def draw_processor_grid(
-    fig: Figure, tensor_shape: torch.Size, dist: Dist, cbar: bool = False
+    fig: Figure, tensor_shape: torch.Size, dist: Dist, cbar: bool = False, **kwargs: Any
 ) -> None:
     """
     Plot the processor grid of a 2D tensor.
@@ -137,6 +156,8 @@ def draw_processor_grid(
         The distribution of the tensor.
     cbar : bool, optional
         Whether to show the color bar (default is True).
+    kwargs : dict, optional
+        Additional arguments to pass to the draw_2d_processor_view function.
     """
     mesh = dist.processorMesh
 
@@ -157,9 +178,11 @@ def draw_processor_grid(
 
         y_idx = multi2linearIndex(mesh[1:], p_midx[1:]) if len(mesh) > 1 else 0
         if subplot_y == 1:
-            draw_2d_processor_view(axs[p_midx[0]], tensor_shape, dist, p)
+            draw_2d_processor_view(axs[p_midx[0]], tensor_shape, dist, p, **kwargs)
         else:
-            draw_2d_processor_view(axs[p_midx[0], y_idx], tensor_shape, dist, p)
+            draw_2d_processor_view(
+                axs[p_midx[0], y_idx], tensor_shape, dist, p, **kwargs
+            )
 
     if cbar:
         draw_color_bar(fig, axs, get_n_colors(dist.numProcessors), shrink=0.5)
