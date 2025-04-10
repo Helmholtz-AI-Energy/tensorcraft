@@ -6,6 +6,7 @@ import math
 from typing import Any, Optional, TypeAlias
 
 import torch
+import torch.nn.functional as F
 from typing_extensions import override
 
 from tensorcraft.distributions.dist import Dist
@@ -853,3 +854,115 @@ class MultiAxisDist(Dist):
                         f"Failed operation {operation} on dist {self} with shape {shape}"
                     )
         return neighbours
+
+    def apply(self, tensor: torch.Tensor, rank: int) -> torch.Tensor:
+        """
+        Apply the distribution to a tensor, assuming that it is replicated on all processors.
+
+        Parameters
+        ----------
+        tensor : torch.Tensor
+            The tensor to distribute.
+        rank : int
+            The rank of the processor.
+
+        Returns
+        -------
+        torch.Tensor
+            The distributed tensor.
+        """
+        if not self.compatible(tensor.shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+
+        if not self.isDistributed():
+            log.info("Tensor is not distributed, nothing to do.")
+            return tensor
+
+        if (0 <= rank < self.numProcessors) is False:
+            raise ValueError("Rank must be in the range of the processor mesh.")
+
+        p_midx = self.getProcessorMultiIndex(rank)
+        log.info(f"R{rank}: Processor multi index: {p_midx}")
+
+        og_shape = tensor.shape
+        dims = len(og_shape)
+
+        residues = [size % b for size, b in zip(tensor.shape, self._block_sizes)]
+        log.info(f"R{rank}: Residues: {residues}")
+        tensor = F.pad(
+            tensor, [value for r in residues[::-1] for value in (0, r)], value=0
+        )
+        log.info(f"R{rank}: Padded tensor shape: {tensor.shape}")
+
+        reshape_list = []
+        permute_tuple: tuple[int, ...] = ()
+        tile_slices = []
+
+        for size, b_size, dim_map in zip(
+            tensor.shape, self._block_sizes, self._dims_mapping
+        ):
+            if b_size == -1:
+                reshape_list += [1, size]
+            else:
+                reshape_list += [size // b_size, b_size]
+            permute_tuple += (len(reshape_list) - 1,)
+
+            if len(dim_map) == 0:
+                tile_slices.append(slice(None))
+            else:
+                idx = multi2linearIndex(
+                    self._pmesh,
+                    p_midx,
+                    order=dim_map,
+                )
+                n_procs = math.prod([self._pmesh[x] for x in dim_map])
+
+                tile_slices.append(slice(idx, None, n_procs))
+
+        permute_tuple = (
+            tuple(set(range(len(reshape_list))) - set(permute_tuple)) + permute_tuple
+        )
+        log.info(f"R{rank}: Permute tuple: {permute_tuple}")
+        log.info(f"R{rank}: Reshape tuple: {reshape_list}")
+
+        tensor = tensor.reshape(*reshape_list).permute(*permute_tuple)
+
+        log.info(f"R{rank}: Tile Slices: {tile_slices}")
+        local_tensor = tensor[tile_slices]
+
+        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
+
+        local_shape = [
+            n_blocks * b_size if b_size != -1 else og_size
+            for og_size, n_blocks, b_size in zip(
+                og_shape, local_tensor.shape[:dims], self._block_sizes
+            )
+        ]
+        log.info(f"R{rank}: Target local tensor shape: {local_shape}")
+
+        # Reshape the tensor to the original shape
+        local_tensor = local_tensor.permute(*permute_tuple).reshape(*local_shape)
+
+        # Remove the padding from the relevant axes
+        shaved_slices = []
+        for i, r in enumerate(residues):
+            if r != 0:
+                l_p_index = multi2linearIndex(
+                    self._pmesh,
+                    p_midx,
+                    order=self._dims_mapping[i],
+                )
+                log.info(
+                    f"R{rank}: Linear processor index: {l_p_index}, Residue: {r}, Block size: {self._block_sizes[i]}, axis: {i}"
+                )
+                if l_p_index == 0:
+                    shaved_slices.append(slice(0, -r))
+                else:
+                    shaved_slices.append(slice(None))
+            else:
+                shaved_slices.append(slice(None))
+
+        log.info(f"R{rank}: Shaved slices: {shaved_slices}")
+        local_tensor = local_tensor[shaved_slices]
+        log.info(f"R{rank}: Final local tensor shape: {local_tensor.shape}")
+        return local_tensor
