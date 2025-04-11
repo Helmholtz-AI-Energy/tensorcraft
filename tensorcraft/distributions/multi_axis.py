@@ -53,6 +53,12 @@ class MultiAxisDist(Dist):
         if isinstance(block_sizes, int):
             block_sizes = (block_sizes,) * len(dims_mapping)
 
+        if isinstance(processor_mesh, int):
+            processor_mesh = torch.Size([processor_mesh])
+
+        if len(processor_mesh) == 0:
+            raise ValueError("The processor mesh must have at least one dimension")
+
         if len(dims_mapping) != len(block_sizes):
             raise ValueError("The number of dimensions and block sizes must match")
 
@@ -887,10 +893,17 @@ class MultiAxisDist(Dist):
         og_shape = tensor.shape
         dims = len(og_shape)
 
-        residues = [size % b for size, b in zip(tensor.shape, self._block_sizes)]
-        log.info(f"R{rank}: Residues: {residues}")
+        missing_elements = []
+        n_full_blocks_per_axis = []
+        for s, b in zip(tensor.shape, self._block_sizes):
+            missing_elements.append(b - (s % b) if b != -1 else 0)
+            n_full_blocks_per_axis.append(s // b if b != -1 else 1)
+        log.info(f"R{rank}: Missing elements: {missing_elements}")
+        log.info(f"R{rank}: N blocks per axis: {n_full_blocks_per_axis}")
         tensor = F.pad(
-            tensor, [value for r in residues[::-1] for value in (0, r)], value=0
+            tensor,
+            [value for me in missing_elements[::-1] for value in (0, me)],
+            value=0,
         )
         log.info(f"R{rank}: Padded tensor shape: {tensor.shape}")
 
@@ -945,17 +958,18 @@ class MultiAxisDist(Dist):
 
         # Remove the padding from the relevant axes
         shaved_slices = []
-        for i, r in enumerate(residues):
+        for i, r in enumerate(missing_elements):
             if r != 0:
+                n_procs = math.prod([self._pmesh[x] for x in self._dims_mapping[i]])
                 l_p_index = multi2linearIndex(
                     self._pmesh,
                     p_midx,
                     order=self._dims_mapping[i],
                 )
                 log.info(
-                    f"R{rank}: Linear processor index: {l_p_index}, Residue: {r}, Block size: {self._block_sizes[i]}, axis: {i}"
+                    f"R{rank}: Linear processor index: {l_p_index}, Residue: {r}, Block size: {self._block_sizes[i]}, axis: {i}, N procs: {n_procs}, N full blocks: {n_full_blocks_per_axis[i]}"
                 )
-                if l_p_index == 0:
+                if n_full_blocks_per_axis[i] % n_procs == l_p_index:
                     shaved_slices.append(slice(0, -r))
                 else:
                     shaved_slices.append(slice(None))
@@ -966,3 +980,132 @@ class MultiAxisDist(Dist):
         local_tensor = local_tensor[shaved_slices]
         log.info(f"R{rank}: Final local tensor shape: {local_tensor.shape}")
         return local_tensor
+
+    def apply_split(
+        self,
+        global_shape: torch.Size,
+        local_tensor: torch.Tensor,
+        rank: int,
+        tensor_axis: int,
+        mesh_dims: int | tuple[int, ...],
+        block_size: int = 1,
+        minor: bool = False,
+    ) -> tuple["MultiAxisDist", torch.Tensor]:
+        """
+        Given a distributed tensor, apply a multi_axis split operation.
+
+        Parameters
+        ----------
+        global_shape : torch.Size
+            The shape of the tensor.
+        local_tensor : torch.Tensor
+            The local tensor to distribute.
+        rank : int
+            The rank of the processor.
+        tensor_axis : int
+            The tensor axis to split.
+        mesh_axis : int | tuple[int, ...]
+            The processor mesh axis to split.
+        block_size : int, optional
+            The size of the blocks, by default 1.
+        minor : bool, optional
+            If set to true, the mesh dimensions will be appended to the right (minor), by default False. If the axis is already split, it will change the existing block size.
+
+        Returns
+        -------
+        MultiAxisDist
+            The distribution that results from the split. None if the tensor is not compatible with the distribution.
+        torch.Tensor
+            The local distributed tensor belonging to the rank.
+        """
+        if not self.compatible(global_shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+
+        if (0 <= rank < self.numProcessors) is False:
+            raise ValueError("Rank must be in the range of the processor mesh.")
+
+        new_dist = self.split(global_shape, tensor_axis, mesh_dims, block_size, minor)[
+            0
+        ]
+        log.info(f"New distribution: {new_dist}")
+
+        p_midx = self.getProcessorMultiIndex(rank)
+        log.info(f"R{rank}: Processor multi index: {p_midx}")
+
+        mesh_dims = mesh_dims if isinstance(mesh_dims, tuple) else (mesh_dims,)
+
+        target_block_size = new_dist._block_sizes[tensor_axis]
+
+        # Add padding to the target axis
+        og_l_shape = local_tensor.shape
+        missing_elements = target_block_size - (
+            local_tensor.shape[tensor_axis] % target_block_size
+        )
+        log.info(f"R{rank}: Missing elements {missing_elements}")
+        n_full_blocks = og_l_shape[tensor_axis] // target_block_size
+
+        padding_tuple = [0] * len(og_l_shape) * 2
+        padding_tuple[tensor_axis * 2] = missing_elements
+        log.info(f"R{rank}: Padding tuple: {padding_tuple}")
+
+        padded_tensor = F.pad(local_tensor, padding_tuple[::-1], value=0)
+        log.info(f"R{rank}: Padded local tensor shape: {padded_tensor.shape}")
+
+        reshape_list = list(padded_tensor.shape)
+        reshape_list[tensor_axis] = (
+            padded_tensor.shape[tensor_axis] // target_block_size
+        )
+        reshape_list.insert(tensor_axis + 1, target_block_size)
+        log.info(f"R{rank}: Reshape list: {reshape_list}")
+
+        # Create the permute tuple
+        permute_list = list(range(len(reshape_list)))
+        permute_list.remove(tensor_axis + 1)
+        permute_list.append(tensor_axis + 1)
+        log.info(f"R{rank}: Permute list: {permute_list}")
+
+        idx = multi2linearIndex(
+            self._pmesh,
+            p_midx,
+            order=mesh_dims,
+        )
+        n_procs = math.prod([self._pmesh[x] for x in mesh_dims])
+        tile_slices = [slice(None)] * len(padded_tensor.shape)
+        tile_slices[tensor_axis] = slice(idx, None, n_procs)
+        log.info(f"R{rank}: Tile Slices: {tile_slices}")
+
+        reshaped_tensor = padded_tensor.reshape(*reshape_list).permute(*permute_list)
+        log.info(f"R{rank}: Reshaped tensor shape: {reshaped_tensor.shape}")
+
+        # Apply the tile slices
+        sliced_tensor = reshaped_tensor[tile_slices]
+        log.info(f"R{rank}: Local tensor shape: {sliced_tensor.shape}")
+
+        local_shape = list(og_l_shape)
+        local_shape[tensor_axis] = sliced_tensor.shape[tensor_axis] * target_block_size
+
+        log.info(f"R{rank}: Target local tensor shape: {local_shape}")
+
+        # Reshape the tensor to the original shape
+        pre_shaving_tensor = sliced_tensor.permute(*permute_list).reshape(*local_shape)
+        log.info(f"R{rank}: Pre-shaving tensor shape: {pre_shaving_tensor.shape}")
+
+        relevant_dims = new_dist._dims_mapping[tensor_axis]
+        relevant_dims_tuple = (
+            relevant_dims if isinstance(relevant_dims, tuple) else (relevant_dims,)
+        )
+        log.info(f"R{rank}: Relevant dims: {relevant_dims_tuple}")
+        l_idx_axis = multi2linearIndex(
+            self._pmesh,
+            p_midx,
+            order=relevant_dims_tuple,
+        )
+        if missing_elements != 0 and n_full_blocks % n_procs == l_idx_axis:
+            shave_slices = [slice(None)] * len(og_l_shape)
+            shave_slices[tensor_axis] = slice(0, -missing_elements)
+            log.info(f"R{rank}: Shaving slices: {shave_slices}")
+            shaved_tensor = pre_shaving_tensor[shave_slices]
+        else:
+            shaved_tensor = pre_shaving_tensor
+
+        return new_dist, shaved_tensor
