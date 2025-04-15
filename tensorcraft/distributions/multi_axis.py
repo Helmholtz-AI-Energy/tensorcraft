@@ -15,7 +15,7 @@ from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 log = logging.getLogger("tensorcraft")
 
 DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
-BlockSizesType: TypeAlias = int | tuple[int, ...]
+BlockSizesType: TypeAlias = tuple[int, ...]
 
 
 class MultiAxisDist(Dist):
@@ -28,8 +28,8 @@ class MultiAxisDist(Dist):
         The processor mesh.
     dims_mapping : DimsMapType
         The mapping of tensor dimensions to processor mesh axes.
-    block_sizes : BlockSizesType
-        The block sizes for each dimension.
+    block_sizes : int | Block
+        The block sizes for each dimension. Block size must be greater than zero. To leave a block size empty, use either -1 or None. If left empty, but the corresponding axis is split, a default block size of 1 will be used.
 
     Raises
     ------
@@ -47,7 +47,7 @@ class MultiAxisDist(Dist):
         self,
         processor_mesh: int | torch.Size,
         dims_mapping: tuple[Optional[tuple[int, ...]], ...],
-        block_sizes: BlockSizesType,
+        block_sizes: int | tuple[Optional[int], ...],
     ):
         super().__init__(processor_mesh=processor_mesh)
         if isinstance(block_sizes, int):
@@ -70,8 +70,11 @@ class MultiAxisDist(Dist):
                         raise ValueError("The dimension mapping is out of bounds")
 
         for block in block_sizes:
-            if block < 0 and block != -1:
-                raise ValueError("The block size must be greater or equal 0")
+            if block is not None:
+                if block <= 0 and block != -1:
+                    raise ValueError(
+                        "The block size must be None, greater than zero or -1"
+                    )
 
         # Check that no processor mesh axis is repeated
         mesh_dims = []
@@ -84,13 +87,13 @@ class MultiAxisDist(Dist):
                         raise ValueError("The processor mesh axis must not be repeated")
                     mesh_dims.append(axis)
                 dims_mapping_list.append(dim_mapping)
-                block_sizes_list.append(b_size)
+                block_sizes_list.append(b_size if b_size and b_size > 0 else 1)
             else:
                 dims_mapping_list.append(())
                 block_sizes_list.append(-1)
 
         self._dims_mapping: DimsMapType = tuple(dims_mapping_list)
-        self._block_sizes: tuple[int, ...] = tuple(block_sizes_list)
+        self._block_sizes: BlockSizesType = tuple(block_sizes_list)
 
     @property
     def dimsMapping(self) -> DimsMapType:
@@ -261,31 +264,48 @@ class MultiAxisDist(Dist):
 
         return dim_distribution
 
+    def localShape(self, global_shape: torch.Size, rank: int) -> torch.Size:
+        """
+        Get the local shape of the tensor on the given rank.
+
+        Parameters
+        ----------
+        global_shape : torch.Size
+            The global shape of the tensor.
+        rank : int
+            The rank of the processor.
+
+        Returns
+        -------
+        torch.Size
+            The local shape of the tensor on the given rank.
+        """
+        # Check if global shape is compatible with the distribution
+        if not self.compatible(global_shape):
+            raise ValueError("The global shape is not compatible with the distribution")
+
+        # Get the processor multi index for the given rank
+        p_midx = self.getProcessorMultiIndex(rank)
+
+        local_shape = [0] * len(global_shape)
+        for axis, (axis_size, mapping, block_size) in enumerate(
+            zip(global_shape, self._dims_mapping, self._block_sizes)
+        ):
+            if mapping and len(mapping) > 0:
+                mesh_dims = [self._pmesh[i] for i in mapping]
+                n_procs = math.prod(mesh_dims)
+
+                axis_idx = multi2linearIndex(self._pmesh, p_midx, order=mapping)
+                axis_splits, _ = self.axisSplits(axis_size, block_size, n_procs)
+                local_shape[axis] = sum(axis_splits[axis_idx::n_procs])
+            else:
+                local_shape[axis] = axis_size
+
+        return torch.Size(local_shape)
+
     def maxNumElements(self, shape: torch.Size) -> int:  # noqa: D102
-        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
-        return max_n_blocks * max_block_size
-
-    def _max_block_size_n_blocks(self, shape: torch.Size) -> tuple[int, int]:
-        max_block_size = 1
-        max_n_blocks = 1
-        for i in range(len(shape)):
-            mesh_dims_idx = self._dims_mapping[i]
-            if not mesh_dims_idx or len(mesh_dims_idx) == 0:
-                max_block_size *= shape[i]
-                continue
-            mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
-            n_procs_axis = math.prod(mesh_dims)
-            axis_splits, _ = self.axisSplits(
-                shape[i], self._block_sizes[i], n_procs_axis
-            )
-            max_block_size *= max(axis_splits)
-            max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
-
-        if isinstance(max_n_blocks, torch.Tensor):
-            max_n_blocks = int(max_n_blocks.item())
-        if isinstance(max_block_size, torch.Tensor):
-            max_block_size = int(max_block_size.item())
-        return max_block_size, max_n_blocks
+        rank_0_shape = self.localShape(shape, 0)
+        return math.prod(rank_0_shape)
 
     def allgather(
         self, shape: torch.Size, gather_dim: Optional[int] = None
@@ -323,7 +343,7 @@ class MultiAxisDist(Dist):
             )  #
 
             # Cost of all-gather is the number of processors
-            max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+            comm_volume = self.maxNumElements(shape) * involved_procs
             involved_dims = [
                 self._pmesh[mesh_dim]
                 for axis_map in self._dims_mapping
@@ -334,7 +354,7 @@ class MultiAxisDist(Dist):
 
             return (
                 new_dist,
-                max_n_blocks * max_block_size * involved_procs,
+                comm_volume,
                 involved_procs,
             )
         else:
@@ -386,9 +406,8 @@ class MultiAxisDist(Dist):
 
             # Cost of all-gather is the number of processors
 
-            max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+            comm_volume = self.maxNumElements(shape) * involved_procs
 
-            comm_volume = max_n_blocks * max_block_size * involved_procs
             return new_dist, comm_volume, involved_procs
 
     def split(
@@ -539,10 +558,8 @@ class MultiAxisDist(Dist):
 
         new_dim = MultiAxisDist(self._pmesh, new_dims_mapping, self._block_sizes)
 
-        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+        comm_volume = self.maxNumElements(shape)
         n_procs = 2
-
-        comm_volume = max_n_blocks * max_block_size
 
         return new_dim, comm_volume, n_procs
 
@@ -1024,6 +1041,12 @@ class MultiAxisDist(Dist):
         if (0 <= rank < self.numProcessors) is False:
             raise ValueError("Rank must be in the range of the processor mesh.")
 
+        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
+        log.info(f"R{rank}: Predicted shape: {self.localShape(global_shape, rank)}")
+
+        if local_tensor.shape != self.localShape(global_shape, rank):
+            raise ValueError("Local tensor shape does not match the distribution.")
+
         new_dist = self.split(global_shape, tensor_axis, mesh_dims, block_size, minor)[
             0
         ]
@@ -1109,3 +1132,57 @@ class MultiAxisDist(Dist):
             shaved_tensor = pre_shaving_tensor
 
         return new_dist, shaved_tensor
+
+    def apply_allgather(
+        self,
+        global_shape: torch.Size,
+        local_tensor: torch.Tensor,
+        rank: int,
+        gather_dim: int = -1,
+    ) -> tuple["MultiAxisDist", torch.Tensor]:
+        """
+        Given a distributed tensor, apply a multi_axis allgather operation.
+
+        Parameters
+        ----------
+        global_shape : torch.Size
+            The shape of the tensor.
+        local_tensor : torch.Tensor
+            The local tensor to distribute.
+        rank : int
+            The rank of the processor.
+        gather_dim : int, optional
+            The tensor axis to gather data from, by default -1. If -1, it will use the first axis.
+
+        Returns
+        -------
+        MultiAxisDist
+            The distribution that results from the allgather communication. None if the tensor is not compatible with the distribution.
+        torch.Tensor
+            The local distributed tensor belonging to the rank.
+        """
+        if not self.compatible(global_shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+
+        if (0 <= rank < self.numProcessors) is False:
+            raise ValueError("Rank must be in the range of the processor mesh.")
+
+        exp_l_shape = self.localShape(
+            global_shape, rank
+        )  # Shape the local tensor should have
+        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
+        log.info(f"R{rank}: Predicted shape: {exp_l_shape}")
+
+        if local_tensor.shape != exp_l_shape:
+            raise ValueError("Local tensor shape does not match the distribution.")
+
+        new_dist = self.allgather(global_shape, gather_dim)[0]
+        exp_t_l_shape = new_dist.localShape(
+            global_shape, rank
+        )  # Expected local shape of the outcome dist
+        log.info(f"New distribution: {new_dist}, new shape: {exp_t_l_shape}")
+
+        p_midx = self.getProcessorMultiIndex(rank)
+        log.info(f"R{rank}: Processor multi index: {p_midx}")
+
+        og_l_shape = local_tensor.shape

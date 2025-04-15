@@ -34,13 +34,16 @@ from tensorcraft.distributions.multi_axis import MultiAxisDist
         (torch.Size([2, 2, 3]), ((2,), (2,)), 2, True),
         (torch.Size([2, 2, 3]), ((2, 2), None), 2, True),
         (torch.Size([2, 2]), ((0,), None, (1,), (0,)), (2, 3, 3, 3), True),
-        # Block size < 0
+        # Block size <= 0
         (torch.Size([2, 2]), ((0,), (1,)), -2, True),
+        (torch.Size([2, 2]), ((0,), (1,)), 0, True),
+        (torch.Size([2, 2]), ((0,), (1,)), (2, -3), True),
+        (torch.Size([2, 2]), ((0,), (1,)), (0, 1), True),
         # Valid cases
         (torch.Size([2, 3]), ((0, 1), ()), 1, False),
         (torch.Size([3, 3]), ((0,), (1,)), (5, 5), False),
-        (torch.Size([3, 3]), ((1, 0), ()), (5, 5), False),
-        (torch.Size([3, 3]), ((0, 1), ()), (1, 1), False),
+        (torch.Size([3, 3]), ((1, 0), ()), (-1, 5), False),
+        (torch.Size([3, 3]), ((0, 1), ()), (1, None), False),
     ],
 )
 def test_init(processor_mesh, dims_mapping, block_sizes, raise_error):
