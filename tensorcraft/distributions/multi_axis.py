@@ -1,4 +1,5 @@
 """MultiAxisDist class."""
+from mpi4py import MPI
 
 import itertools
 import logging
@@ -1137,7 +1138,7 @@ class MultiAxisDist(Dist):
         self,
         global_shape: torch.Size,
         local_tensor: torch.Tensor,
-        rank: int,
+        comm: MPI.Comm,
         gather_dim: int = -1,
     ) -> tuple["MultiAxisDist", torch.Tensor]:
         """
@@ -1161,6 +1162,15 @@ class MultiAxisDist(Dist):
         torch.Tensor
             The local distributed tensor belonging to the rank.
         """
+        
+        rank = comm.Get_rank()
+        world_size = comm.Get_size()
+        
+        if world_size != self.numProcessors:
+            raise ValueError(
+                f"World size {world_size} does not match the number of processors {self.numProcessors}"
+            )
+
         if not self.compatible(global_shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
