@@ -1,4 +1,5 @@
 """MultiAxisDist class."""
+from asyncio.constants import SENDFILE_FALLBACK_READBUFFER_SIZE
 from mpi4py import MPI
 
 import itertools
@@ -8,10 +9,12 @@ from typing import Any, Optional, TypeAlias
 
 import torch
 import torch.nn.functional as F
+
 from typing_extensions import override
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
+from tensorcraft.util import as_buffer, tensor2mpiBuffer
 
 log = logging.getLogger("tensorcraft")
 
@@ -309,7 +312,7 @@ class MultiAxisDist(Dist):
         return math.prod(rank_0_shape)
 
     def allgather(
-        self, shape: torch.Size, gather_dim: Optional[int] = None
+        self, shape: torch.Size, mesh_dim: Optional[int] = None
     ) -> tuple["MultiAxisDist", int, int]:
         """
         Return the distribution that results from gathering the tensor across the selected processor mesh axis.
@@ -318,8 +321,8 @@ class MultiAxisDist(Dist):
         ----------
         shape : torch.Size
             The shape of the tensor.
-        mesh_axis : int, optional
-            The processor mesh axis, by default None, signifying an allgather over all the processors.
+        mesh_dim : int, optional
+            The processor mesh dimension, by default None, signifying an allgather over all the processors.
 
         Returns
         -------
@@ -337,7 +340,7 @@ class MultiAxisDist(Dist):
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if gather_dim is None:
+        if mesh_dim is None:
             # Results in full replication of the tensor on all processors
             new_dist = MultiAxisDist(
                 self._pmesh, ((),) * len(shape), (0,) * len(shape)
@@ -362,12 +365,12 @@ class MultiAxisDist(Dist):
             # Check that the mesh axis is valid
             tensor_axis = -1
             for axis, mappings in enumerate(self._dims_mapping):
-                if gather_dim in mappings:
-                    dist_axis_i = mappings.index(gather_dim)
+                if mesh_dim in mappings:
+                    dist_axis_i = mappings.index(mesh_dim)
 
                     if dist_axis_i != 0 and dist_axis_i != len(mappings) - 1:
                         log.debug(
-                            f"Gather along axis {gather_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
+                            f"Gather along axis {mesh_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
                         )
                         raise ValueError(
                             "Gather along axis leads to an undefined data distribution"
@@ -385,10 +388,10 @@ class MultiAxisDist(Dist):
                 )
 
             log.debug(f"Tensor axis: {tensor_axis}")
-            log.debug(f"Mesh axis: {gather_dim}")
+            log.debug(f"Mesh axis: {mesh_dim}")
             log.debug(f"Mappings: {mappings}")
 
-            involved_procs = self._pmesh[gather_dim]
+            involved_procs = self._pmesh[mesh_dim]
 
             if dist_axis_i != 0:
                 new_block_sizes = list(self._block_sizes)
@@ -397,7 +400,7 @@ class MultiAxisDist(Dist):
                 new_block_sizes = list(self._block_sizes)
 
             new_mapping = tuple(
-                tuple(m_axis for m_axis in axis_mappings if m_axis != gather_dim)
+                tuple(m_axis for m_axis in axis_mappings if m_axis != mesh_dim)
                 if axis_mappings
                 else None
                 for axis_mappings in self._dims_mapping
@@ -1139,7 +1142,7 @@ class MultiAxisDist(Dist):
         global_shape: torch.Size,
         local_tensor: torch.Tensor,
         comm: MPI.Comm,
-        gather_dim: int = -1,
+        mesh_dim: int = -1,
     ) -> tuple["MultiAxisDist", torch.Tensor]:
         """
         Given a distributed tensor, apply a multi_axis allgather operation.
@@ -1152,8 +1155,8 @@ class MultiAxisDist(Dist):
             The local tensor to distribute.
         rank : int
             The rank of the processor.
-        gather_dim : int, optional
-            The tensor axis to gather data from, by default -1. If -1, it will use the first axis.
+        mesh_dim : int, optional
+            The mesh dimension that will gather data, by default -1. If -1, it will gather along all the mesh dimensions, leading to a non-distributed tensor.
 
         Returns
         -------
@@ -1177,22 +1180,85 @@ class MultiAxisDist(Dist):
         if (0 <= rank < self.numProcessors) is False:
             raise ValueError("Rank must be in the range of the processor mesh.")
 
-        exp_l_shape = self.localShape(
-            global_shape, rank
-        )  # Shape the local tensor should have
-        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
-        log.info(f"R{rank}: Predicted shape: {exp_l_shape}")
+        if mesh_dim != -1:
 
-        if local_tensor.shape != exp_l_shape:
-            raise ValueError("Local tensor shape does not match the distribution.")
+            exp_l_shape = self.localShape(
+                global_shape, rank
+            )  # Shape the local tensor should have
+            log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
+            log.info(f"R{rank}: Expected local shape: {exp_l_shape}")
 
-        new_dist = self.allgather(global_shape, gather_dim)[0]
-        exp_t_l_shape = new_dist.localShape(
-            global_shape, rank
-        )  # Expected local shape of the outcome dist
-        log.info(f"New distribution: {new_dist}, new shape: {exp_t_l_shape}")
+            if local_tensor.shape != exp_l_shape:
+                raise ValueError("Local tensor shape does not match the distribution.")
+            
+            changed_t_axis = -1
+            minor=False
+            for axis, mappings in enumerate(self._dims_mapping):
+                if mesh_dim in mappings:
+                    minor = mappings.index(mesh_dim) != 0
+                    changed_t_axis = axis
+                    break
+            log.info(f"R{rank}: Changed tensor axis: {changed_t_axis}, minor: {minor}")
 
-        p_midx = self.getProcessorMultiIndex(rank)
-        log.info(f"R{rank}: Processor multi index: {p_midx}")
+            new_dist = self.allgather(global_shape, mesh_dim)[0]
+            exp_t_l_shape = new_dist.localShape(
+                global_shape, rank
+            )  # Expected local shape of the outcome dist
+            log.info(f"R{rank}: New distribution: {new_dist}, new shape: {exp_t_l_shape}")
 
-        og_l_shape = local_tensor.shape
+            p_midx = self.getProcessorMultiIndex(rank)
+            log.info(f"R{rank}: Processor multi index: {p_midx}")
+
+            n_procs = self._pmesh[mesh_dim]
+            log.info(f"R{rank}: N procs: {n_procs}")
+            
+            # Find the global rank of the first processor in the mesh dimension
+            tmp_p_midx = list(p_midx)
+            tmp_p_midx[mesh_dim] = 0
+            linear_max_g_rank = multi2linearIndex(
+                self._pmesh,
+                tmp_p_midx,
+            )
+            log.info(f"R{rank}: Rank of largest tensor in the subcommunicator: {tmp_p_midx} {linear_max_g_rank}")
+            
+            max_local_shape = self.localShape(global_shape, linear_max_g_rank)
+            n_elements = math.prod(max_local_shape)
+            b_size = self._block_sizes[changed_t_axis]
+            log.info(f"R{rank}: N elements: {n_elements}")
+            log.info(f"R{rank}: Max local shape: {max_local_shape}")
+            
+            
+            # Send buffer
+            send_buffer_tuple = tensor2mpiBuffer(local_tensor)
+
+
+            # Target buffer shape (n_procs, n_max_blocks, b_size, )
+            n_max_blocs = math.ceil(max_local_shape[changed_t_axis] / new_dist._block_sizes[changed_t_axis])
+
+            tmp_shape = list(max_local_shape)
+            tmp_shape[changed_t_axis] = b_size
+
+            recv_tensor = torch.zeros(
+                [n_procs, n_max_blocs] + tmp_shape,
+                dtype=local_tensor.dtype,
+            )
+            recv_buffer_tuple = (as_buffer(recv_tensor), n_elements, send_buffer_tuple[2])
+            log.info(f"R{rank}: Send buffer: {send_buffer_tuple}")
+            log.info(f"R{rank}: Recv buffer: {recv_buffer_tuple}")
+
+            # Create the subcommunicator
+            cart_comm = comm.Create_cart(dims=self._pmesh, periods=[True] * len(self._pmesh), reorder=True)
+            subs = [0] * len(self._pmesh)
+            subs[mesh_dim] = 1
+            sub_comm = cart_comm.Sub(subs)
+
+            # Perform the allgather operation
+            sub_comm.Allgather(send_buffer_tuple, recv_tensor)
+            log.info(f"R{rank}: Recv_tensor : {recv_tensor}")
+
+            # Reshape the tensor to the original shape
+            recv_tensor = recv_tensor.permute(1, 0, 2, 3)
+            log.info(f"R{rank}: Permuted data tensor shape: {recv_tensor.shape}")
+            log.info(f"R{rank}: Permuted data tensor: {recv_tensor}")
+
+        
