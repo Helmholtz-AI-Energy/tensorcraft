@@ -237,9 +237,15 @@ def test_not_compatible(dist: MultiAxisDist, shape: torch.Size):
 @pytest.mark.parametrize(
     "kwargs, target_dist",
     [
-        ({"mesh_dim": 0}, MultiAxisDist(torch.Size([2, 2, 2]), ((1,), (2,)), 1)),
-        ({"mesh_dim": 1}, MultiAxisDist(torch.Size([2, 2, 2]), ((0,), (2,)), (2, 1))),
-        ({"mesh_dim": 2}, MultiAxisDist(torch.Size([2, 2, 2]), ((0, 1), None), 1)),
+        ({"gather_mesh_dim": 0}, MultiAxisDist(torch.Size([2, 2, 2]), ((1,), (2,)), 1)),
+        (
+            {"gather_mesh_dim": 1},
+            MultiAxisDist(torch.Size([2, 2, 2]), ((0,), (2,)), (2, 1)),
+        ),
+        (
+            {"gather_mesh_dim": 2},
+            MultiAxisDist(torch.Size([2, 2, 2]), ((0, 1), None), 1),
+        ),
     ],
 )
 def test_allgather(kwargs, target_dist):

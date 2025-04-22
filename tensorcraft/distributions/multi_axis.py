@@ -310,7 +310,7 @@ class MultiAxisDist(Dist):
         return math.prod(rank_0_shape)
 
     def allgather(
-        self, shape: torch.Size, mesh_dim: Optional[int] = None
+        self, shape: torch.Size, gather_mesh_dim: Optional[int] = None
     ) -> tuple["MultiAxisDist", int, int]:
         """
         Return the distribution that results from gathering the tensor across the selected processor mesh axis.
@@ -319,7 +319,7 @@ class MultiAxisDist(Dist):
         ----------
         shape : torch.Size
             The shape of the tensor.
-        mesh_dim : int, optional
+        gather_mesh_dim : int, optional
             The processor mesh dimension, by default None, signifying an allgather over all the processors.
 
         Returns
@@ -338,7 +338,7 @@ class MultiAxisDist(Dist):
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if mesh_dim is None:
+        if gather_mesh_dim is None:
             # Results in full replication of the tensor on all processors
             new_dist = MultiAxisDist(
                 self._pmesh, ((),) * len(shape), (0,) * len(shape)
@@ -364,12 +364,12 @@ class MultiAxisDist(Dist):
             # Check that the mesh axis is valid
             tensor_axis = -1
             for axis, mappings in enumerate(self._dims_mapping):
-                if mesh_dim in mappings:
-                    dist_axis_i = mappings.index(mesh_dim)
+                if gather_mesh_dim in mappings:
+                    dist_axis_i = mappings.index(gather_mesh_dim)
 
                     if dist_axis_i != 0 and dist_axis_i != len(mappings) - 1:
                         log.debug(
-                            f"Gather along axis {mesh_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
+                            f"Gather along axis {gather_mesh_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
                         )
                         raise ValueError(
                             "Gather along axis leads to an undefined data distribution"
@@ -387,10 +387,10 @@ class MultiAxisDist(Dist):
                 )
 
             log.debug(f"Tensor axis: {tensor_axis}")
-            log.debug(f"Mesh axis: {mesh_dim}")
+            log.debug(f"Mesh axis: {gather_mesh_dim}")
             log.debug(f"Mappings: {mappings}")
 
-            involved_procs = self._pmesh[mesh_dim]
+            involved_procs = self._pmesh[gather_mesh_dim]
 
             if dist_axis_i != 0:
                 new_block_sizes = list(self._block_sizes)
@@ -399,7 +399,7 @@ class MultiAxisDist(Dist):
                 new_block_sizes = list(self._block_sizes)
 
             new_mapping = tuple(
-                tuple(m_axis for m_axis in axis_mappings if m_axis != mesh_dim)
+                tuple(m_axis for m_axis in axis_mappings if m_axis != gather_mesh_dim)
                 if axis_mappings
                 else None
                 for axis_mappings in self._dims_mapping
