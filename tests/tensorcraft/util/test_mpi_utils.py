@@ -4,12 +4,11 @@ import torch
 
 import tensorcraft as tc
 
+pytestmark = pytest.mark.mpi_test
+
 comm = MPI.COMM_WORLD
 mpi_size = comm.Get_size()
 mpi_rank = comm.Get_rank()
-
-if not comm.Get_size() > 1:
-    pytest.skip("Skipping MPI tests", allow_module_level=True)
 
 
 @pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
@@ -18,7 +17,7 @@ if not comm.Get_size() > 1:
 )
 def test_torch2mpiBuffer_full_tensor(shape, dtype):
     print(f"Rank {mpi_rank}")
-    print(f"Ransk {comm.gather(mpi_rank, root=0)}")
+    print(f"Ranks {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             base_tensor = torch.randint(100, shape, dtype=dtype)
@@ -35,7 +34,7 @@ def test_torch2mpiBuffer_full_tensor(shape, dtype):
     comm.Bcast([buffer, count, mpi_type], root=0)
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    print(validation_tensors)
+    # print(validation_tensors)
 
     if mpi_rank == 0:
         for v_tensor in validation_tensors:

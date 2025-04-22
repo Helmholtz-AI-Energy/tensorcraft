@@ -1,6 +1,4 @@
 """MultiAxisDist class."""
-from asyncio.constants import SENDFILE_FALLBACK_READBUFFER_SIZE
-from mpi4py import MPI
 
 import itertools
 import logging
@@ -9,12 +7,12 @@ from typing import Any, Optional, TypeAlias
 
 import torch
 import torch.nn.functional as F
-
+from mpi4py import MPI
 from typing_extensions import override
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 from tensorcraft.util import as_buffer, tensor2mpiBuffer
+from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger("tensorcraft")
 
@@ -346,15 +344,16 @@ class MultiAxisDist(Dist):
                 self._pmesh, ((),) * len(shape), (0,) * len(shape)
             )  #
 
-            # Cost of all-gather is the number of processors
-            comm_volume = self.maxNumElements(shape) * involved_procs
             involved_dims = [
                 self._pmesh[mesh_dim]
                 for axis_map in self._dims_mapping
                 if len(axis_map) != 0
                 for mesh_dim in axis_map
             ]
-            involved_procs = math.prod(involved_dims)
+            involved_procs: int = math.prod(involved_dims)
+
+            # Cost of allgather
+            comm_volume = self.maxNumElements(shape) * involved_procs
 
             return (
                 new_dist,
@@ -912,7 +911,6 @@ class MultiAxisDist(Dist):
         log.info(f"R{rank}: Processor multi index: {p_midx}")
 
         og_shape = tensor.shape
-        dims = len(og_shape)
 
         missing_elements = []
         n_full_blocks_per_axis = []
@@ -942,7 +940,7 @@ class MultiAxisDist(Dist):
             permute_tuple += (len(reshape_list) - 1,)
 
             if len(dim_map) == 0:
-                tile_slices.append(slice(None))
+                tile_slices += [slice(None), slice(None)]
             else:
                 idx = multi2linearIndex(
                     self._pmesh,
@@ -951,7 +949,7 @@ class MultiAxisDist(Dist):
                 )
                 n_procs = math.prod([self._pmesh[x] for x in dim_map])
 
-                tile_slices.append(slice(idx, None, n_procs))
+                tile_slices += [slice(idx, None, n_procs), slice(None)]
 
         permute_tuple = (
             tuple(set(range(len(reshape_list))) - set(permute_tuple)) + permute_tuple
@@ -959,7 +957,7 @@ class MultiAxisDist(Dist):
         log.info(f"R{rank}: Permute tuple: {permute_tuple}")
         log.info(f"R{rank}: Reshape tuple: {reshape_list}")
 
-        tensor = tensor.reshape(*reshape_list).permute(*permute_tuple)
+        tensor = tensor.reshape(*reshape_list)
 
         log.info(f"R{rank}: Tile Slices: {tile_slices}")
         local_tensor = tensor[tile_slices]
@@ -969,13 +967,14 @@ class MultiAxisDist(Dist):
         local_shape = [
             n_blocks * b_size if b_size != -1 else og_size
             for og_size, n_blocks, b_size in zip(
-                og_shape, local_tensor.shape[:dims], self._block_sizes
+                og_shape, local_tensor.shape[::2], self._block_sizes
             )
         ]
         log.info(f"R{rank}: Target local tensor shape: {local_shape}")
 
         # Reshape the tensor to the original shape
-        local_tensor = local_tensor.permute(*permute_tuple).reshape(*local_shape)
+        local_tensor = local_tensor.reshape(*local_shape)
+        # print(local_tensor)
 
         # Remove the padding from the relevant axes
         shaved_slices = []
@@ -1137,13 +1136,13 @@ class MultiAxisDist(Dist):
 
         return new_dist, shaved_tensor
 
-    def apply_allgather(
+    def apply_allgather(  # type: ignore[no-any-unimported]
         self,
         global_shape: torch.Size,
         local_tensor: torch.Tensor,
         comm: MPI.Comm,
         mesh_dim: int = -1,
-    ) -> tuple["MultiAxisDist", torch.Tensor]:
+    ) -> tuple[torch.Tensor, "MultiAxisDist"]:
         """
         Given a distributed tensor, apply a multi_axis allgather operation.
 
@@ -1160,15 +1159,14 @@ class MultiAxisDist(Dist):
 
         Returns
         -------
-        MultiAxisDist
-            The distribution that results from the allgather communication. None if the tensor is not compatible with the distribution.
         torch.Tensor
             The local distributed tensor belonging to the rank.
+        MultiAxisDist
+            The distribution that results from the allgather communication. None if the tensor is not compatible with the distribution.
         """
-        
         rank = comm.Get_rank()
         world_size = comm.Get_size()
-        
+
         if world_size != self.numProcessors:
             raise ValueError(
                 f"World size {world_size} does not match the number of processors {self.numProcessors}"
@@ -1181,7 +1179,6 @@ class MultiAxisDist(Dist):
             raise ValueError("Rank must be in the range of the processor mesh.")
 
         if mesh_dim != -1:
-
             exp_l_shape = self.localShape(
                 global_shape, rank
             )  # Shape the local tensor should have
@@ -1190,9 +1187,9 @@ class MultiAxisDist(Dist):
 
             if local_tensor.shape != exp_l_shape:
                 raise ValueError("Local tensor shape does not match the distribution.")
-            
+
             changed_t_axis = -1
-            minor=False
+            minor = False
             for axis, mappings in enumerate(self._dims_mapping):
                 if mesh_dim in mappings:
                     minor = mappings.index(mesh_dim) != 0
@@ -1204,14 +1201,16 @@ class MultiAxisDist(Dist):
             exp_t_l_shape = new_dist.localShape(
                 global_shape, rank
             )  # Expected local shape of the outcome dist
-            log.info(f"R{rank}: New distribution: {new_dist}, new shape: {exp_t_l_shape}")
+            log.info(
+                f"R{rank}: New distribution: {new_dist}, new shape: {exp_t_l_shape}"
+            )
 
             p_midx = self.getProcessorMultiIndex(rank)
             log.info(f"R{rank}: Processor multi index: {p_midx}")
 
             n_procs = self._pmesh[mesh_dim]
             log.info(f"R{rank}: N procs: {n_procs}")
-            
+
             # Find the global rank of the first processor in the mesh dimension
             tmp_p_midx = list(p_midx)
             tmp_p_midx[mesh_dim] = 0
@@ -1219,35 +1218,65 @@ class MultiAxisDist(Dist):
                 self._pmesh,
                 tmp_p_midx,
             )
-            log.info(f"R{rank}: Rank of largest tensor in the subcommunicator: {tmp_p_midx} {linear_max_g_rank}")
-            
+            log.info(
+                f"R{rank}: Rank of largest tensor in the subcommunicator: {tmp_p_midx} {linear_max_g_rank}"
+            )
+
             max_local_shape = self.localShape(global_shape, linear_max_g_rank)
             n_elements = math.prod(max_local_shape)
             b_size = self._block_sizes[changed_t_axis]
             log.info(f"R{rank}: N elements: {n_elements}")
             log.info(f"R{rank}: Max local shape: {max_local_shape}")
-            
-            
+
+            # Target buffer shape (n_procs, n_max_blocks, b_size, )
+            n_max_blocks = math.ceil(
+                max_local_shape[changed_t_axis] / new_dist._block_sizes[changed_t_axis]
+            )
+
+            # Insert padding in case change_t_axis is not the first axis
+            if changed_t_axis != 0:
+                padding = (
+                    n_max_blocks * self._block_sizes[changed_t_axis]
+                    - local_tensor.shape[changed_t_axis]
+                )
+                log.info(f"R{rank}: Padding: {padding}")
+                if padding > 0:
+                    padding_tuple = [0] * len(local_tensor.shape) * 2
+                    padding_tuple[changed_t_axis * 2] = padding
+                    log.info(f"R{rank}: Padding tuple: {padding_tuple}")
+                    local_tensor = F.pad(local_tensor, padding_tuple[::-1], value=0)
+
+                    log.info(
+                        f"R{rank}: Padded local tensor shape: {local_tensor.shape}"
+                    )
+                    log.info(f"R{rank}: Padded local tensor: {local_tensor}")
+
             # Send buffer
             send_buffer_tuple = tensor2mpiBuffer(local_tensor)
 
-
-            # Target buffer shape (n_procs, n_max_blocks, b_size, )
-            n_max_blocs = math.ceil(max_local_shape[changed_t_axis] / new_dist._block_sizes[changed_t_axis])
-
             tmp_shape = list(max_local_shape)
             tmp_shape[changed_t_axis] = b_size
+            tmp_shape.insert(changed_t_axis, n_max_blocks)
 
             recv_tensor = torch.zeros(
-                [n_procs, n_max_blocs] + tmp_shape,
+                [
+                    n_procs,
+                ]
+                + tmp_shape,
                 dtype=local_tensor.dtype,
             )
-            recv_buffer_tuple = (as_buffer(recv_tensor), n_elements, send_buffer_tuple[2])
+            recv_buffer_tuple = (
+                as_buffer(recv_tensor),
+                n_elements,
+                send_buffer_tuple[2],
+            )
             log.info(f"R{rank}: Send buffer: {send_buffer_tuple}")
             log.info(f"R{rank}: Recv buffer: {recv_buffer_tuple}")
 
             # Create the subcommunicator
-            cart_comm = comm.Create_cart(dims=self._pmesh, periods=[True] * len(self._pmesh), reorder=True)
+            cart_comm = comm.Create_cart(
+                dims=self._pmesh, periods=[True] * len(self._pmesh), reorder=True
+            )
             subs = [0] * len(self._pmesh)
             subs[mesh_dim] = 1
             sub_comm = cart_comm.Sub(subs)
@@ -1257,8 +1286,26 @@ class MultiAxisDist(Dist):
             log.info(f"R{rank}: Recv_tensor : {recv_tensor}")
 
             # Reshape the tensor to the original shape
-            recv_tensor = recv_tensor.permute(1, 0, 2, 3)
-            log.info(f"R{rank}: Permuted data tensor shape: {recv_tensor.shape}")
-            log.info(f"R{rank}: Permuted data tensor: {recv_tensor}")
+            permute_list = list(range(1, len(recv_tensor.shape)))
+            permute_list.insert(changed_t_axis + 1, 0)
 
-        
+            reshape_list = list(exp_t_l_shape)
+            reshape_list[changed_t_axis] = n_max_blocks * b_size * n_procs
+
+            recv_tensor = recv_tensor.permute(*permute_list).reshape(*reshape_list)
+            log.info(f"R{rank}: Reshaped tensor shape: {recv_tensor.shape}")
+
+            # Remove the padding from the relevant axes
+            slices = [slice(None)] * len(exp_l_shape)
+            slices[changed_t_axis] = slice(0, exp_t_l_shape[changed_t_axis])
+
+            log.info(f"R{rank}: Slices: {slices}")
+            recv_tensor = recv_tensor[slices]
+            log.info(f"R{rank}: Final tensor shape: {recv_tensor.shape}")
+
+            return recv_tensor, new_dist
+
+        else:
+            raise NotImplementedError(
+                "Gathering along all the mesh dimensions is not implemented yet."
+            )

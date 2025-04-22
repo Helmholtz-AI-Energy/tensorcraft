@@ -1,7 +1,40 @@
+import math
+
 import pytest
 import torch
+from hypothesis import assume, given, note, settings
+from hypothesis import strategies as st
 
 from tensorcraft.distributions.multi_axis import MultiAxisDist
+
+
+@st.composite
+def shape_and_dist(draw) -> tuple[torch.Size, MultiAxisDist]:
+    shape = torch.Size(
+        draw(st.lists(st.integers(min_value=50, max_value=100), min_size=1, max_size=4))
+    )
+    mesh = draw(st.lists(st.integers(min_value=2, max_value=4), min_size=1, max_size=4))
+    block_sizes = draw(st.integers(min_value=1, max_value=5))
+
+    available_dims = list(range(len(mesh)))
+    # Create mappings, as list with the same lenght as the shape and with non-repeating values from available_dims
+    mappings = []
+    for i in range(len(shape)):
+        if len(available_dims) == 0:
+            mappings.append(None)
+        else:
+            # Choose a random number of dimensions to map
+            num_dims = draw(st.integers(min_value=0, max_value=len(available_dims)))
+            axis_map = []
+            for j in range(num_dims):
+                dim = draw(st.sampled_from(available_dims))
+                axis_map.append(dim)
+                available_dims.remove(dim)
+
+            # Append the mapping to the list
+            mappings.append(tuple(axis_map))
+
+    return shape, MultiAxisDist(mesh, mappings, block_sizes)
 
 
 @pytest.mark.parametrize(
@@ -204,9 +237,9 @@ def test_not_compatible(dist: MultiAxisDist, shape: torch.Size):
 @pytest.mark.parametrize(
     "kwargs, target_dist",
     [
-        ({"gather_dim": 0}, MultiAxisDist(torch.Size([2, 2, 2]), ((1,), (2,)), 1)),
-        ({"gather_dim": 1}, MultiAxisDist(torch.Size([2, 2, 2]), ((0,), (2,)), (2, 1))),
-        ({"gather_dim": 2}, MultiAxisDist(torch.Size([2, 2, 2]), ((0, 1), None), 1)),
+        ({"mesh_dim": 0}, MultiAxisDist(torch.Size([2, 2, 2]), ((1,), (2,)), 1)),
+        ({"mesh_dim": 1}, MultiAxisDist(torch.Size([2, 2, 2]), ((0,), (2,)), (2, 1))),
+        ({"mesh_dim": 2}, MultiAxisDist(torch.Size([2, 2, 2]), ((0, 1), None), 1)),
     ],
 )
 def test_allgather(kwargs, target_dist):
@@ -331,3 +364,43 @@ def test_change_block_size(kwargs, target_dist):
     result_dist, n_elements, cost = dist.change_block_size(tensor_shape, **kwargs)
     assert isinstance(result_dist, MultiAxisDist)
     assert result_dist == target_dist
+
+
+@given(
+    shape_and_dist=shape_and_dist(),
+)
+@settings(deadline=None)
+def test_apply(shape_and_dist: tuple[torch.Size, MultiAxisDist]):
+    shape, dist = shape_and_dist
+
+    assume(dist.isDistributed())
+    assume(dist.compatible(shape))
+
+    note(f"Shape: {shape}")
+    note(f"Dist: {dist}")
+
+    # Create a tensor with the given shape
+    n_elements = math.prod(shape)
+    g_x = torch.arange(n_elements).reshape(shape)
+
+    global_sum = torch.sum(g_x)
+
+    # Apply the distribution to the tensor
+
+    n_procs = dist.numProcessors
+
+    dist_sum = 0
+    for rank in range(n_procs):
+        # Create a tensor for the rank
+        l_x = dist.apply(g_x, rank)
+
+        # Check that the shape matches the expected local shape
+        assert l_x.shape == dist.localShape(shape, rank)
+
+        sorted, _ = torch.sort(l_x)
+        assert torch.all(sorted == l_x)
+
+        dist_sum += torch.sum(l_x)
+
+    # Check that the global sum is equal to the local sum
+    assert dist_sum % global_sum == 0
