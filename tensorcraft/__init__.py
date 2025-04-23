@@ -15,6 +15,7 @@ import tensorcraft.compiler as compiler
 
 # Lower level modules
 import tensorcraft.distributions as dist
+import tensorcraft.mpi as mpi
 
 # High level modules
 import tensorcraft.optim as optim
@@ -27,6 +28,7 @@ compile = _compiler.compile
 
 __all__ = [
     "util",
+    "mpi",
     "dist",
     "compiler",
     "viz",

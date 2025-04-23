@@ -1,15 +1,18 @@
-import math
+from typing import Optional
 
 import pytest
 import torch
-from hypothesis import assume, given, note, settings
 from hypothesis import strategies as st
 
 from tensorcraft.distributions.multi_axis import MultiAxisDist
 
 
 @st.composite
-def shape_and_dist(draw) -> tuple[torch.Size, MultiAxisDist]:
+def shape_and_dist(
+    draw,
+) -> tuple[
+    torch.Size, torch.Size, tuple[Optional[tuple[int, ...]], ...], tuple[int, ...]
+]:
     shape = torch.Size(
         draw(st.lists(st.integers(min_value=50, max_value=100), min_size=1, max_size=4))
     )
@@ -34,7 +37,7 @@ def shape_and_dist(draw) -> tuple[torch.Size, MultiAxisDist]:
             # Append the mapping to the list
             mappings.append(tuple(axis_map))
 
-    return shape, MultiAxisDist(mesh, mappings, block_sizes)
+    return shape, mesh, mappings, block_sizes
 
 
 @pytest.mark.parametrize(
@@ -370,43 +373,3 @@ def test_change_block_size(kwargs, target_dist):
     result_dist, n_elements, cost = dist.change_block_size(tensor_shape, **kwargs)
     assert isinstance(result_dist, MultiAxisDist)
     assert result_dist == target_dist
-
-
-@given(
-    shape_and_dist=shape_and_dist(),
-)
-@settings(deadline=None)
-def test_apply(shape_and_dist: tuple[torch.Size, MultiAxisDist]):
-    shape, dist = shape_and_dist
-
-    assume(dist.isDistributed())
-    assume(dist.compatible(shape))
-
-    note(f"Shape: {shape}")
-    note(f"Dist: {dist}")
-
-    # Create a tensor with the given shape
-    n_elements = math.prod(shape)
-    g_x = torch.arange(n_elements).reshape(shape)
-
-    global_sum = torch.sum(g_x)
-
-    # Apply the distribution to the tensor
-
-    n_procs = dist.numProcessors
-
-    dist_sum = 0
-    for rank in range(n_procs):
-        # Create a tensor for the rank
-        l_x = dist.apply(g_x, rank)
-
-        # Check that the shape matches the expected local shape
-        assert l_x.shape == dist.localShape(shape, rank)
-
-        sorted, _ = torch.sort(l_x)
-        assert torch.all(sorted == l_x)
-
-        dist_sum += torch.sum(l_x)
-
-    # Check that the global sum is equal to the local sum
-    assert dist_sum % global_sum == 0

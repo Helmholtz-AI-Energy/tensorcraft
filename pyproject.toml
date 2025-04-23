@@ -87,7 +87,7 @@ follow_untyped_imports = true
 
 [[tool.mypy.overrides]]
 module =[
-    "tensorcraft.util/mpi_utils"
+    "tensorcraft.mpi.mpi_utils"
 ]
 disallow_any_unimported = false
 
