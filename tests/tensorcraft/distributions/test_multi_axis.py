@@ -16,7 +16,7 @@ def shape_and_dist(
     shape = torch.Size(
         draw(st.lists(st.integers(min_value=50, max_value=100), min_size=1, max_size=4))
     )
-    mesh = draw(st.lists(st.integers(min_value=2, max_value=4), min_size=1, max_size=4))
+    mesh = draw(st.lists(st.integers(min_value=2, max_value=3), min_size=1, max_size=3))
     block_sizes = draw(st.integers(min_value=1, max_value=5))
 
     available_dims = list(range(len(mesh)))

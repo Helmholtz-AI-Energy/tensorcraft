@@ -18,6 +18,17 @@ log = logging.getLogger("tensorcraft")
 class MPIMultiAxisDist(MultiAxisDist):
     """MPI implementation of the MultiAxisDist class."""
 
+    @classmethod
+    def fromMultiAxisDist(
+        cls,
+        dist: MultiAxisDist,
+    ) -> "MPIMultiAxisDist":
+        return cls(
+            dist._pmesh,
+            dist._dims_mapping,
+            dist._block_sizes,
+        )
+
     def apply(self, tensor: torch.Tensor, rank: int) -> torch.Tensor:
         """
         Apply the distribution to a tensor, assuming that it is replicated on all processors.
@@ -271,7 +282,7 @@ class MPIMultiAxisDist(MultiAxisDist):
         else:
             shaved_tensor = pre_shaving_tensor
 
-        return new_dist, shaved_tensor
+        return self.fromMultiAxisDist(new_dist), shaved_tensor
 
     def apply_allgather(  # type: ignore[no-any-unimported]
         self,
@@ -279,7 +290,7 @@ class MPIMultiAxisDist(MultiAxisDist):
         local_tensor: torch.Tensor,
         comm: MPI.Comm,
         gather_mesh_dim: Optional[int] = None,
-    ) -> tuple[torch.Tensor, "MultiAxisDist"]:
+    ) -> tuple["MultiAxisDist", torch.Tensor]:
         """
         Given a distributed tensor, apply a multi_axis allgather operation.
 
@@ -296,10 +307,10 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         Returns
         -------
-        torch.Tensor
-            The local distributed tensor belonging to the rank.
         MultiAxisDist
             The distribution that results from the allgather communication. None if the tensor is not compatible with the distribution.
+        torch.Tensor
+            The local distributed tensor belonging to the rank.
         """
         rank = comm.Get_rank()
         world_size = comm.Get_size()
@@ -315,6 +326,13 @@ class MPIMultiAxisDist(MultiAxisDist):
         if (0 <= rank < self.numProcessors) is False:
             raise ValueError("Rank must be in the range of the processor mesh.")
 
+        # Obtain the new distribution and the expected local shape
+        new_dist = self.allgather(global_shape, gather_mesh_dim)[0]
+        exp_t_l_shape = new_dist.localShape(
+            global_shape, rank
+        )  # Expected local shape of the outcome dist
+
+        log.info(f"R{rank}: New distribution: {new_dist}, new shape: {exp_t_l_shape}")
         if gather_mesh_dim is not None:
             exp_l_shape = self.localShape(
                 global_shape, rank
@@ -333,14 +351,6 @@ class MPIMultiAxisDist(MultiAxisDist):
                     changed_t_axis = axis
                     break
             log.info(f"R{rank}: Changed tensor axis: {changed_t_axis}, minor: {minor}")
-
-            new_dist = self.allgather(global_shape, gather_mesh_dim)[0]
-            exp_t_l_shape = new_dist.localShape(
-                global_shape, rank
-            )  # Expected local shape of the outcome dist
-            log.info(
-                f"R{rank}: New distribution: {new_dist}, new shape: {exp_t_l_shape}"
-            )
 
             p_midx = self.getProcessorMultiIndex(rank)
             log.info(f"R{rank}: Processor multi index: {p_midx}")
@@ -367,7 +377,7 @@ class MPIMultiAxisDist(MultiAxisDist):
 
             # Target buffer shape (n_procs, n_max_blocks, b_size, )
             n_max_blocks = math.ceil(
-                max_local_shape[changed_t_axis] / new_dist._block_sizes[changed_t_axis]
+                max_local_shape[changed_t_axis] / self._block_sizes[changed_t_axis]
             )
 
             # Insert padding in case change_t_axis is not the first axis
@@ -440,7 +450,7 @@ class MPIMultiAxisDist(MultiAxisDist):
             recv_tensor = recv_tensor[slices]
             log.info(f"R{rank}: Final tensor shape: {recv_tensor.shape}")
 
-            return recv_tensor, new_dist
+            return self.fromMultiAxisDist(new_dist), recv_tensor
 
         else:
             raise NotImplementedError(
