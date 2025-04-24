@@ -23,6 +23,21 @@ class MPIMultiAxisDist(MultiAxisDist):
         cls,
         dist: MultiAxisDist,
     ) -> "MPIMultiAxisDist":
+        """
+        Create a new MPIMultiAxisDist object from an existing MultiAxisDist object.
+
+        Parameters
+        ----------
+        dist : MultiAxisDist
+            The MultiAxisDist object to convert.
+
+        Returns
+        -------
+        MPIMultiAxisDist
+            The new MPIMultiAxisDist object.
+        """
+        if not isinstance(dist, MultiAxisDist):
+            raise TypeError("dist must be an instance of MultiAxisDist")
         return cls(
             dist._pmesh,
             dist._dims_mapping,
@@ -212,11 +227,11 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         # Add padding to the target axis
         og_l_shape = local_tensor.shape
-        missing_elements = target_block_size - (
-            local_tensor.shape[tensor_axis] % target_block_size
-        )
+
+        res = local_tensor.shape[tensor_axis] % target_block_size
+        missing_elements = (target_block_size - res) if res != 0 else 0
         log.info(f"R{rank}: Missing elements {missing_elements}")
-        n_full_blocks = og_l_shape[tensor_axis] // target_block_size
+        n_full_blocks = global_shape[tensor_axis] // target_block_size
 
         padding_tuple = [0] * len(og_l_shape) * 2
         padding_tuple[tensor_axis * 2] = missing_elements
@@ -232,12 +247,6 @@ class MPIMultiAxisDist(MultiAxisDist):
         reshape_list.insert(tensor_axis + 1, target_block_size)
         log.info(f"R{rank}: Reshape list: {reshape_list}")
 
-        # Create the permute tuple
-        permute_list = list(range(len(reshape_list)))
-        permute_list.remove(tensor_axis + 1)
-        permute_list.append(tensor_axis + 1)
-        log.info(f"R{rank}: Permute list: {permute_list}")
-
         idx = multi2linearIndex(
             self._pmesh,
             p_midx,
@@ -248,7 +257,7 @@ class MPIMultiAxisDist(MultiAxisDist):
         tile_slices[tensor_axis] = slice(idx, None, n_procs)
         log.info(f"R{rank}: Tile Slices: {tile_slices}")
 
-        reshaped_tensor = padded_tensor.reshape(*reshape_list).permute(*permute_list)
+        reshaped_tensor = padded_tensor.reshape(*reshape_list)
         log.info(f"R{rank}: Reshaped tensor shape: {reshaped_tensor.shape}")
 
         # Apply the tile slices
@@ -258,23 +267,28 @@ class MPIMultiAxisDist(MultiAxisDist):
         local_shape = list(og_l_shape)
         local_shape[tensor_axis] = sliced_tensor.shape[tensor_axis] * target_block_size
 
-        log.info(f"R{rank}: Target local tensor shape: {local_shape}")
+        log.info(f"R{rank}: Pre-shaved Target local tensor shape: {local_shape}")
 
         # Reshape the tensor to the original shape
-        pre_shaving_tensor = sliced_tensor.permute(*permute_list).reshape(*local_shape)
+        pre_shaving_tensor = sliced_tensor.reshape(*local_shape)
         log.info(f"R{rank}: Pre-shaving tensor shape: {pre_shaving_tensor.shape}")
 
         relevant_dims = new_dist._dims_mapping[tensor_axis]
         relevant_dims_tuple = (
             relevant_dims if isinstance(relevant_dims, tuple) else (relevant_dims,)
         )
+        relevant_n_procs = math.prod([self._pmesh[x] for x in relevant_dims_tuple])
         log.info(f"R{rank}: Relevant dims: {relevant_dims_tuple}")
         l_idx_axis = multi2linearIndex(
             self._pmesh,
             p_midx,
             order=relevant_dims_tuple,
         )
-        if missing_elements != 0 and n_full_blocks % n_procs == l_idx_axis:
+
+        log.info(
+            f"R{rank}: Linear processor index: {l_idx_axis}, Residue: {missing_elements}, Block size: {target_block_size}, axis: {tensor_axis}, N procs: {relevant_n_procs}, N full blocks: {n_full_blocks}"
+        )
+        if missing_elements != 0 and n_full_blocks % relevant_n_procs == l_idx_axis:
             shave_slices = [slice(None)] * len(og_l_shape)
             shave_slices[tensor_axis] = slice(0, -missing_elements)
             log.info(f"R{rank}: Shaving slices: {shave_slices}")
