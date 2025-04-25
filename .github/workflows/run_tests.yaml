@@ -31,8 +31,8 @@ jobs:
       - name: Test with pytest and cmdline commands
         run: |
           coverage run
-          mpirun -n 2 --output TAG pytest coverage run -m pytest --hypothesis-profile mpi -m mpi_test
-          mpirun -n 4 --output TAG pytest coverage run -m pytest --hypothesis-profile mpi -m mpi_test
+          mpirun -n 2 --output TAG coverage run -m pytest --hypothesis-profile mpi -m mpi_test
+          mpirun -n 4 --output TAG coverage run -m pytest --hypothesis-profile mpi -m mpi_test
           coverage combine
           coverage xml
       - name: Test notebooks
