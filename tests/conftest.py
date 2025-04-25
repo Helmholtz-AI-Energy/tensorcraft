@@ -1,9 +1,20 @@
 import mpi4py.MPI as MPI
 import pytest
+from hypothesis import settings
+from hypothesis.database import DirectoryBasedExampleDatabase
 
 comm = MPI.COMM_WORLD
 mpi_size = comm.Get_size()
 mpi_rank = comm.Get_rank()
+
+settings.register_profile(
+    "mpi",
+    database=DirectoryBasedExampleDatabase(".hypothesis/mpi_examples")
+    if mpi_rank == 0
+    else None,
+    # database=InMemoryExampleDatabase(),
+    deadline=None,
+)
 
 
 def pytest_configure(config):

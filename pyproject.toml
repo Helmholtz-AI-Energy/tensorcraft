@@ -49,7 +49,7 @@ dev = [
     # Testing
     "pytest",
     "coverage",
-    "hypothesis[numpy]<6.100",
+    "hypothesis[numpy]",
     "nbmake",
 
     # QA

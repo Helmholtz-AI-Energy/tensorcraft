@@ -173,7 +173,7 @@ class MPIMultiAxisDist(MultiAxisDist):
         mesh_dims: int | tuple[int, ...],
         block_size: int = 1,
         minor: bool = False,
-    ) -> tuple["MultiAxisDist", torch.Tensor]:
+    ) -> tuple["MPIMultiAxisDist", torch.Tensor]:
         """
         Given a distributed tensor, apply a multi_axis split operation.
 
@@ -304,7 +304,7 @@ class MPIMultiAxisDist(MultiAxisDist):
         local_tensor: torch.Tensor,
         comm: MPI.Comm,
         gather_mesh_dim: Optional[int] = None,
-    ) -> tuple["MultiAxisDist", torch.Tensor]:
+    ) -> tuple["MPIMultiAxisDist", torch.Tensor]:
         """
         Given a distributed tensor, apply a multi_axis allgather operation.
 

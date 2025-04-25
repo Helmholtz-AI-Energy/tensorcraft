@@ -2,26 +2,21 @@ from typing import Optional
 
 import pytest
 import torch
+from hypothesis import given
 from hypothesis import strategies as st
 
 from tensorcraft.distributions.multi_axis import MultiAxisDist
 
 
 @st.composite
-def shape_and_dist(
+def axis_mapping(
     draw,
-) -> tuple[
-    torch.Size, torch.Size, tuple[Optional[tuple[int, ...]], ...], tuple[int, ...]
-]:
-    shape = torch.Size(
-        draw(st.lists(st.integers(min_value=50, max_value=100), min_size=1, max_size=4))
-    )
-    mesh = draw(st.lists(st.integers(min_value=2, max_value=3), min_size=1, max_size=3))
-    block_sizes = draw(st.integers(min_value=1, max_value=5))
-
-    available_dims = list(range(len(mesh)))
-    # Create mappings, as list with the same lenght as the shape and with non-repeating values from available_dims
+    shape: torch.Size,
+    mesh: torch.Size,
+    is_distributed: bool = False,
+) -> tuple[Optional[tuple[int, ...]], ...]:
     mappings = []
+    available_dims = list(range(len(mesh)))
     for i in range(len(shape)):
         if len(available_dims) == 0:
             mappings.append(None)
@@ -37,7 +32,67 @@ def shape_and_dist(
             # Append the mapping to the list
             mappings.append(tuple(axis_map))
 
-    return shape, mesh, mappings, block_sizes
+    if len(available_dims) == len(mesh) and is_distributed:
+        # If all dimensions are available and the distribution is not compatible, set to None
+        random_axis = draw(st.integers(min_value=0, max_value=len(shape) - 1))
+        random_dim = draw(st.sampled_from(available_dims))
+
+        mappings[random_axis] = (random_dim,)
+
+    return tuple(mappings)
+
+
+@st.composite
+def shape_and_dist(
+    draw,
+    mesh: Optional[torch.Size] = None,
+    is_compatible: bool = True,
+    is_distributed: bool = False,
+) -> tuple[torch.Size, MultiAxisDist]:
+    shape = torch.Size(
+        draw(st.lists(st.integers(min_value=50, max_value=100), min_size=1, max_size=4))
+    )
+    if not mesh:
+        mesh = draw(
+            st.lists(st.integers(min_value=2, max_value=3), min_size=1, max_size=3)
+        )
+
+    block_sizes = draw(st.integers(min_value=1, max_value=5))
+
+    # Create mappings, as list with the same lenght as the shape and with non-repeating values from available_dims
+    mappings = draw(axis_mapping(shape, mesh, is_distributed))
+
+    dist = MultiAxisDist(mesh, tuple(mappings), block_sizes)
+    if is_compatible:
+        while not dist.compatible(shape):
+            block_sizes -= 1
+            dist = MultiAxisDist(mesh, mappings, block_sizes)
+
+    return shape, dist
+
+
+@given(
+    shape_and_dist=shape_and_dist(is_compatible=True),
+)
+def test_shape_and_dist_compatible(
+    shape_and_dist: tuple[torch.Size, MultiAxisDist],
+):
+    shape, dist = shape_and_dist
+
+    # Check that the distribution is compatible with the shape
+    assert dist.compatible(shape)
+
+
+@given(
+    shape_and_dist=shape_and_dist(is_distributed=True),
+)
+def test_shape_and_dist_distributed(
+    shape_and_dist: tuple[torch.Size, MultiAxisDist],
+):
+    shape, dist = shape_and_dist
+
+    # Check that the distribution is compatible with the shape
+    assert dist.isDistributed()
 
 
 @pytest.mark.parametrize(

@@ -1,55 +1,81 @@
+import hypothesis.extra.numpy as npst
 import mpi4py.MPI as MPI
 import pytest
 import torch
+from hypothesis import given
+from hypothesis import strategies as st
 
 import tensorcraft as tc
 
-pytestmark = pytest.mark.mpi_test
+pytestmark = pytest.mark.mpi_test(2)
 
 comm = MPI.COMM_WORLD
 mpi_size = comm.Get_size()
 mpi_rank = comm.Get_rank()
 
+_dtypes = [torch.int32, torch.int64, torch.float32, torch.float64]
 
-@pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
-@pytest.mark.parametrize(
-    "dtype", [torch.int32, torch.int64, torch.float32, torch.float64]
+
+@st.composite
+def mpi_st(draw, strategy: st.SearchStrategy):
+    """Decorator to make a strategy MPI-aware."""
+    # Get the strategy
+    data = draw(strategy)
+    print(f"Rank {mpi_rank}: Before BCast {data}")
+
+    # Broadcast the strategy to all ranks
+    sync_data = comm.bcast(data, root=0)
+    print(f"Rank {mpi_rank}: After BCast {sync_data}")
+
+    return sync_data
+
+
+@given(
+    shape_dtype=mpi_st(
+        st.tuples(
+            npst.array_shapes(min_dims=1, max_dims=4, min_side=2, max_side=100),
+            st.sampled_from(_dtypes),
+        )
+    )
 )
-def test_torch2mpiBuffer_full_tensor(shape, dtype):
-    print(f"Rank {mpi_rank}")
-    print(f"Ranks {comm.gather(mpi_rank, root=0)}")
+def test_torch2mpiBuffer_full_tensor(shape_dtype):
+    shape, dtype = shape_dtype
+
+    print(f"R{mpi_rank}: Shape: {shape}, dtype: {dtype}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
-            base_tensor = torch.randint(100, shape, dtype=dtype)
+            tensor = torch.randint(100, shape, dtype=dtype)
         else:
-            base_tensor = torch.rand(shape, dtype=dtype)
-
-    # Send the full tensor, check that other ranks got the same data
-    if mpi_rank == 0:
-        tensor = base_tensor
+            tensor = torch.rand(shape, dtype=dtype)
     else:
         tensor = torch.zeros(shape, dtype=dtype)
 
+    print(f"R{mpi_rank}: shape: {tensor.shape}")
+
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
+    print(f"R{mpi_rank}: buffer: {buffer}")
     comm.Bcast([buffer, count, mpi_type], root=0)
+    print(f"R{mpi_rank}: After Bcast")
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    # print(validation_tensors)
 
-    if mpi_rank == 0:
+    if validation_tensors:
+        print(f"R{mpi_rank}: N Validation tensors: {len(validation_tensors)}")
         for v_tensor in validation_tensors:
             assert torch.all(v_tensor == tensor)
+    print(f"R{mpi_rank}: After validation --------------------------------------------")
 
-    comm.Barrier()
 
-
-@pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
-@pytest.mark.parametrize(
-    "dtype", [torch.int32, torch.int64, torch.float32, torch.float64]
+@given(
+    shape_dtype=mpi_st(
+        st.tuples(
+            npst.array_shapes(min_dims=2, max_dims=4, min_side=2, max_side=100),
+            st.sampled_from(_dtypes),
+        )
+    )
 )
-def test_torch2mpiBuffer_transposed_first_last(shape, dtype):
-    print(f"Rank {mpi_rank}")
-    print(f"Ransk {comm.gather(mpi_rank, root=0)}")
+def test_torch2mpiBuffer_transposed_first_last(shape_dtype):
+    shape, dtype = shape_dtype
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             base_tensor = torch.randint(100, shape, dtype=dtype)
@@ -74,11 +100,16 @@ def test_torch2mpiBuffer_transposed_first_last(shape, dtype):
             assert torch.all(v_tensor == tensor)
 
 
-@pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
-@pytest.mark.parametrize(
-    "dtype", [torch.int32, torch.int64, torch.float32, torch.float64]
+@given(
+    shape_dtype=mpi_st(
+        st.tuples(
+            npst.array_shapes(min_dims=2, max_dims=4, min_side=2, max_side=100),
+            st.sampled_from(_dtypes),
+        )
+    )
 )
-def test_torch2mpiBuffer_transposed_first_second(shape, dtype):
+def test_torch2mpiBuffer_transposed_first_second(shape_dtype):
+    shape, dtype = shape_dtype
     print(f"Rank {mpi_rank}")
     print(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
@@ -105,11 +136,16 @@ def test_torch2mpiBuffer_transposed_first_second(shape, dtype):
             assert torch.all(v_tensor == tensor)
 
 
-@pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
-@pytest.mark.parametrize(
-    "dtype", [torch.int32, torch.int64, torch.float32, torch.float64]
+@given(
+    shape_dtype=mpi_st(
+        st.tuples(
+            npst.array_shapes(min_dims=1, max_dims=4, min_side=10, max_side=100),
+            st.sampled_from(_dtypes),
+        )
+    )
 )
-def test_torch2mpiBuffer_cont_offset(shape, dtype):
+def test_torch2mpiBuffer_cont_offset(shape_dtype):
+    shape, dtype = shape_dtype
     print(f"Rank {mpi_rank}")
     print(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
@@ -136,11 +172,16 @@ def test_torch2mpiBuffer_cont_offset(shape, dtype):
             assert torch.all(v_tensor == tensor)
 
 
-@pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
-@pytest.mark.parametrize(
-    "dtype", [torch.int32, torch.int64, torch.float32, torch.float64]
+@given(
+    shape_dtype=mpi_st(
+        st.tuples(
+            npst.array_shapes(min_dims=1, max_dims=4, min_side=10, max_side=100),
+            st.sampled_from(_dtypes),
+        )
+    )
 )
-def test_torch2mpiBuffer_non_cont_slice(shape, dtype):
+def test_torch2mpiBuffer_non_cont_slice(shape_dtype):
+    shape, dtype = shape_dtype
     print(f"Rank {mpi_rank}")
     print(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
@@ -167,11 +208,16 @@ def test_torch2mpiBuffer_non_cont_slice(shape, dtype):
             assert torch.all(v_tensor == tensor)
 
 
-@pytest.mark.parametrize("shape", [(10, 5), (5, 8, 7), (6, 7, 5, 3, 6)])
-@pytest.mark.parametrize(
-    "dtype", [torch.int32, torch.int64, torch.float32, torch.float64]
+@given(
+    shape_dtype=mpi_st(
+        st.tuples(
+            npst.array_shapes(min_dims=2, max_dims=4, min_side=10, max_side=100),
+            st.sampled_from(_dtypes),
+        )
+    )
 )
-def test_torch2mpiBuffer_slice_step(shape, dtype):
+def test_torch2mpiBuffer_slice_step(shape_dtype):
+    shape, dtype = shape_dtype
     print(f"Rank {mpi_rank}")
     print(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
