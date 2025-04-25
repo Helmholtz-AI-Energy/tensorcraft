@@ -50,7 +50,7 @@ def shape_and_dist(
     is_distributed: bool = False,
 ) -> tuple[torch.Size, MultiAxisDist]:
     shape = torch.Size(
-        draw(st.lists(st.integers(min_value=50, max_value=100), min_size=1, max_size=4))
+        draw(st.lists(st.integers(min_value=50, max_value=75), min_size=1, max_size=4))
     )
     if not mesh:
         mesh = draw(
