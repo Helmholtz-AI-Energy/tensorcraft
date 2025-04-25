@@ -48,9 +48,19 @@ def shape_and_dist(
     mesh: Optional[torch.Size] = None,
     is_compatible: bool = True,
     is_distributed: bool = False,
+    min_axis_size: int = 25,
+    max_axis_size: int = 100,
+    min_axes: int = 1,
+    max_axes: int = 4,
 ) -> tuple[torch.Size, MultiAxisDist]:
     shape = torch.Size(
-        draw(st.lists(st.integers(min_value=50, max_value=75), min_size=1, max_size=4))
+        draw(
+            st.lists(
+                st.integers(min_value=min_axis_size, max_value=max_axis_size),
+                min_size=min_axes,
+                max_size=max_axes,
+            )
+        )
     )
     if not mesh:
         mesh = draw(

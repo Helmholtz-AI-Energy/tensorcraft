@@ -124,7 +124,12 @@ def test_apply_split(
 @pytest.mark.mpi_test(4)
 @given(
     shape_and_dist=mpi_st(
-        shape_and_dist(mesh=torch.Size([2, 2]), is_compatible=True, is_distributed=True)
+        shape_and_dist(
+            mesh=torch.Size([2, 2]),
+            is_compatible=True,
+            is_distributed=True,
+            max_axis_size=75,
+        )
     )
 )
 def test_apply_allgather(
