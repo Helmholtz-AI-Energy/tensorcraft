@@ -21,11 +21,9 @@ def mpi_st(draw, strategy: st.SearchStrategy):
     """Decorator to make a strategy MPI-aware."""
     # Get the strategy
     data = draw(strategy)
-    print(f"Rank {mpi_rank}: Before BCast {data}")
 
     # Broadcast the strategy to all ranks
     sync_data = comm.bcast(data, root=0)
-    print(f"Rank {mpi_rank}: After BCast {sync_data}")
 
     return sync_data
 

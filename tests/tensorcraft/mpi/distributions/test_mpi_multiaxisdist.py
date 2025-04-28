@@ -132,7 +132,7 @@ def test_apply_split(
         )
     )
 )
-def test_apply_allgather(
+def test_apply_allgather_single_dim(
     shape_and_dist: tuple[torch.Size, MPIMultiAxisDist],
 ):
     shape, dist = shape_and_dist
@@ -169,3 +169,34 @@ def test_apply_allgather(
 
         except ValueError:
             continue
+
+
+@pytest.mark.mpi_test(4)
+@given(
+    shape_and_dist=mpi_st(
+        shape_and_dist(
+            mesh=torch.Size([2, 2]),
+            is_compatible=True,
+            is_distributed=True,
+            max_axis_size=75,
+        )
+    )
+)
+@settings(deadline=None)
+def test_apply_allgather_all_dims(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
+    shape, dist = shape_and_dist
+    dist = MPIMultiAxisDist.fromMultiAxisDist(dist)
+
+    if rank == 0:
+        note(f"Shape: {shape}")
+        note(f"Dist: {dist}")
+
+    g_tensor = torch.arange(math.prod(shape)).reshape(shape)
+
+    l_tensor = dist.apply(g_tensor, rank)
+
+    gathered_dist, gathered_local = dist.apply_allgather(shape, l_tensor, comm)
+    assert gathered_local.shape == g_tensor.shape
+    assert torch.all(gathered_local == g_tensor)
+
+    assert not gathered_dist.isDistributed()
