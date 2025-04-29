@@ -329,8 +329,7 @@ class MultiAxisDist(Dist):
             The number of involved processes in each sub communicator.
         """
         if not self.isDistributed():
-            log.debug("The original distribution is not distributed, nothing to do.")
-            return self, 0, 0
+            raise ValueError("Tensor is not distrbuted, nothing to gather.")
 
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
@@ -351,6 +350,9 @@ class MultiAxisDist(Dist):
 
             # Cost of allgather
             comm_volume = self.maxNumElements(shape) * involved_procs
+            log.debug(
+                f"New dist: {new_dist}, Involved procs: {involved_procs}, Comm volume: {comm_volume}"
+            )
 
             return (
                 new_dist,
@@ -718,11 +720,14 @@ class MultiAxisDist(Dist):
             log.info(f"Block size is already {old_block_size}")
             raise ValueError("Invalid arguments")
 
-        if block_size > old_block_size and block_size % old_block_size != 0:
-            log.info("New block size must be a multiple of the old block size")
+        if block_size > old_block_size and block_size % (old_block_size * n_procs) != 0:
+            log.debug("New block size must be a multiple of the old block size")
             raise ValueError("Invalid arguments")
-        elif block_size < old_block_size and old_block_size % block_size != 0:
-            log.info("Old block size must be a multiple of the new block size")
+        elif (
+            block_size < old_block_size
+            and old_block_size % (block_size * old_block_size) != 0
+        ):
+            log.debug("Old block size must be a multiple of the new block size")
             raise ValueError("Invalid arguments")
 
         ## TODO: Very simplified shit. If implemented like this it would be extremely inefficient, as some of the redistributions would have a lot of empty alltoallw buffers.
@@ -732,7 +737,7 @@ class MultiAxisDist(Dist):
         )
 
         if not new_dist.compatible(shape):
-            log.info("Tensor shape not compatible with new block size.")
+            log.debug("Tensor shape not compatible with new block size.")
             raise ValueError("Incompatible redistribution.")
 
         comm_volume = self.maxNumElements(shape)
@@ -743,6 +748,10 @@ class MultiAxisDist(Dist):
         self, shape: torch.Size, prefered_b_size: list[int] = []
     ) -> list[tuple[str, "MultiAxisDist", int, int]]:  # noqa: D102
         neighbours = []
+
+        log.info(
+            f"Looking for neighbours for {self} with the following block sizes: {prefered_b_size}"
+        )
 
         # Free dims:
         free_dims = []
@@ -792,7 +801,9 @@ class MultiAxisDist(Dist):
         try:
             operation = "allgather_*"
             new_dist, vol, n_procs = self.allgather(shape)
-            log.debug(f"New neighbour: {new_dist}")
+            log.debug(
+                f"New neighbour: {new_dist}: Operation: {operation}, Volume: {vol}, Procs: {n_procs}"
+            )
 
             neighbours.append((operation, new_dist, vol, n_procs))
 

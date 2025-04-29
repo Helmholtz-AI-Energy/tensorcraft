@@ -1,7 +1,7 @@
 """Memory Constrained Redistributor module."""
 
 import logging
-from typing import Any
+from typing import Any, Callable, Optional
 
 import jellyfish
 import torch
@@ -30,12 +30,16 @@ class AStarRedistributor(Redistributor):
         epsilon: float = 0.0,  # Memory Cost
         path_cost_w: float = 1.0,
         estimate_w: float = 1.0,
+        node_filter: Optional[
+            Callable[[torch.Size, MultiAxisDist, MultiAxisDist, MultiAxisDist], bool]
+        ] = None,  # Skips if it returns true. Recivies as input the original shape, the starting distribution, the target distribution, and the current distribution
         **kwargs: Any,
     ):
         super().__init__(costModel, alpha, beta, gamma, epsilon)
-        self._kwargs = kwargs
         self._path_cost_w = path_cost_w
         self._estimate_w = estimate_w
+        self._node_filter = node_filter
+        self._kwargs = kwargs
 
     def _redistribute_slab(
         self, shape: torch.Size, start_dist: SlabDist, target_dist: SlabDist
@@ -66,6 +70,11 @@ class AStarRedistributor(Redistributor):
             real_neighbours: list[tuple[str, RouteNode[MultiAxisDist]]] = []
             for op_id, n_dist, vol, n_procs in neighbours_list:
                 n_memory_usage = n_dist.maxNumElements(shape)
+
+                if self._node_filter and self._node_filter(
+                    shape, start_dist, target_dist, n_dist
+                ):
+                    continue
 
                 mem_delta = n_memory_usage - current_memory_usage
                 log.debug(
@@ -114,7 +123,7 @@ class AStarRedistributor(Redistributor):
             _, cost = node.path_depth_cost()
             f1 = self._path_cost_w * cost
             f2 = self._estimate_w * estimate_dist
-            log.info(
+            log.debug(
                 f"Path cost: {self._path_cost_w} * {cost} ={f1}, Estimate cost:{self._estimate_w} * {estimate_dist} = {f2}"
             )
             value = f1 + f2
@@ -125,7 +134,6 @@ class AStarRedistributor(Redistributor):
             RouteNode(None, "", target_dist, {}, 0),
             neighbours,
             priority_func,
-            top_k=1,
             **self._kwargs,
         )
 
