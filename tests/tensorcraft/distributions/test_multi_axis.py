@@ -418,22 +418,53 @@ def test_permute(kwargs, target_dist):
     [
         (
             {"tensor_axis": 1, "block_size": 1},
-            MultiAxisDist(torch.Size([2, 2, 2]), (None, (0, 1, 2)), 1),
+            MultiAxisDist(
+                torch.Size(
+                    [
+                        2,
+                        2,
+                    ]
+                ),
+                (
+                    None,
+                    (
+                        0,
+                        1,
+                    ),
+                ),
+                1,
+            ),
         ),
         (
-            {"tensor_axis": 1, "block_size": 2},
-            MultiAxisDist(torch.Size([2, 2, 2]), (None, (0, 1, 2)), 2),
-        ),
-        (
-            {"tensor_axis": 1, "block_size": 8},
-            MultiAxisDist(torch.Size([2, 2, 2]), (None, (0, 1, 2)), 8),
+            {"tensor_axis": 1, "block_size": 16},
+            MultiAxisDist(
+                torch.Size(
+                    [
+                        2,
+                        2,
+                    ]
+                ),
+                (
+                    None,
+                    (
+                        0,
+                        1,
+                    ),
+                ),
+                16,
+            ),
         ),
     ],
 )
 def test_change_block_size(kwargs, target_dist):
     tensor_shape = torch.Size([10, 60])
-    mesh = torch.Size([2, 2, 2])
-    dist = MultiAxisDist(mesh, (None, (0, 1, 2)), 4)
+    mesh = torch.Size(
+        [
+            2,
+            2,
+        ]
+    )
+    dist = MultiAxisDist(mesh, (None, (0, 1)), 4)
 
     result_dist, n_elements, cost = dist.change_block_size(tensor_shape, **kwargs)
     assert isinstance(result_dist, MultiAxisDist)

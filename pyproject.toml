@@ -46,6 +46,9 @@ dependencies = [
 [project.optional-dependencies]
 notebook = ["ipython", "ipympl", "ipyparallel", "notebook"]
 dev = [
+    # HPO
+    "propulate",
+
     # Testing
     "pytest",
     "coverage",
