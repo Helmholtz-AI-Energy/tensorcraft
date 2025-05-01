@@ -165,3 +165,5 @@ pdm.lock
 notebooks/plots
 
 .vscode/
+venvs
+

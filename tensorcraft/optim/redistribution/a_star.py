@@ -15,7 +15,7 @@ from tensorcraft.util.route_finder import RouteNode, find_routes
 
 from .redistributor import OperationSchedule, Redistributor
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class AStarRedistributor(Redistributor):
@@ -54,8 +54,7 @@ class AStarRedistributor(Redistributor):
     def _redistribute_multi_axis(
         self, shape: torch.Size, start_dist: MultiAxisDist, target_dist: MultiAxisDist
     ) -> tuple[OperationSchedule, float]:
-        log.info(start_dist)
-        log.info(target_dist)
+        log.debug(f"Shape: {shape}, Start_dist: {start_dist}, target_dist: {target_dist}")
 
         preferred_block_sizes = list(
             set(filter(lambda x: x > 0, target_dist.blockSizes))

@@ -3,7 +3,7 @@ import mpi4py.MPI as MPI
 import pytest
 import torch
 from hypothesis import given
-from hypothesis import strategies as st
+from hypothesis import strategies as st, note
 
 import tensorcraft as tc
 
@@ -39,7 +39,7 @@ def mpi_st(draw, strategy: st.SearchStrategy):
 def test_torch2mpiBuffer_full_tensor(shape_dtype):
     shape, dtype = shape_dtype
 
-    print(f"R{mpi_rank}: Shape: {shape}, dtype: {dtype}")
+    note(f"R{mpi_rank}: Shape: {shape}, dtype: {dtype}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             tensor = torch.randint(100, shape, dtype=dtype)
@@ -48,20 +48,20 @@ def test_torch2mpiBuffer_full_tensor(shape_dtype):
     else:
         tensor = torch.zeros(shape, dtype=dtype)
 
-    print(f"R{mpi_rank}: shape: {tensor.shape}")
+    note(f"R{mpi_rank}: shape: {tensor.shape}")
 
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
-    print(f"R{mpi_rank}: buffer: {buffer}")
+    note(f"R{mpi_rank}: buffer: {buffer}")
     comm.Bcast([buffer, count, mpi_type], root=0)
-    print(f"R{mpi_rank}: After Bcast")
+    note(f"R{mpi_rank}: After Bcast")
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
 
     if validation_tensors:
-        print(f"R{mpi_rank}: N Validation tensors: {len(validation_tensors)}")
+        note(f"R{mpi_rank}: N Validation tensors: {len(validation_tensors)}")
         for v_tensor in validation_tensors:
             assert torch.all(v_tensor == tensor)
-    print(f"R{mpi_rank}: After validation --------------------------------------------")
+    note(f"R{mpi_rank}: After validation --------------------------------------------")
 
 
 @given(
@@ -86,12 +86,12 @@ def test_torch2mpiBuffer_transposed_first_last(shape_dtype):
     else:
         tensor = torch.zeros((shape[-1],) + shape[1:-1] + (shape[0],), dtype=dtype)
 
-    print(f"R{mpi_rank}: shape: {tensor.shape}")
+    note(f"R{mpi_rank}: shape: {tensor.shape}")
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
     comm.Bcast([buffer, count, mpi_type], root=0)
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    print(validation_tensors)
+    note(validation_tensors)
 
     if mpi_rank == 0:
         for v_tensor in validation_tensors:
@@ -108,8 +108,8 @@ def test_torch2mpiBuffer_transposed_first_last(shape_dtype):
 )
 def test_torch2mpiBuffer_transposed_first_second(shape_dtype):
     shape, dtype = shape_dtype
-    print(f"Rank {mpi_rank}")
-    print(f"Ransk {comm.gather(mpi_rank, root=0)}")
+    note(f"Rank {mpi_rank}")
+    note(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             base_tensor = torch.randint(100, shape, dtype=dtype)
@@ -122,12 +122,12 @@ def test_torch2mpiBuffer_transposed_first_second(shape_dtype):
     else:
         tensor = torch.zeros((shape[1],) + (shape[0],) + shape[2:], dtype=dtype)
 
-    print(f"R{mpi_rank}: shape: {tensor.shape}")
+    note(f"R{mpi_rank}: shape: {tensor.shape}")
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
     comm.Bcast([buffer, count, mpi_type], root=0)
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    print(validation_tensors)
+    note(validation_tensors)
 
     if mpi_rank == 0:
         for v_tensor in validation_tensors:
@@ -144,8 +144,8 @@ def test_torch2mpiBuffer_transposed_first_second(shape_dtype):
 )
 def test_torch2mpiBuffer_cont_offset(shape_dtype):
     shape, dtype = shape_dtype
-    print(f"Rank {mpi_rank}")
-    print(f"Ransk {comm.gather(mpi_rank, root=0)}")
+    note(f"Rank {mpi_rank}")
+    note(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             base_tensor = torch.randint(100, shape, dtype=dtype)
@@ -158,12 +158,12 @@ def test_torch2mpiBuffer_cont_offset(shape_dtype):
     else:
         tensor = torch.zeros((shape[0] - 3,) + shape[1:], dtype=dtype)
 
-    print(f"R{mpi_rank}: shape: {tensor.shape}")
+    note(f"R{mpi_rank}: shape: {tensor.shape}")
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
     comm.Bcast([buffer, count, mpi_type], root=0)
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    print(validation_tensors)
+    note(validation_tensors)
 
     if mpi_rank == 0:
         for v_tensor in validation_tensors:
@@ -180,8 +180,8 @@ def test_torch2mpiBuffer_cont_offset(shape_dtype):
 )
 def test_torch2mpiBuffer_non_cont_slice(shape_dtype):
     shape, dtype = shape_dtype
-    print(f"Rank {mpi_rank}")
-    print(f"Ransk {comm.gather(mpi_rank, root=0)}")
+    note(f"Rank {mpi_rank}")
+    note(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             base_tensor = torch.randint(100, shape, dtype=dtype)
@@ -194,12 +194,12 @@ def test_torch2mpiBuffer_non_cont_slice(shape_dtype):
     else:
         tensor = torch.zeros(shape[0:-1] + (shape[-1] - 3,), dtype=dtype)
 
-    print(f"R{mpi_rank}: shape: {tensor.shape}")
+    note(f"R{mpi_rank}: shape: {tensor.shape}")
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
     comm.Bcast([buffer, count, mpi_type], root=0)
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    print(validation_tensors)
+    note(validation_tensors)
 
     if mpi_rank == 0:
         for v_tensor in validation_tensors:
@@ -216,8 +216,8 @@ def test_torch2mpiBuffer_non_cont_slice(shape_dtype):
 )
 def test_torch2mpiBuffer_slice_step(shape_dtype):
     shape, dtype = shape_dtype
-    print(f"Rank {mpi_rank}")
-    print(f"Ransk {comm.gather(mpi_rank, root=0)}")
+    note(f"Rank {mpi_rank}")
+    note(f"Ransk {comm.gather(mpi_rank, root=0)}")
     if mpi_rank == 0:
         if dtype in [torch.int32, torch.int64]:
             base_tensor = torch.randint(100, shape, dtype=dtype)
@@ -231,12 +231,12 @@ def test_torch2mpiBuffer_slice_step(shape_dtype):
             (shape[0],) + ((shape[1] // 2) + (shape[1] % 2),) + shape[2:], dtype=dtype
         )
 
-    print(f"R{mpi_rank}: shape: {tensor.shape}")
+    note(f"R{mpi_rank}: shape: {tensor.shape}")
     buffer, count, mpi_type = tc.mpi.tensor2mpiBuffer(tensor)
     comm.Bcast([buffer, count, mpi_type], root=0)
 
     validation_tensors: list[torch.Tensor] = comm.gather(tensor, root=0)
-    print(validation_tensors)
+    note(validation_tensors)
 
     if mpi_rank == 0:
         for v_tensor in validation_tensors:

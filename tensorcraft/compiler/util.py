@@ -9,7 +9,7 @@ import torch
 
 from tensorcraft.util.axis_utils import multi2linearIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 TOL = torch.tensor(1e-14)
 

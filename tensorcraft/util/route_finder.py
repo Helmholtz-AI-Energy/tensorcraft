@@ -5,7 +5,7 @@ import dataclasses
 import logging
 from typing import Any, Callable, Generic, Optional, TypeAlias, TypeVar
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -164,7 +164,7 @@ def find_routes(
                 else:
                     open_nodes.append(n_node)
 
-    print(f"Explored {node_count} nodes, found {len(end_nodes)} possible paths.")
+    log.info(f"Explored {node_count} nodes, found {len(end_nodes)} possible paths.")
     paths = []
     for end_node in end_nodes:
         paths.append(end_node.path_to_root())

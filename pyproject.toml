@@ -44,7 +44,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-notebook = ["ipython", "ipympl", "ipyparallel", "notebook"]
+notebooks = ["ipython", "ipympl", "ipyparallel", "notebook"]
 dev = [
     # HPO
     "propulate",

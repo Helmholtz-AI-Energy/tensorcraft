@@ -7,7 +7,7 @@ import torch
 from mpi4py import MPI
 from mpi4py.typing import BufSpec, BufSpecB, BufSpecV, BufSpecW
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 MPIBuffer: TypeAlias = BufSpec | BufSpecB | BufSpecV | BufSpecW
 
@@ -150,7 +150,7 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
         n_elements = tensor.numel()
         # Check
         if n_elements > MPI_INT_MAX:
-            log.info("tensor is too large, using tricks")
+            log.warning("tensor is too large, using tricks")
             if n_elements > MPI_INT_MAX**2:
                 raise ValueError("Tensor is too large, wtf are you doing?")
             mpi_type, type_count = _large_contiguous_vector(

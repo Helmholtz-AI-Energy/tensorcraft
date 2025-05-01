@@ -12,7 +12,7 @@ from tensorcraft.distributions import MultiAxisDist
 from tensorcraft.mpi.mpi_utils import as_buffer, tensor2mpiBuffer
 from tensorcraft.util import multi2linearIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class MPIMultiAxisDist(MultiAxisDist):
@@ -64,14 +64,13 @@ class MPIMultiAxisDist(MultiAxisDist):
             raise ValueError("The tensor is not compatible with the distribution")
 
         if not self.isDistributed():
-            log.info("Tensor is not distributed, nothing to do.")
             return tensor
 
         if (0 <= rank < self.numProcessors) is False:
             raise ValueError("Rank must be in the range of the processor mesh.")
 
         p_midx = self.getProcessorMultiIndex(rank)
-        log.info(f"R{rank}: Processor multi index: {p_midx}")
+        log.debug(f"Processor multi index: {p_midx}")
 
         og_shape = tensor.shape
 
@@ -80,14 +79,14 @@ class MPIMultiAxisDist(MultiAxisDist):
         for s, b in zip(tensor.shape, self._block_sizes):
             missing_elements.append(b - (s % b) if b != -1 else 0)
             n_full_blocks_per_axis.append(s // b if b != -1 else 1)
-        log.info(f"R{rank}: Missing elements: {missing_elements}")
-        log.info(f"R{rank}: N blocks per axis: {n_full_blocks_per_axis}")
+        log.debug(f"Missing elements: {missing_elements}")
+        log.debug(f"N blocks per axis: {n_full_blocks_per_axis}")
         tensor = F.pad(
             tensor,
             [value for me in missing_elements[::-1] for value in (0, me)],
             value=0,
         )
-        log.info(f"R{rank}: Padded tensor shape: {tensor.shape}")
+        log.debug(f"Padded tensor shape: {tensor.shape}")
 
         reshape_list = []
         permute_tuple: tuple[int, ...] = ()
@@ -117,15 +116,15 @@ class MPIMultiAxisDist(MultiAxisDist):
         permute_tuple = (
             tuple(set(range(len(reshape_list))) - set(permute_tuple)) + permute_tuple
         )
-        log.info(f"R{rank}: Permute tuple: {permute_tuple}")
-        log.info(f"R{rank}: Reshape tuple: {reshape_list}")
+        log.debug(f"Permute tuple: {permute_tuple}")
+        log.debug(f"Reshape tuple: {reshape_list}")
 
         tensor = tensor.reshape(*reshape_list)
 
-        log.info(f"R{rank}: Tile Slices: {tile_slices}")
+        log.debug(f"Tile Slices: {tile_slices}")
         local_tensor = tensor[tile_slices]
 
-        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
+        log.debug(f"Local tensor shape: {local_tensor.shape}")
 
         local_shape = [
             n_blocks * b_size if b_size != -1 else og_size
@@ -133,11 +132,11 @@ class MPIMultiAxisDist(MultiAxisDist):
                 og_shape, local_tensor.shape[::2], self._block_sizes
             )
         ]
-        log.info(f"R{rank}: Target local tensor shape: {local_shape}")
+        log.debug(f"Target local tensor shape: {local_shape}")
 
         # Reshape the tensor to the original shape
         local_tensor = local_tensor.reshape(*local_shape)
-        # print(local_tensor)
+        log.debug(local_tensor)
 
         # Remove the padding from the relevant axes
         shaved_slices = []
@@ -149,8 +148,8 @@ class MPIMultiAxisDist(MultiAxisDist):
                     p_midx,
                     order=self._dims_mapping[i],
                 )
-                log.info(
-                    f"R{rank}: Linear processor index: {l_p_index}, Residue: {r}, Block size: {self._block_sizes[i]}, axis: {i}, N procs: {n_procs}, N full blocks: {n_full_blocks_per_axis[i]}"
+                log.debug(
+                    f"Linear processor index: {l_p_index}, Residue: {r}, Block size: {self._block_sizes[i]}, axis: {i}, N procs: {n_procs}, N full blocks: {n_full_blocks_per_axis[i]}"
                 )
                 if n_full_blocks_per_axis[i] % n_procs == l_p_index:
                     shaved_slices.append(slice(0, -r))
@@ -159,9 +158,9 @@ class MPIMultiAxisDist(MultiAxisDist):
             else:
                 shaved_slices.append(slice(None))
 
-        log.info(f"R{rank}: Shaved slices: {shaved_slices}")
+        log.debug(f"Shaved slices: {shaved_slices}")
         local_tensor = local_tensor[shaved_slices]
-        log.info(f"R{rank}: Final local tensor shape: {local_tensor.shape}")
+        log.debug(f"Final local tensor shape: {local_tensor.shape}")
         return local_tensor
 
     def apply_split(
@@ -207,8 +206,8 @@ class MPIMultiAxisDist(MultiAxisDist):
         if (0 <= rank < self.numProcessors) is False:
             raise ValueError("Rank must be in the range of the processor mesh.")
 
-        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
-        log.info(f"R{rank}: Predicted shape: {self.localShape(global_shape, rank)}")
+        log.debug(f"Local tensor shape: {local_tensor.shape}")
+        log.debug(f"Predicted shape: {self.localShape(global_shape, rank)}")
 
         if local_tensor.shape != self.localShape(global_shape, rank):
             raise ValueError("Local tensor shape does not match the distribution.")
@@ -216,10 +215,10 @@ class MPIMultiAxisDist(MultiAxisDist):
         new_dist = self.split(global_shape, tensor_axis, mesh_dims, block_size, minor)[
             0
         ]
-        log.info(f"New distribution: {new_dist}")
+        log.debug(f"New distribution: {new_dist}")
 
         p_midx = self.getProcessorMultiIndex(rank)
-        log.info(f"R{rank}: Processor multi index: {p_midx}")
+        log.debug(f"Processor multi index: {p_midx}")
 
         mesh_dims = mesh_dims if isinstance(mesh_dims, tuple) else (mesh_dims,)
 
@@ -230,22 +229,22 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         res = local_tensor.shape[tensor_axis] % target_block_size
         missing_elements = (target_block_size - res) if res != 0 else 0
-        log.info(f"R{rank}: Missing elements {missing_elements}")
+        log.debug(f"Missing elements {missing_elements}")
         n_full_blocks = global_shape[tensor_axis] // target_block_size
 
         padding_tuple = [0] * len(og_l_shape) * 2
         padding_tuple[tensor_axis * 2] = missing_elements
-        log.info(f"R{rank}: Padding tuple: {padding_tuple}")
+        log.debug(f"Padding tuple: {padding_tuple}")
 
         padded_tensor = F.pad(local_tensor, padding_tuple[::-1], value=0)
-        log.info(f"R{rank}: Padded local tensor shape: {padded_tensor.shape}")
+        log.debug(f"Padded local tensor shape: {padded_tensor.shape}")
 
         reshape_list = list(padded_tensor.shape)
         reshape_list[tensor_axis] = (
             padded_tensor.shape[tensor_axis] // target_block_size
         )
         reshape_list.insert(tensor_axis + 1, target_block_size)
-        log.info(f"R{rank}: Reshape list: {reshape_list}")
+        log.debug(f"Reshape list: {reshape_list}")
 
         idx = multi2linearIndex(
             self._pmesh,
@@ -255,43 +254,43 @@ class MPIMultiAxisDist(MultiAxisDist):
         n_procs = math.prod([self._pmesh[x] for x in mesh_dims])
         tile_slices = [slice(None)] * len(padded_tensor.shape)
         tile_slices[tensor_axis] = slice(idx, None, n_procs)
-        log.info(f"R{rank}: Tile Slices: {tile_slices}")
+        log.debug(f"Tile Slices: {tile_slices}")
 
         reshaped_tensor = padded_tensor.reshape(*reshape_list)
-        log.info(f"R{rank}: Reshaped tensor shape: {reshaped_tensor.shape}")
+        log.debug(f"Reshaped tensor shape: {reshaped_tensor.shape}")
 
         # Apply the tile slices
         sliced_tensor = reshaped_tensor[tile_slices]
-        log.info(f"R{rank}: Local tensor shape: {sliced_tensor.shape}")
+        log.debug(f"Local tensor shape: {sliced_tensor.shape}")
 
         local_shape = list(og_l_shape)
         local_shape[tensor_axis] = sliced_tensor.shape[tensor_axis] * target_block_size
 
-        log.info(f"R{rank}: Pre-shaved Target local tensor shape: {local_shape}")
+        log.debug(f"Pre-shaved Target local tensor shape: {local_shape}")
 
         # Reshape the tensor to the original shape
         pre_shaving_tensor = sliced_tensor.reshape(*local_shape)
-        log.info(f"R{rank}: Pre-shaving tensor shape: {pre_shaving_tensor.shape}")
+        log.debug(f"Pre-shaving tensor shape: {pre_shaving_tensor.shape}")
 
         relevant_dims = new_dist._dims_mapping[tensor_axis]
         relevant_dims_tuple = (
             relevant_dims if isinstance(relevant_dims, tuple) else (relevant_dims,)
         )
         relevant_n_procs = math.prod([self._pmesh[x] for x in relevant_dims_tuple])
-        log.info(f"R{rank}: Relevant dims: {relevant_dims_tuple}")
+        log.debug(f"Relevant dims: {relevant_dims_tuple}")
         l_idx_axis = multi2linearIndex(
             self._pmesh,
             p_midx,
             order=relevant_dims_tuple,
         )
 
-        log.info(
-            f"R{rank}: Linear processor index: {l_idx_axis}, Residue: {missing_elements}, Block size: {target_block_size}, axis: {tensor_axis}, N procs: {relevant_n_procs}, N full blocks: {n_full_blocks}"
+        log.debug(
+            f"Linear processor index: {l_idx_axis}, Residue: {missing_elements}, Block size: {target_block_size}, axis: {tensor_axis}, N procs: {relevant_n_procs}, N full blocks: {n_full_blocks}"
         )
         if missing_elements != 0 and n_full_blocks % relevant_n_procs == l_idx_axis:
             shave_slices = [slice(None)] * len(og_l_shape)
             shave_slices[tensor_axis] = slice(0, -missing_elements)
-            log.info(f"R{rank}: Shaving slices: {shave_slices}")
+            log.debug(f"Shaving slices: {shave_slices}")
             shaved_tensor = pre_shaving_tensor[shave_slices]
         else:
             shaved_tensor = pre_shaving_tensor
@@ -354,18 +353,18 @@ class MPIMultiAxisDist(MultiAxisDist):
                 if axis_map is not None
                 for dim in axis_map
             ]
-            print(f"Assigned_dims: {assigned_dims}")
+            log.debug(f"Assigned_dims: {assigned_dims}")
             current_dist = self
             current_l_tensor = local_tensor
-            print(f"Original shape: {local_tensor.shape}")
+            log.debug(f"Original shape: {local_tensor.shape}")
             for dim in assigned_dims:
                 current_dist, current_l_tensor = (
                     current_dist._apply_single_axis_allgather(
                         global_shape, current_l_tensor, comm, dim
                     )
                 )
-                print(f"Current_dist: {current_dist}")
-                print(f"Current shape: {current_l_tensor.shape}")
+                log.debug(f"Current_dist: {current_dist}")
+                log.debug(f"Current shape: {current_l_tensor.shape}")
 
             return MPIMultiAxisDist.fromMultiAxisDist(new_dist), current_l_tensor
 
@@ -383,13 +382,13 @@ class MPIMultiAxisDist(MultiAxisDist):
             global_shape, rank
         )  # Expected local shape of the outcome dist
 
-        log.info(f"R{rank}: New distribution: {new_dist}, new shape: {exp_t_l_shape}")
+        log.debug(f"New distribution: {new_dist}, new shape: {exp_t_l_shape}")
 
         exp_l_shape = self.localShape(
             global_shape, rank
         )  # Shape the local tensor should have
-        log.info(f"R{rank}: Local tensor shape: {local_tensor.shape}")
-        log.info(f"R{rank}: Expected local shape: {exp_l_shape}")
+        log.debug(f"Local tensor shape: {local_tensor.shape}")
+        log.inf(f"Expected local shape: {exp_l_shape}")
 
         if local_tensor.shape != exp_l_shape:
             raise ValueError("Local tensor shape does not match the distribution.")
@@ -401,13 +400,13 @@ class MPIMultiAxisDist(MultiAxisDist):
                 minor = mappings.index(gather_mesh_dim) != 0
                 changed_t_axis = axis
                 break
-        log.info(f"R{rank}: Changed tensor axis: {changed_t_axis}, minor: {minor}")
+        log.debug("Changed tensor axis: {changed_t_axis}, minor: {minor}")
 
         p_midx = self.getProcessorMultiIndex(rank)
-        log.info(f"R{rank}: Processor multi index: {p_midx}")
+        log.debug("Processor multi index: {p_midx}")
 
         n_procs = self._pmesh[gather_mesh_dim]
-        log.info(f"R{rank}: N procs: {n_procs}")
+        log.debug("N procs: {n_procs}")
 
         # Find the global rank of the first processor in the mesh dimension
         tmp_p_midx = list(p_midx)
@@ -416,15 +415,15 @@ class MPIMultiAxisDist(MultiAxisDist):
             self._pmesh,
             tmp_p_midx,
         )
-        log.info(
-            f"R{rank}: Rank of largest tensor in the subcommunicator: {tmp_p_midx} {linear_max_g_rank}"
+        log.debug(
+            f"Rank of largest tensor in the subcommunicator: {tmp_p_midx} {linear_max_g_rank}"
         )
 
         max_local_shape = self.localShape(global_shape, linear_max_g_rank)
         n_elements = math.prod(max_local_shape)
         b_size = self._block_sizes[changed_t_axis]
-        log.info(f"R{rank}: N elements: {n_elements}")
-        log.info(f"R{rank}: Max local shape: {max_local_shape}")
+        log.debug("N elements: {n_elements}")
+        log.debug("Max local shape: {max_local_shape}")
 
         # Target buffer shape (n_procs, n_max_blocks, b_size, )
         n_max_blocks = math.ceil(
@@ -437,15 +436,15 @@ class MPIMultiAxisDist(MultiAxisDist):
                 n_max_blocks * self._block_sizes[changed_t_axis]
                 - local_tensor.shape[changed_t_axis]
             )
-            log.info(f"R{rank}: Padding: {padding}")
+            log.debug("Padding: {padding}")
             if padding > 0:
                 padding_tuple = [0] * len(local_tensor.shape) * 2
                 padding_tuple[changed_t_axis * 2] = padding
-                log.info(f"R{rank}: Padding tuple: {padding_tuple}")
+                log.debug("Padding tuple: {padding_tuple}")
                 local_tensor = F.pad(local_tensor, padding_tuple[::-1], value=0)
 
-                log.info(f"R{rank}: Padded local tensor shape: {local_tensor.shape}")
-                log.info(f"R{rank}: Padded local tensor: {local_tensor}")
+                log.debug("Padded local tensor shape: {local_tensor.shape}")
+                log.debug("Padded local tensor: {local_tensor}")
 
         # Send buffer
         send_buffer_tuple = tensor2mpiBuffer(local_tensor)
@@ -466,8 +465,8 @@ class MPIMultiAxisDist(MultiAxisDist):
             n_elements,
             send_buffer_tuple[2],
         )
-        log.info(f"R{rank}: Send buffer: {send_buffer_tuple}")
-        log.info(f"R{rank}: Recv buffer: {recv_buffer_tuple}")
+        log.debug("Send buffer: {send_buffer_tuple}")
+        log.debug("Recv buffer: {recv_buffer_tuple}")
 
         # Create the subcommunicator
         cart_comm = comm.Create_cart(
@@ -479,7 +478,7 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         # Perform the allgather operation
         sub_comm.Allgather(send_buffer_tuple, recv_tensor)
-        log.info(f"R{rank}: Recv_tensor : {recv_tensor}")
+        log.debug("Recv_tensor : {recv_tensor}")
 
         # Reshape the tensor to the original shape
         permute_list = list(range(1, len(recv_tensor.shape)))
@@ -489,14 +488,14 @@ class MPIMultiAxisDist(MultiAxisDist):
         reshape_list[changed_t_axis] = n_max_blocks * b_size * n_procs
 
         recv_tensor = recv_tensor.permute(*permute_list).reshape(*reshape_list)
-        log.info(f"R{rank}: Reshaped tensor shape: {recv_tensor.shape}")
+        log.debug("Reshaped tensor shape: {recv_tensor.shape}")
 
         # Remove the padding from the relevant axes
         slices = [slice(None)] * len(exp_l_shape)
         slices[changed_t_axis] = slice(0, exp_t_l_shape[changed_t_axis])
 
-        log.info(f"R{rank}: Slices: {slices}")
+        log.debug("Slices: {slices}")
         recv_tensor = recv_tensor[slices]
-        log.info(f"R{rank}: Final tensor shape: {recv_tensor.shape}")
+        log.debug("Final tensor shape: {recv_tensor.shape}")
 
         return self.fromMultiAxisDist(new_dist), recv_tensor

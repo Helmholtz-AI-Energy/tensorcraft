@@ -11,7 +11,7 @@ from typing_extensions import override
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
 BlockSizesType: TypeAlias = tuple[int, ...]
@@ -717,7 +717,7 @@ class MultiAxisDist(Dist):
 
         old_block_size = new_block_size_list[tensor_axis]
         if old_block_size == block_size:
-            log.info(f"Block size is already {old_block_size}")
+            log.debug(f"Block size is already {old_block_size}")
             raise ValueError("Invalid arguments")
 
         if block_size > old_block_size and block_size % (old_block_size * n_procs) != 0:
@@ -749,7 +749,7 @@ class MultiAxisDist(Dist):
     ) -> list[tuple[str, "MultiAxisDist", int, int]]:  # noqa: D102
         neighbours = []
 
-        log.info(
+        log.debug(
             f"Looking for neighbours for {self} with the following block sizes: {prefered_b_size}"
         )
 

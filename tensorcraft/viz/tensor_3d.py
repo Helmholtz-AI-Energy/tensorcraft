@@ -8,7 +8,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from tensorcraft.distributions import Dist
 from tensorcraft.viz.util import draw_color_bar, explode, get_n_colors
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 def draw_3d_tensor(

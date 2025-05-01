@@ -10,7 +10,7 @@ from typing_extensions import Self
 
 from tensorcraft.util.axis_utils import linear2multiIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class Dist(ABC):

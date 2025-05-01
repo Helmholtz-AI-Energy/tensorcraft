@@ -10,7 +10,7 @@ from tensorcraft.compiler import Program, TensorExpression
 
 from .util import get_n_colors, rgba2hex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 def draw_program_graph(program: Program, color_by: str = "loops") -> None:

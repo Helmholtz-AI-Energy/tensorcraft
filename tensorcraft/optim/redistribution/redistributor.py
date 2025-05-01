@@ -8,7 +8,7 @@ import torch
 from tensorcraft.distributions import Dist, MultiAxisDist, SlabDist, TileDist
 from tensorcraft.optim.cost import Cost, CostModel
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 OperationSchedule = list[tuple[str, Dist, float]]
 

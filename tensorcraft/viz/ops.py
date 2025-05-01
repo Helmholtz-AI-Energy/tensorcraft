@@ -9,7 +9,7 @@ import torch
 
 from tensorcraft.compiler.model import TensorExpression
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 def _highlight_index(

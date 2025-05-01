@@ -13,7 +13,7 @@ import torch
 from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
 from tensorcraft.util.axis_utils import linear2multiIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class AssignmentType(enum.Enum):

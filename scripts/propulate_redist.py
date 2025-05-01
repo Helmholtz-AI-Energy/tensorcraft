@@ -4,6 +4,7 @@ import time
 import propulate
 import torch
 from mpi4py import MPI
+import logging
 
 import tensorcraft as tc
 
@@ -73,7 +74,6 @@ def cost_function(params: dict[str, any]):
 
     total_redist_time = 0.0
     for shape, start_dist, target_dist in problems:
-        print(f"Shape: {shape}, start: {start_dist}, target: {target_dist}")
         sequence, redist_time_cost = redistributor.redistribute(
             shape, start_dist, target_dist
         )
@@ -84,7 +84,17 @@ def cost_function(params: dict[str, any]):
     return total_redist_time * 10000 + scheduling_time
 
 
-propulate.set_logger_config()
+tc.set_logger_config(level=logging.INFO, log_to_stdout=True)
+
+propulate.set_logger_config(
+    level=logging.INFO,
+    log_to_stdout=True,
+    log_file=f"./prop_cp/prop.log",
+    log_rank=True,
+    colors=True,
+)
+
+
 
 rng = random.Random(3459 + comm.rank)
 
@@ -98,12 +108,12 @@ propulator = propulate.Propulator(
     propagator=propagator,
     rng=rng,
     island_comm=comm,
+    checkpoint_path="./prop_cp/",
 )
 
-propulator.propulate(
-    logging_interval=1,
-)
+propulator.propulate(debug=1)
 
 propulator.summarize(
     top_n=1,
+    debug=1,
 )

@@ -2,18 +2,14 @@
 
 __version__ = "0.0.0"
 
-from tensorcraft.logging import init_logging
-
-init_logging("WARN")
-
 import torch
 
 torch.autograd.set_grad_enabled(False)
 
-# Stack
-import tensorcraft.compiler as compiler
+from .logging import set_logger_config
 
 # Lower level modules
+import tensorcraft.compiler as compiler
 import tensorcraft.distributions as dist
 import tensorcraft.mpi as mpi
 
@@ -31,6 +27,8 @@ __all__ = [
     "mpi",
     "dist",
     "compiler",
+    "compile",
     "viz",
     "optim",
+    "set_logger_config"
 ]

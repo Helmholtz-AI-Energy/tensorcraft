@@ -15,7 +15,7 @@ from tensorcraft.compiler.model import (
     TensorVariable,
 )
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class Compiler:

@@ -8,7 +8,7 @@ import torch
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class TileDist(Dist):

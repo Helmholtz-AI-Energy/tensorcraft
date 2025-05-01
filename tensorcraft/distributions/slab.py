@@ -9,7 +9,7 @@ import torch
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class SlabDist(Dist):

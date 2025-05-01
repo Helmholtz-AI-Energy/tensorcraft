@@ -28,9 +28,7 @@ def pytest_configure(config):
 def pytest_runtest_setup(item):
     skip_marker = item.get_closest_marker("mpi_test")
     if skip_marker:
-        print("Skip marker: ", skip_marker.args)
         ranks = int(skip_marker.args[0]) if len(skip_marker.args) == 1 else None
-        print("Runtest setup: ", ranks)
         if mpi_size <= 1 or (ranks is not None and ranks != mpi_size):
             pytest.skip(
                 f"Skipping MPI test, only {mpi_size} ranks available, but {ranks if ranks else '> 1'} required"
