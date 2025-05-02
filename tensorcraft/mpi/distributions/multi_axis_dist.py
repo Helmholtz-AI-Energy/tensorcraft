@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from mpi4py import MPI
 
 from tensorcraft.distributions import MultiAxisDist
-from tensorcraft.mpi.mpi_utils import as_buffer, tensor2mpiBuffer
+from tensorcraft.mpi.mpi_utils import tensor2mpiBuffer
 from tensorcraft.util import multi2linearIndex
 
 log = logging.getLogger(__name__)
@@ -398,13 +398,13 @@ class MPIMultiAxisDist(MultiAxisDist):
             if gather_mesh_dim in mappings:
                 changed_t_axis = axis
                 break
-        log.debug("Changed tensor axis: {changed_t_axis}, minor: {minor}")
+        log.debug(f"Changed tensor axis: {changed_t_axis}")
 
         p_midx = self.getProcessorMultiIndex(rank)
-        log.debug("Processor multi index: {p_midx}")
+        log.debug(f"Processor multi index: {p_midx}")
 
         n_procs = self._pmesh[gather_mesh_dim]
-        log.debug("N procs: {n_procs}")
+        log.debug(f"N procs: {n_procs}")
 
         # Find the global rank of the first processor in the mesh dimension
         tmp_p_midx = list(p_midx)
@@ -420,8 +420,8 @@ class MPIMultiAxisDist(MultiAxisDist):
         max_local_shape = self.localShape(global_shape, linear_max_g_rank)
         n_elements = math.prod(max_local_shape)
         b_size = self._block_sizes[changed_t_axis]
-        log.debug("N elements: {n_elements}")
-        log.debug("Max local shape: {max_local_shape}")
+        log.debug(f"N elements: {n_elements}")
+        log.debug(f"Max local shape: {max_local_shape}")
 
         # Target buffer shape (n_procs, n_max_blocks, b_size, )
         n_max_blocks = math.ceil(
@@ -434,15 +434,15 @@ class MPIMultiAxisDist(MultiAxisDist):
                 n_max_blocks * self._block_sizes[changed_t_axis]
                 - local_tensor.shape[changed_t_axis]
             )
-            log.debug("Padding: {padding}")
+            log.debug(f"Padding: {padding}")
             if padding > 0:
                 padding_tuple = [0] * len(local_tensor.shape) * 2
                 padding_tuple[changed_t_axis * 2] = padding
-                log.debug("Padding tuple: {padding_tuple}")
+                log.debug(f"Padding tuple: {padding_tuple}")
                 local_tensor = F.pad(local_tensor, padding_tuple[::-1], value=0)
 
-                log.debug("Padded local tensor shape: {local_tensor.shape}")
-                log.debug("Padded local tensor: {local_tensor}")
+                log.debug(f"Padded local tensor shape: {local_tensor.shape}")
+                log.debug(f"Padded local tensor: {local_tensor}")
 
         # Send buffer
         send_buffer_tuple = tensor2mpiBuffer(local_tensor)
@@ -451,20 +451,14 @@ class MPIMultiAxisDist(MultiAxisDist):
         tmp_shape[changed_t_axis] = b_size
         tmp_shape.insert(changed_t_axis, n_max_blocks)
 
-        recv_tensor = torch.zeros(
+        recv_tensor = torch.empty(
             [
                 n_procs,
             ]
             + tmp_shape,
             dtype=local_tensor.dtype,
         )
-        recv_buffer_tuple = (
-            as_buffer(recv_tensor),
-            n_elements,
-            send_buffer_tuple[2],
-        )
-        log.debug("Send buffer: {send_buffer_tuple}")
-        log.debug("Recv buffer: {recv_buffer_tuple}")
+        log.debug(f"Send buffer: {send_buffer_tuple}")
 
         # Create the subcommunicator
         cart_comm = comm.Create_cart(
@@ -475,8 +469,9 @@ class MPIMultiAxisDist(MultiAxisDist):
         sub_comm = cart_comm.Sub(subs)
 
         # Perform the allgather operation
-        sub_comm.Allgather(send_buffer_tuple, recv_buffer_tuple)
-        log.debug("Recv_tensor : {recv_tensor}")
+        # Here we are passing the torch tensor, instead of a buffer. For reasons unknown, this does not work when passing the regular MPI4py buffer object. Not sure why. I just hope the DLPack library does this well.
+        sub_comm.Allgather(send_buffer_tuple, recv_tensor)
+        log.debug(f"Recv_tensor : {recv_tensor}")
 
         # Reshape the tensor to the original shape
         permute_list = list(range(1, len(recv_tensor.shape)))
@@ -486,14 +481,14 @@ class MPIMultiAxisDist(MultiAxisDist):
         reshape_list[changed_t_axis] = n_max_blocks * b_size * n_procs
 
         recv_tensor = recv_tensor.permute(*permute_list).reshape(*reshape_list)
-        log.debug("Reshaped tensor shape: {recv_tensor.shape}")
+        log.debug(f"Reshaped tensor shape: {recv_tensor.shape}")
 
         # Remove the padding from the relevant axes
         slices = [slice(None)] * len(exp_l_shape)
         slices[changed_t_axis] = slice(0, exp_t_l_shape[changed_t_axis])
 
-        log.debug("Slices: {slices}")
+        log.debug(f"Slices: {slices}")
         recv_tensor = recv_tensor[slices]
-        log.debug("Final tensor shape: {recv_tensor.shape}")
+        log.debug(f"Final tensor shape: {recv_tensor.shape}")
 
         return self.fromMultiAxisDist(new_dist), recv_tensor

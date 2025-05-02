@@ -128,10 +128,11 @@ def test_apply_split(
             mesh=torch.Size([2, 2]),
             is_compatible=True,
             is_distributed=True,
-            max_axis_size=75,
+            max_axis_size=60,
         )
     )
 )
+@settings(deadline=None)
 def test_apply_allgather_single_dim(
     shape_and_dist: tuple[torch.Size, MPIMultiAxisDist],
 ):

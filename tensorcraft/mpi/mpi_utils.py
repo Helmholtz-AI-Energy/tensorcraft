@@ -158,6 +158,7 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
             )
             return buffer, type_count, mpi_type
         else:
+            log.debug("Best case scenario, it is contiguous!")
             return buffer, n_elements, torch_type2mpi_type[tensor_dtype]
     else:
         # Check if the tensor stride is arranged in decending order
