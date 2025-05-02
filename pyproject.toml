@@ -46,9 +46,6 @@ dependencies = [
 [project.optional-dependencies]
 notebooks = ["ipython", "ipympl", "ipyparallel", "notebook"]
 dev = [
-    # HPO
-    "propulate",
-
     # Testing
     "pytest",
     "coverage",
@@ -61,6 +58,7 @@ dev = [
     # Releases and changelogs
     "python-semantic-release>=9.0.0",
 ]
+scripts = ["propulate"]
 
 [project.urls]
 Homepage = "https://github.com/Helmholtz-AI-Energy/tensorcraft"
