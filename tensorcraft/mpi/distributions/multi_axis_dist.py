@@ -388,16 +388,14 @@ class MPIMultiAxisDist(MultiAxisDist):
             global_shape, rank
         )  # Shape the local tensor should have
         log.debug(f"Local tensor shape: {local_tensor.shape}")
-        log.inf(f"Expected local shape: {exp_l_shape}")
+        log.debug(f"Expected local shape: {exp_l_shape}")
 
         if local_tensor.shape != exp_l_shape:
             raise ValueError("Local tensor shape does not match the distribution.")
 
         changed_t_axis = -1
-        minor = False
         for axis, mappings in enumerate(self._dims_mapping):
             if gather_mesh_dim in mappings:
-                minor = mappings.index(gather_mesh_dim) != 0
                 changed_t_axis = axis
                 break
         log.debug("Changed tensor axis: {changed_t_axis}, minor: {minor}")
@@ -477,7 +475,7 @@ class MPIMultiAxisDist(MultiAxisDist):
         sub_comm = cart_comm.Sub(subs)
 
         # Perform the allgather operation
-        sub_comm.Allgather(send_buffer_tuple, recv_tensor)
+        sub_comm.Allgather(send_buffer_tuple, recv_buffer_tuple)
         log.debug("Recv_tensor : {recv_tensor}")
 
         # Reshape the tensor to the original shape

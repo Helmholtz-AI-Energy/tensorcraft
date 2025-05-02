@@ -1,10 +1,10 @@
+import logging
 import random
 import time
 
 import propulate
 import torch
 from mpi4py import MPI
-import logging
 
 import tensorcraft as tc
 
@@ -29,11 +29,6 @@ problems = [
         torch.Size([100000, 10000]),
         tc.dist.MultiAxisDist(torch.Size([2, 2]), ((0,), (1,)), 100),
         tc.dist.MultiAxisDist(torch.Size([2, 2]), ((0, 1), None), 100),
-    ),
-    (
-        torch.Size([100000, 10000]),
-        tc.dist.MultiAxisDist(torch.Size([2, 2]), ((0,), (1,)), 100),
-        tc.dist.MultiAxisDist(torch.Size([2, 2]), ((0, 1), None), 1),
     ),
     (
         torch.Size([500, 100, 100, 8]),
@@ -89,11 +84,10 @@ tc.set_logger_config(level=logging.INFO, log_to_stdout=True)
 propulate.set_logger_config(
     level=logging.INFO,
     log_to_stdout=True,
-    log_file=f"./prop_cp/prop.log",
+    log_file="./prop_cp/prop.log",
     log_rank=True,
     colors=True,
 )
-
 
 
 rng = random.Random(3459 + comm.rank)
