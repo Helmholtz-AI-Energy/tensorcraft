@@ -71,7 +71,6 @@ def set_logger_config(
     rank = (
         f"R{MPI.COMM_WORLD.Get_rank()}/{MPI.COMM_WORLD.Get_size()}:" if log_rank else ""
     )
-    # Get base logger for Propulate.
     base_logger = logging.getLogger("tensorcraft")
     format_string = (
         f"[%(asctime)s][%(name)s][%(funcName)s][%(levelname)s] - {rank}%(message)s"
