@@ -58,7 +58,7 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
     assert len(program.variables) - len(program.input_variables) == 1
 
     # Check if the expression graph is correct
-    note(program.tensor_expressions)
+    print(program.tensor_expressions)
     op_graph = program.tensor_expressions[1].op_graph
     inputs = program.tensor_expressions[1].inputs
     with pytest.raises(nx.NetworkXNoCycle) as e:
@@ -66,7 +66,7 @@ def test_valid_operations(operations: str, op_count: int, loop_depth: int):
     assert e is not None
 
     # Check if the loop depth is correct
-    note(program.tensor_expressions[1])
+    print(program.tensor_expressions[1])
     assert program.tensor_expressions[1].loop_count == loop_depth
 
     # Check if the operation count is correct
