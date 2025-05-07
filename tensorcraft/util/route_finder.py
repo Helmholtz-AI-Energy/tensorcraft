@@ -118,7 +118,7 @@ def find_routes(
 
     node_count = 0
 
-    while len(open_nodes) > 0 and node_count < node_limit and len(end_nodes) != top_k:
+    while len(open_nodes) > 0 and node_count < node_limit and len(end_nodes) < top_k:
         log.debug(f"Open nodes: {len(open_nodes)}")
         log.debug(f"Close nodes: {len(close_nodes)}")
         log.debug(f"End nodes: {len(end_nodes)}")
