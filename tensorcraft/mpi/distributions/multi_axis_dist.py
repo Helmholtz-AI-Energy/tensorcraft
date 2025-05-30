@@ -528,25 +528,31 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         sub_mesh_mask = [1 if i in current_axis_order else 0 for i in range(len(mesh))]
 
-        print(f"{rank}/{world_size} - Creating cart")
+        log.debug(local_tensor)
+        log.debug(f"{rank}/{world_size} - Creating cart")
         # Create sub communicators
         cart_comm = comm.Create_cart(mesh, periods=[True]*len(mesh), reorder=True)
         sub_comm = cart_comm.Sub(sub_mesh_mask)
 
-        sub_rank = sub_comm.Get_rank()
-        print(f"{sub_rank}/{rank}/{world_size} - What's the target?")
-
-        sub_midx = sub_comm.Get_coords(sub_rank)
-        print(f"{sub_rank}/{rank}/{world_size} - Current sub_midx {sub_midx}")
-        permutation = [target_axis_order.index(i) for i in current_axis_order]
-        swaped_midx = torch.tensor(sub_midx)[permutation]
-        print(f"{sub_rank}/{rank}/{world_size} - Target sub_midx {swaped_midx}")
-
-        target_sub_rank = sub_comm.Get_cart_rank(swaped_midx)
-        print(f"{sub_rank}/{rank}/{world_size} - Target sub_rank {target_sub_rank}")
         
+        # smi: sub mesh index
+        c_sub_mesh_idx = multi2linearIndex(mesh, cart_comm.Get_coords(rank), current_axis_order)
+        exp_sub_mesh_idx = multi2linearIndex(mesh, cart_comm.Get_coords(rank), target_axis_order)
+
         comm.Barrier()
-        if sub_rank != target_sub_rank:
+        if c_sub_mesh_idx != exp_sub_mesh_idx:
+            real_smi = sub_comm.Get_rank()
+            log.debug(f"{real_smi}/{rank}/{world_size} - What's the target?")
+
+            sub_midx = sub_comm.Get_coords(real_smi)
+            log.debug(f"{real_smi}/{rank}/{world_size} - Current sub_midx {sub_midx}")
+            permutation =  current_axis_order]
+            swaped_midx = torch.tensor(sub_midx)[permutation]
+            log.debug(f"{real_smi}/{rank}/{world_size} - Target sub_midx {swaped_midx}")
+
+            target_sub_rank = sub_comm.Get_cart_rank(swaped_midx)
+            log.debug(f"{real_smi}/{rank}/{world_size} - Target sub_rank {target_sub_rank}")
+        
             
             expected_shape = new_dist.localShape(global_shape, rank)
 
@@ -554,21 +560,25 @@ class MPIMultiAxisDist(MultiAxisDist):
             # Otherwise, a new buffer needs to be created
             buffer_tuple = tensor2mpiBuffer(local_tensor)
 
-            if expected_shape == local_tensor.shape:
-                print(f"{sub_rank}/{rank}/{world_size} - Equal shape, just replace with rank {target_sub_rank}")
+            if expected_shape == local_tensor.shape and False:
+                log.debug(f"{real_smi}/{rank}/{world_size} - Equal shape, just replace with rank {target_sub_rank}")
+                log.debug(local_tensor)
                 sub_comm.Sendrecv_replace(buffer_tuple, dest=target_sub_rank)
+                log.debug(local_tensor)
             else:
-                print(f"{sub_rank}/{rank}/{world_size} - Different shape, a memory shame to rank {target_sub_rank}")
+                log.debug(f"{real_smi}/{rank}/{world_size} - Different shape, a memory shame to rank {target_sub_rank}")
+                log.debug(local_tensor)
                 target_tensor = torch.empty(expected_shape, dtype=local_tensor.dtype)
                 target_buffer = tensor2mpiBuffer(target_tensor)
                 
-                sub_comm.Sendrecv(buffer_tuple, dest=target_sub_rank, recvbuf=target_buffer)
+                sub_comm.Sendrecv(buffer_tuple, dest=target_sub_rank, recvbuf=target_tensor)
+                log.debug(target_tensor)
 
                 local_tensor = target_tensor
             
-        print(f"{rank}/{world_size} - Barrier wait")
+        log.debug(f"{rank}/{world_size} - Barrier wait")
         comm.Barrier()
-        print(f"{rank}/{world_size} - Barrier escape")
+        log.debug(f"{rank}/{world_size} - Barrier escape")
         return self.fromMultiAxisDist(new_dist), local_tensor
 
 
