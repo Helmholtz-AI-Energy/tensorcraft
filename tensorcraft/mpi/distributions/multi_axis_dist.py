@@ -4,6 +4,7 @@ import logging
 import math
 from typing import Optional
 
+import mpi4py
 import torch
 import torch.nn.functional as F
 from mpi4py import MPI
@@ -492,3 +493,86 @@ class MPIMultiAxisDist(MultiAxisDist):
         log.debug(f"Final tensor shape: {recv_tensor.shape}")
 
         return self.fromMultiAxisDist(new_dist), recv_tensor
+
+    def apply_permute(
+        self,
+        global_shape: torch.Size,
+        local_tensor: torch.Tensor,
+        comm: MPI.Comm,
+        mesh_dims: tuple[int, int],
+    ):
+
+        rank = comm.Get_rank()
+        world_size = comm.Get_size()
+
+        if world_size != self.numProcessors:
+            raise ValueError(
+                f"World size {world_size} does not match the number of processors {self.numProcessors}"
+            )
+
+        if not self.compatible(global_shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+        
+        new_dist = self.permute(global_shape, mesh_dims)[0]
+
+        target_axis = -1
+        for axis, (current_axis_order, target_axis_order) in enumerate(zip(self._dims_mapping, new_dist._dims_mapping)):
+            if current_axis_order != target_axis_order:
+                target_axis = axis
+                break
+        
+        if target_axis == -1:
+            raise RuntimeError("Somehow ended up with an invalid permute after the compatibility check and the creation of the new dim. We should never land here.")
+        
+        mesh = self.processorMesh
+
+        sub_mesh_mask = [1 if i in current_axis_order else 0 for i in range(len(mesh))]
+
+        print(f"{rank}/{world_size} - Creating cart")
+        # Create sub communicators
+        cart_comm = comm.Create_cart(mesh, periods=[True]*len(mesh), reorder=True)
+        sub_comm = cart_comm.Sub(sub_mesh_mask)
+
+        sub_rank = sub_comm.Get_rank()
+        print(f"{sub_rank}/{rank}/{world_size} - What's the target?")
+
+        sub_midx = sub_comm.Get_coords(sub_rank)
+        print(f"{sub_rank}/{rank}/{world_size} - Current sub_midx {sub_midx}")
+        permutation = [target_axis_order.index(i) for i in current_axis_order]
+        swaped_midx = torch.tensor(sub_midx)[permutation]
+        print(f"{sub_rank}/{rank}/{world_size} - Target sub_midx {swaped_midx}")
+
+        target_sub_rank = sub_comm.Get_cart_rank(swaped_midx)
+        print(f"{sub_rank}/{rank}/{world_size} - Target sub_rank {target_sub_rank}")
+        
+        comm.Barrier()
+        if sub_rank != target_sub_rank:
+            
+            expected_shape = new_dist.localShape(global_shape, rank)
+
+            # Use send recv with replacement when shapes match for memory efficiency
+            # Otherwise, a new buffer needs to be created
+            buffer_tuple = tensor2mpiBuffer(local_tensor)
+
+            if expected_shape == local_tensor.shape:
+                print(f"{sub_rank}/{rank}/{world_size} - Equal shape, just replace with rank {target_sub_rank}")
+                sub_comm.Sendrecv_replace(buffer_tuple, dest=target_sub_rank)
+            else:
+                print(f"{sub_rank}/{rank}/{world_size} - Different shape, a memory shame to rank {target_sub_rank}")
+                target_tensor = torch.empty(expected_shape, dtype=local_tensor.dtype)
+                target_buffer = tensor2mpiBuffer(target_tensor)
+                
+                sub_comm.Sendrecv(buffer_tuple, dest=target_sub_rank, recvbuf=target_buffer)
+
+                local_tensor = target_tensor
+            
+        print(f"{rank}/{world_size} - Barrier wait")
+        comm.Barrier()
+        print(f"{rank}/{world_size} - Barrier escape")
+        return self.fromMultiAxisDist(new_dist), local_tensor
+
+
+
+        
+
+

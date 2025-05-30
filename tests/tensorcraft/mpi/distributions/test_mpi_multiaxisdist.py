@@ -3,7 +3,7 @@ from typing import Optional
 
 import pytest
 import torch
-from hypothesis import assume, given, note, settings
+from hypothesis import assume, given, note, settings, target
 from mpi4py import MPI
 
 from tensorcraft.mpi import MPIMultiAxisDist
@@ -201,3 +201,103 @@ def test_apply_allgather_all_dims(shape_and_dist: tuple[torch.Size, MPIMultiAxis
     assert torch.all(gathered_local == g_tensor)
 
     assert not gathered_dist.isDistributed()
+
+@pytest.mark.mpi_test(8)
+@given(
+    shape_and_dist=mpi_st(
+        shape_and_dist(
+            mesh=torch.Size([2, 2, 2]),
+            is_compatible=True,
+            is_distributed=True,
+            max_axis_size=75,
+        )
+    )
+)
+@settings(deadline=None)
+def test_apply_permute_cube(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
+
+    shape, dist = shape_and_dist
+    dist = MPIMultiAxisDist.fromMultiAxisDist(dist)
+
+    target_axis = -1
+    target_mapping = tuple()
+    n_dims = -1
+    
+    for axis, mapping in enumerate(dist._dims_mapping):
+        if len(mapping) >= 2:
+            target_axis = axis
+            target_mapping = mapping
+
+    assume(target_axis != -1)
+
+    swap_mesh_dims = [target_mapping[0], target_mapping[-1]]
+
+    if rank == 0:
+        note(f"Shape: {shape}")
+        note(f"Dist: {dist}")
+        note(f"Swap: {swap_mesh_dims}")
+
+    print("Hello")
+    
+
+    g_tensor = torch.arange(math.prod(shape)).reshape(shape)
+
+
+    l_tensor = dist.apply(g_tensor, rank)
+
+    print("Ready for the real test!")
+
+    new_dist, new_l_tensor = dist.apply_permute(shape, l_tensor, comm, swap_mesh_dims)
+    expected_l_tensor = new_dist.apply(g_tensor, rank)
+    print("Exited the big test!")
+
+    assert expected_l_tensor.shape == new_l_tensor.shape
+    assert torch.all(expected_l_tensor == new_l_tensor)
+    print("Bye!")
+
+
+
+# @pytest.mark.mpi_test(8)
+# @given(
+#     shape_and_dist=mpi_st(
+#         shape_and_dist(
+#             mesh=torch.Size([2, 4]),
+#             is_compatible=True,
+#             is_distributed=True,
+#             max_axis_size=75,
+#         )
+#     )
+# )
+# @settings(deadline=None)
+# def test_apply_permute_rectangle(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
+    
+#     shape, dist = shape_and_dist
+#     dist = MPIMultiAxisDist.fromMultiAxisDist(dist)
+
+#     target_axis = -1
+#     target_mapping = tuple()
+    
+#     for axis, mapping in enumerate(dist._dims_mapping):
+#         if len(mapping) >= 2:
+#             target_axis = axis
+#             target_mapping = mapping
+
+#     assume(target_axis != -1)
+
+#     swap_mesh_dims = [0,1]
+
+#     if rank == 0:
+#         note(f"Shape: {shape}")
+#         note(f"Dist: {dist}")
+#         note(f"Swap: {swap_mesh_dims}")
+    
+
+#     g_tensor = torch.arange(math.prod(shape)).reshape(shape)
+
+#     l_tensor = dist.apply(g_tensor, rank)
+
+#     new_dist, new_l_tensor = dist.apply_permute(shape, l_tensor, comm, swap_mesh_dims)
+#     expected_l_tensor = new_dist.apply(g_tensor, rank)
+
+#     assert expected_l_tensor.shape == new_l_tensor.shape
+#     assert torch.all(expected_l_tensor == new_l_tensor)
