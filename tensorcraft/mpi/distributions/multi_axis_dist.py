@@ -4,14 +4,13 @@ import logging
 import math
 from typing import Optional
 
-import mpi4py
 import torch
 import torch.nn.functional as F
 from mpi4py import MPI
 
 from tensorcraft.distributions import MultiAxisDist
 from tensorcraft.mpi.mpi_utils import tensor2mpiBuffer
-from tensorcraft.util import multi2linearIndex
+from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger(__name__)
 
@@ -494,14 +493,37 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         return self.fromMultiAxisDist(new_dist), recv_tensor
 
-    def apply_permute(
+    def apply_permute(  # type: ignore[no-any-unimported]
         self,
         global_shape: torch.Size,
         local_tensor: torch.Tensor,
         comm: MPI.Comm,
         mesh_dims: tuple[int, int],
-    ):
+        in_place: bool = True,
+    ) -> tuple["MPIMultiAxisDist", torch.Tensor]:
+        """
+        Given a distributed tensor, apply a multi_axis permute operation.
 
+        Parameters
+        ----------
+        global_shape : torch.Size
+            The shape of the tensor.
+        local_tensor : torch.Tensor
+            The local tensor to permute.
+        comm : MPI.Comm
+            The MPI communicator.
+        mesh_dims : tuple[int, int]
+            The mesh dimensions to permute.
+        in_place : bool, optional
+            If set to True, the local tensor will be modified in place. If False, a new tensor will be created, by default True.
+
+        Returns
+        -------
+        MultiAxisDist
+            The distribution that results from the permute operation. None if the tensor is not compatible with the distribution.
+        torch.Tensor
+            The local distributed tensor belonging to the rank after the permute operation.
+        """
         rank = comm.Get_rank()
         world_size = comm.Get_size()
 
@@ -512,77 +534,95 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         if not self.compatible(global_shape):
             raise ValueError("The tensor is not compatible with the distribution")
-        
+
         new_dist = self.permute(global_shape, mesh_dims)[0]
 
         target_axis = -1
-        for axis, (current_axis_order, target_axis_order) in enumerate(zip(self._dims_mapping, new_dist._dims_mapping)):
+        for axis, (current_axis_order, target_axis_order) in enumerate(
+            zip(self._dims_mapping, new_dist._dims_mapping)
+        ):
             if current_axis_order != target_axis_order:
                 target_axis = axis
                 break
-        
+
         if target_axis == -1:
-            raise RuntimeError("Somehow ended up with an invalid permute after the compatibility check and the creation of the new dim. We should never land here.")
-        
+            raise RuntimeError(
+                "Somehow ended up with an invalid permute after the compatibility check and the creation of the new dim. We should never land here."
+            )
+
         mesh = self.processorMesh
 
         sub_mesh_mask = [1 if i in current_axis_order else 0 for i in range(len(mesh))]
 
         log.debug(local_tensor)
-        log.debug(f"{rank}/{world_size} - Creating cart")
+        log.info("Creating cart")
         # Create sub communicators
-        cart_comm = comm.Create_cart(mesh, periods=[True]*len(mesh), reorder=True)
+        cart_comm = comm.Create_cart(mesh, periods=[True] * len(mesh), reorder=True)
         sub_comm = cart_comm.Sub(sub_mesh_mask)
 
-        
         # smi: sub mesh index
-        c_sub_mesh_idx = multi2linearIndex(mesh, cart_comm.Get_coords(rank), current_axis_order)
-        exp_sub_mesh_idx = multi2linearIndex(mesh, cart_comm.Get_coords(rank), target_axis_order)
+        # c: current
+        # v: virtual
+        # r: real
+        # t: target
+        c_v_smi = multi2linearIndex(
+            mesh, cart_comm.Get_coords(rank), current_axis_order
+        )
+        t_v_smi = multi2linearIndex(mesh, cart_comm.Get_coords(rank), target_axis_order)
 
         comm.Barrier()
-        if c_sub_mesh_idx != exp_sub_mesh_idx:
+        if c_v_smi != t_v_smi:
+            log.info(
+                f"Exchanged needed, change in virtual submesh index: {c_v_smi} != {t_v_smi}"
+            )
             real_smi = sub_comm.Get_rank()
-            log.debug(f"{real_smi}/{rank}/{world_size} - What's the target?")
+            real_midx = sub_comm.Get_coords(real_smi)
 
-            sub_midx = sub_comm.Get_coords(real_smi)
-            log.debug(f"{real_smi}/{rank}/{world_size} - Current sub_midx {sub_midx}")
-            permutation =  current_axis_order]
-            swaped_midx = torch.tensor(sub_midx)[permutation]
-            log.debug(f"{real_smi}/{rank}/{world_size} - Target sub_midx {swaped_midx}")
+            log.info(f"Current real idx and mindx: {real_smi}, {real_midx}")
 
-            target_sub_rank = sub_comm.Get_cart_rank(swaped_midx)
-            log.debug(f"{real_smi}/{rank}/{world_size} - Target sub_rank {target_sub_rank}")
-        
-            
+            _, idx_order = torch.sort(torch.tensor(self._dims_mapping[target_axis]))
+            log.info(f"Idx order: {idx_order}")
+
+            log.info(f"Mesh: {mesh}")
+
+            log.info(f"Sub mesh mask: {sub_mesh_mask}")
+            sub_mesh_dims = torch.Size(
+                [mesh[i] for i, a in enumerate(sub_mesh_mask) if a]
+            )
+            log.info(f"Sub mesh dims: {sub_mesh_dims}")
+
+            t_v_midx = linear2multiIndex(t_v_smi, torch.Size(sub_mesh_dims))
+            log.info(f"Target_v_midx {t_v_midx}")
+
+            t_r_midx = torch.tensor(t_v_midx)[idx_order]
+            log.info(f"Target_r_midx {t_r_midx}")
+
+            t_r_smi = multi2linearIndex(sub_mesh_dims, t_r_midx.tolist())
+            log.info(f"Target real smi: {t_r_smi}")
+
             expected_shape = new_dist.localShape(global_shape, rank)
 
             # Use send recv with replacement when shapes match for memory efficiency
             # Otherwise, a new buffer needs to be created
             buffer_tuple = tensor2mpiBuffer(local_tensor)
 
-            if expected_shape == local_tensor.shape and False:
-                log.debug(f"{real_smi}/{rank}/{world_size} - Equal shape, just replace with rank {target_sub_rank}")
+            if expected_shape == local_tensor.shape and in_place:
+                log.info(f"Equal shape, just replace with rank {t_r_smi}")
                 log.debug(local_tensor)
-                sub_comm.Sendrecv_replace(buffer_tuple, dest=target_sub_rank)
+                sub_comm.Sendrecv_replace(buffer_tuple, dest=t_r_smi)
                 log.debug(local_tensor)
             else:
-                log.debug(f"{real_smi}/{rank}/{world_size} - Different shape, a memory shame to rank {target_sub_rank}")
+                log.info(f"Different shape, a memory shame to rank {t_r_smi}")
                 log.debug(local_tensor)
                 target_tensor = torch.empty(expected_shape, dtype=local_tensor.dtype)
                 target_buffer = tensor2mpiBuffer(target_tensor)
-                
-                sub_comm.Sendrecv(buffer_tuple, dest=target_sub_rank, recvbuf=target_tensor)
+
+                sub_comm.Sendrecv(buffer_tuple, dest=t_r_smi, recvbuf=target_buffer)
                 log.debug(target_tensor)
 
                 local_tensor = target_tensor
-            
-        log.debug(f"{rank}/{world_size} - Barrier wait")
+
+        log.info(f"{rank}/{world_size} - Barrier wait")
         comm.Barrier()
-        log.debug(f"{rank}/{world_size} - Barrier escape")
+        log.info(f"{rank}/{world_size} - Barrier escape")
         return self.fromMultiAxisDist(new_dist), local_tensor
-
-
-
-        
-
-

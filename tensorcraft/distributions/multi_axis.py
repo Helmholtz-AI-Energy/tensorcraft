@@ -296,7 +296,7 @@ class MultiAxisDist(Dist):
 
                 axis_idx = multi2linearIndex(self._pmesh, p_midx, order=mapping)
                 axis_splits, _ = self.axisSplits(axis_size, block_size, n_procs)
-                local_shape[axis] = axis_splits[axis_idx::n_procs].sum().item()
+                local_shape[axis] = int(axis_splits[axis_idx::n_procs].sum().item())
             else:
                 local_shape[axis] = axis_size
 

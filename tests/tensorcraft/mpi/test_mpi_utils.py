@@ -2,8 +2,8 @@ import hypothesis.extra.numpy as npst
 import mpi4py.MPI as MPI
 import pytest
 import torch
-from hypothesis import given
-from hypothesis import strategies as st, note
+from hypothesis import given, note
+from hypothesis import strategies as st
 
 import tensorcraft as tc
 
@@ -14,6 +14,16 @@ mpi_size = comm.Get_size()
 mpi_rank = comm.Get_rank()
 
 _dtypes = [torch.int32, torch.int64, torch.float32, torch.float64]
+
+
+def AllAssert(comm: MPI.Comm, condition: bool, msg=None):
+    """Assert that condition is True on all ranks."""
+    all_results = comm.allgather(condition)
+    print(all_results)
+    if not all(all_results):
+        if msg is None:
+            msg = f"Assertion failed on some ranks: {all_results}"
+        raise AssertionError(msg)
 
 
 @st.composite
