@@ -13,7 +13,7 @@ pip install -e .[dev,notebook]
 ## Dependencies
 
 ### Mandatory
-- python >= 3.11
+- python >= 3.12
 - torch >= 2.0.0
 - lark
 - matplotlib

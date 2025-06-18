@@ -13,21 +13,24 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - name: Set python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
       - name: Setup MPI
-        uses: mpi4py/setup-mpi@40c19a60792debf8ca403a3e6ee5f84c4e76555d # v1.2.1
+        uses: mpi4py/setup-mpi@v1.3.2
         with:
           mpi: openmpi
       - name: Install dependencies
         run: |
-          pip install .[dev]
+          uv venv create --python ${{ matrix.python-version }}
+          source .venv/bin/activate
+          uv pip install .[dev]
       - name: Test with pytest and cmdline commands
         run: |
           coverage run
