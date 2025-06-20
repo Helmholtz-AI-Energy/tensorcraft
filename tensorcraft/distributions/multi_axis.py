@@ -571,7 +571,8 @@ class MultiAxisDist(Dist):
         from_tensor_axis: int,
         to_tensor_axis: int,
         block_size: int = -1,
-        minor: bool = False,
+        from_minor: bool = False,
+        to_minor: bool = False,
     ) -> tuple["MultiAxisDist", int, int]:
         """
         Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
@@ -586,8 +587,10 @@ class MultiAxisDist(Dist):
             The tensor axis to receive data to.
         block_size: int, Default -1
             If possible, the selected block size will be applied, otherwise, the block size of the reciving axis will remain unchanged. -1 will try to apply the block size of the source axis.
-        minor: bool, Default false
-            If set to true, it will only exchange data between the minor distribution dimention of the source tensor axis.
+        from_minor: bool, Default false
+            Only the minor mesh dimension of the from_tensor_axis will be moved to the to_tensor_axis.
+        to_minor: bool, Default false
+            If set to true, the moved mesh dimensions will be appended to the right (minor), by default False. If the axis is already split, it will change the existing block size. Requires the existing block size to be divisible by the number of involved ranks.
 
         Returns
         -------
@@ -610,25 +613,38 @@ class MultiAxisDist(Dist):
             self._block_sizes[from_tensor_axis] if block_size < 0 else block_size
         )
 
-        if minor:
+        if from_minor:
             moved_mesh_dims: tuple[int, ...] = (
                 self._dims_mapping[from_tensor_axis][-1],
             )
             relevant_proc = self._pmesh[moved_mesh_dims[0]]
             n_procs = relevant_proc
 
-            # Find out new dims mapping
-            new_from_t_axis_mapping = self._dims_mapping[from_tensor_axis][:-1]
-            new_to_t_axis_mapping = self._dims_mapping[to_tensor_axis] + moved_mesh_dims
-
-            new_dims_map_list[from_tensor_axis] = new_from_t_axis_mapping
-            new_dims_map_list[to_tensor_axis] = new_to_t_axis_mapping
-
             new_from_t_axis_bs = (
                 self._block_sizes[from_tensor_axis] * n_procs
                 if new_dims_map_list[from_tensor_axis] != ()
                 else -1
             )
+
+            # Find out new dims mapping
+            new_from_t_axis_mapping = self._dims_mapping[from_tensor_axis][:-1]
+
+        else:
+            moved_mesh_dims = self._dims_mapping[from_tensor_axis]
+            relevant_procs = [self._pmesh[x] for x in moved_mesh_dims]
+            n_procs = math.prod(relevant_procs)
+
+            # Find out new dims mapping
+            new_dims_map_list[from_tensor_axis] = ()
+            new_dims_map_list[to_tensor_axis] = (
+                moved_mesh_dims + self._dims_mapping[to_tensor_axis]
+            )
+
+            new_from_t_axis_mapping = ()
+            new_from_t_axis_bs = -1
+
+        if to_minor:
+            new_to_t_axis_mapping = self._dims_mapping[to_tensor_axis] + moved_mesh_dims
 
             to_t_axis_bs = (
                 self._block_sizes[to_tensor_axis]
@@ -645,24 +661,17 @@ class MultiAxisDist(Dist):
                 if self._dims_mapping[to_tensor_axis] != ()
                 else block_size
             )
+
         else:
-            moved_mesh_dims = self._dims_mapping[from_tensor_axis]
-            relevant_procs = [self._pmesh[x] for x in moved_mesh_dims]
-            n_procs = math.prod(relevant_procs)
-
-            # Find out new dims mapping
-            new_dims_map_list[from_tensor_axis] = ()
-            new_dims_map_list[to_tensor_axis] = (
-                moved_mesh_dims + self._dims_mapping[to_tensor_axis]
-            )
-
-            new_from_t_axis_bs = -1
-
+            new_to_t_axis_mapping = moved_mesh_dims + self._dims_mapping[to_tensor_axis]
             new_to_t_axis_bs = (
                 self._block_sizes[to_tensor_axis]
                 if self._dims_mapping[to_tensor_axis] != ()
                 else block_size
             )
+
+        new_dims_map_list[from_tensor_axis] = new_from_t_axis_mapping
+        new_dims_map_list[to_tensor_axis] = new_to_t_axis_mapping
 
         new_block_size_list[from_tensor_axis] = new_from_t_axis_bs
         new_block_size_list[to_tensor_axis] = new_to_t_axis_bs
@@ -860,11 +869,59 @@ class MultiAxisDist(Dist):
 
                         if len(self._dims_mapping[source_axis]) > 1:
                             operation = (
-                                f"alltoall_minor_{source_axis}_{target_axis}_{b_size}"
+                                f"alltoall_mf_{source_axis}_{target_axis}_{b_size}"
                             )
                             try:
                                 new_dist, vol, n_procs = self.alltoall(
-                                    shape, source_axis, target_axis, b_size, True
+                                    shape,
+                                    source_axis,
+                                    target_axis,
+                                    b_size,
+                                    from_minor=True,
+                                )
+                                log.debug(f"New neighbour: {new_dist}")
+
+                                neighbours.append((operation, new_dist, vol, n_procs))
+
+                            except Exception:
+                                log.debug(
+                                    f"Failed operation {operation} on dist {self} with shape {shape}"
+                                )
+                        if len(self._dims_mapping[target_axis]) > 1:
+                            operation = (
+                                f"alltoall_mt_{source_axis}_{target_axis}_{b_size}"
+                            )
+                            try:
+                                new_dist, vol, n_procs = self.alltoall(
+                                    shape,
+                                    source_axis,
+                                    target_axis,
+                                    b_size,
+                                    to_minor=True,
+                                )
+                                log.debug(f"New neighbour: {new_dist}")
+
+                                neighbours.append((operation, new_dist, vol, n_procs))
+
+                            except Exception:
+                                log.debug(
+                                    f"Failed operation {operation} on dist {self} with shape {shape}"
+                                )
+
+                        if (len(self._dims_mapping[source_axis]) > 1) and (
+                            len(self._dims_mapping[target_axis]) > 1
+                        ):
+                            operation = (
+                                f"alltoall_mf_mt_{source_axis}_{target_axis}_{b_size}"
+                            )
+                            try:
+                                new_dist, vol, n_procs = self.alltoall(
+                                    shape,
+                                    source_axis,
+                                    target_axis,
+                                    b_size,
+                                    from_minor=True,
+                                    to_minor=True,
                                 )
                                 log.debug(f"New neighbour: {new_dist}")
 

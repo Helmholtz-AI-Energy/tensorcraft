@@ -1,11 +1,13 @@
 """Datatype utilities."""
 
 import logging
-from typing import Tuple, TypeAlias
+from typing import Iterable, Tuple, TypeAlias
 
 import torch
 from mpi4py import MPI
 from mpi4py.typing import BufSpec, BufSpecB, BufSpecV, BufSpecW
+
+from tensorcraft.util import linear2multiIndex, multi2linearIndex
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ torch_type2mpi_type = {
 }
 
 
-def as_buffer(x: torch.Tensor, offset: int = 0) -> MPI.buffer:
+def as_buffer(x: torch.Tensor, offset: int = -1) -> MPI.buffer:
     """
     Convert a PyTorch tensor to an MPI buffer.
 
@@ -46,6 +48,8 @@ def as_buffer(x: torch.Tensor, offset: int = 0) -> MPI.buffer:
 
     """
     dtype_size = x.dtype.itemsize
+    if offset == -1:
+        offset = x.storage_offset()
     return MPI.buffer.fromaddress(
         x.untyped_storage().data_ptr() + offset * dtype_size, 0
     )
@@ -165,3 +169,21 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
         recursive_dt = _create_recursive_vector(tensor)
         type_count = 1
         return buffer, type_count, recursive_dt
+
+
+def virtualSubmeshIndex2RealSubmeshIndex(
+    sub_comm: MPI.Cartcomm, virtual_index: int, order: Iterable[int]
+) -> int:
+    _, idx_order = torch.sort(torch.tensor(order))
+    log.debug(f"Idx order: {idx_order}")
+
+    sub_mesh_dims = sub_comm.dims
+    log.debug(f"Sub mesh dims: {sub_mesh_dims}")
+
+    t_v_midx = linear2multiIndex(virtual_index, torch.Size(sub_mesh_dims))
+    log.debug(f"Target_v_midx {t_v_midx}")
+
+    t_r_midx = torch.tensor(t_v_midx)[idx_order]
+    log.debug(f"Target_r_midx {t_r_midx}")
+
+    return multi2linearIndex(sub_mesh_dims, t_r_midx.tolist())

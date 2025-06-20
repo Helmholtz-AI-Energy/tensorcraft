@@ -9,8 +9,13 @@ import torch.nn.functional as F
 from mpi4py import MPI
 
 from tensorcraft.distributions import MultiAxisDist
-from tensorcraft.mpi.mpi_utils import tensor2mpiBuffer
-from tensorcraft.util import linear2multiIndex, multi2linearIndex
+from tensorcraft.mpi.mpi_utils import (
+    as_buffer,
+    tensor2mpiBuffer,
+    torch_type2mpi_type,
+    virtualSubmeshIndex2RealSubmeshIndex,
+)
+from tensorcraft.util import multi2linearIndex
 
 log = logging.getLogger(__name__)
 
@@ -572,32 +577,20 @@ class MPIMultiAxisDist(MultiAxisDist):
 
         comm.Barrier()
         if c_v_smi != t_v_smi:
-            log.info(
+            log.debug(
                 f"Exchanged needed, change in virtual submesh index: {c_v_smi} != {t_v_smi}"
             )
             real_smi = sub_comm.Get_rank()
             real_midx = sub_comm.Get_coords(real_smi)
 
-            log.info(f"Current real idx and mindx: {real_smi}, {real_midx}")
+            log.debug(f"Current real idx and mindx: {real_smi}, {real_midx}")
 
-            _, idx_order = torch.sort(torch.tensor(self._dims_mapping[target_axis]))
-            log.info(f"Idx order: {idx_order}")
-
-            log.info(f"Mesh: {mesh}")
-
-            log.info(f"Sub mesh mask: {sub_mesh_mask}")
-            sub_mesh_dims = torch.Size(
-                [mesh[i] for i, a in enumerate(sub_mesh_mask) if a]
+            t_r_smi = virtualSubmeshIndex2RealSubmeshIndex(
+                sub_comm,
+                t_v_smi,
+                target_axis_order,
             )
-            log.info(f"Sub mesh dims: {sub_mesh_dims}")
 
-            t_v_midx = linear2multiIndex(t_v_smi, torch.Size(sub_mesh_dims))
-            log.info(f"Target_v_midx {t_v_midx}")
-
-            t_r_midx = torch.tensor(t_v_midx)[idx_order]
-            log.info(f"Target_r_midx {t_r_midx}")
-
-            t_r_smi = multi2linearIndex(sub_mesh_dims, t_r_midx.tolist())
             log.info(f"Target real smi: {t_r_smi}")
 
             expected_shape = new_dist.localShape(global_shape, rank)
@@ -626,3 +619,173 @@ class MPIMultiAxisDist(MultiAxisDist):
         comm.Barrier()
         log.info(f"{rank}/{world_size} - Barrier escape")
         return self.fromMultiAxisDist(new_dist), local_tensor
+
+    def apply_alltoall(  # type: ignore[no-any-unimported]
+        self,
+        global_shape: torch.Size,
+        local_tensor: torch.Tensor,
+        comm: MPI.Comm,
+        from_tensor_axis: int,
+        to_tensor_axis: int,
+        block_size: int = -1,
+        from_minor: bool = False,
+        to_minor: bool = False,
+    ) -> tuple["MPIMultiAxisDist", torch.Tensor]:
+        """
+        Given a distributed tensor, apply a multi_axis alltoall operation.
+
+        Parameters
+        ----------
+        global_shape : torch.Size
+            The shape of the tensor.
+        local_tensor : torch.Tensor
+            The local tensor to distribute.
+        comm : MPI.Comm
+            The MPI communicator.
+        from_tensor_axis : int
+            The tensor axis to gather data from.
+        to_tensor_axis : int
+            The tensor axis to distribute data to.
+        block_size : int, optional
+            The size of the blocks, by default -1. If -1, it will use the default block size for the distribution. If the axis is already split, it will not change the existing block size, unless 'to_minor' is set to True.
+        from_minor : bool, optional
+            If true, only the rightmost axis will be considered for the alltoall operation, by default False.
+        to_minor : bool, optional
+            If true, the mesh dimensions will be appended to the right (minor), by default False. If the axis is already split, it will change the existing block size.
+
+        Returns
+        -------
+        MultiAxisDist
+            The distribution that results from the alltoall communication. None if the tensor is not compatible with the distribution.
+        torch.Tensor
+            The local distributed tensor belonging to the rank.
+        """
+        rank = comm.Get_rank()
+        world_size = comm.Get_size()
+
+        if world_size != self.numProcessors:
+            raise ValueError(
+                f"World size {world_size} does not match the number of processors {self.numProcessors}"
+            )
+
+        if not self.compatible(global_shape):
+            raise ValueError("The tensor is not compatible with the distribution")
+
+        if local_tensor.is_contiguous() is False:
+            local_tensor = local_tensor.contiguous()
+
+        new_dist, _, n_procs = self.alltoall(
+            global_shape,
+            from_tensor_axis,
+            to_tensor_axis,
+            block_size,
+            from_minor,
+            to_minor,
+        )
+        log.debug(f"New distribution: {new_dist}")
+        log.debug(f"Local tensor shape: {local_tensor.shape}")
+
+        if from_minor:
+            moved_mesh_dims: tuple[int, ...] = (
+                self._dims_mapping[from_tensor_axis][-1],
+            )
+            sub_mesh = [self._pmesh[moved_mesh_dims[0]]]
+
+        else:
+            moved_mesh_dims = self._dims_mapping[from_tensor_axis]
+            sub_mesh = [self._pmesh[x] for x in moved_mesh_dims]
+
+        log.debug(f"Moved mesh dims: {moved_mesh_dims}")
+        log.debug(f"Sub mesh: {sub_mesh}")
+        log.debug(f"N procs: {n_procs}")
+
+        target_from_block_size = new_dist._block_sizes[from_tensor_axis]
+        og_from_block_size = self._block_sizes[from_tensor_axis]
+        target_to_block_size = new_dist._block_sizes[to_tensor_axis]
+
+        log.debug(f"Target from block size: {target_from_block_size}")
+        log.debug(f"OG from block size: {og_from_block_size}")
+        log.debug(f"Target to block size: {target_to_block_size}")
+
+        new_local_shape = new_dist.localShape(global_shape, rank)
+        log.debug(f"New local shape: {new_local_shape}")
+
+        cart_comm = comm.Create_cart(
+            dims=self._pmesh, periods=[True] * len(self._pmesh), reorder=True
+        )
+        sub_mesh_mask = [
+            1 if i in moved_mesh_dims else 0 for i in range(len(self._pmesh))
+        ]
+        sub_comm = cart_comm.Sub(sub_mesh_mask)
+
+        n_axis = len(global_shape)
+        send_gsizes = list(local_tensor.shape)
+        send_distribs = [MPI.DISTRIBUTE_NONE] * n_axis
+        send_distribs[to_tensor_axis] = MPI.DISTRIBUTE_CYCLIC
+        send_dargs = [1] * n_axis
+        send_dargs[to_tensor_axis] = target_to_block_size
+        send_psizes = [1] * n_axis
+        send_psizes[to_tensor_axis] = n_procs
+        send_order = MPI.ORDER_C
+        log.debug(f"Send gsizes: {send_gsizes}")
+        log.debug(f"Send distribs: {send_distribs}")
+        log.debug(f"Send dargs: {send_dargs}")
+        log.debug(f"Send psizes: {send_psizes}")
+        log.debug(f"Send order: {send_order}")
+
+        recv_gsizes = list(new_local_shape)
+        recv_distribs = [MPI.DISTRIBUTE_NONE] * n_axis
+        recv_distribs[from_tensor_axis] = MPI.DISTRIBUTE_CYCLIC
+        recv_dargs = [1] * n_axis
+        recv_dargs[from_tensor_axis] = og_from_block_size
+        recv_psizes = [1] * n_axis
+        recv_psizes[from_tensor_axis] = n_procs
+        recv_order = MPI.ORDER_C
+        log.debug(f"Recv gsizes: {recv_gsizes}")
+        log.debug(f"Recv distribs: {recv_distribs}")
+        log.debug(f"Recv dargs: {recv_dargs}")
+        log.debug(f"Recv psizes: {recv_psizes}")
+        log.debug(f"Recv order: {recv_order}")
+
+        send_types = []
+        recv_types = []
+
+        for i in range(n_procs):
+            base_mpi_type = torch_type2mpi_type[local_tensor.dtype]
+
+            target_real_rank = virtualSubmeshIndex2RealSubmeshIndex(
+                sub_comm,
+                i,
+                moved_mesh_dims,
+            )
+            log.debug(f"Target real rank of {i}: {target_real_rank}")
+
+            send_darray_type = base_mpi_type.Create_darray(
+                size=n_procs,
+                rank=target_real_rank,
+                gsizes=send_gsizes,
+                distribs=send_distribs,
+                dargs=send_dargs,
+                psizes=send_psizes,
+                order=send_order,
+            ).Commit()
+            send_types.append(send_darray_type)
+
+            recv_darray_type = base_mpi_type.Create_darray(
+                size=n_procs,
+                rank=target_real_rank,
+                gsizes=recv_gsizes,
+                distribs=recv_distribs,
+                dargs=recv_dargs,
+                psizes=recv_psizes,
+                order=recv_order,
+            ).Commit()
+            recv_types.append(recv_darray_type)
+
+        send_buff = as_buffer(local_tensor)
+        recv_tensor = torch.empty(new_local_shape, dtype=local_tensor.dtype)
+        recv_buff = as_buffer(recv_tensor)
+
+        sub_comm.Alltoallw((send_buff, send_types), (recv_buff, recv_types))
+
+        return MPIMultiAxisDist.fromMultiAxisDist(new_dist), recv_tensor
