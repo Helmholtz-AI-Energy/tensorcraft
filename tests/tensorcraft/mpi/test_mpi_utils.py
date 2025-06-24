@@ -1,3 +1,5 @@
+import logging
+
 import hypothesis.extra.numpy as npst
 import mpi4py.MPI as MPI
 import pytest
@@ -6,6 +8,8 @@ from hypothesis import given, note
 from hypothesis import strategies as st
 
 import tensorcraft as tc
+
+log = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.mpi_test(2)
 
@@ -19,7 +23,7 @@ _dtypes = [torch.int32, torch.int64, torch.float32, torch.float64]
 def AllAssert(comm: MPI.Comm, condition: bool, msg=None):
     """Assert that condition is True on all ranks."""
     all_results = comm.allgather(condition)
-    print(all_results)
+    log.info(all_results)
     if not all(all_results):
         if msg is None:
             msg = f"Assertion failed on some ranks: {all_results}"

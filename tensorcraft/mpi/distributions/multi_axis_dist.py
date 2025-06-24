@@ -580,15 +580,16 @@ class MPIMultiAxisDist(MultiAxisDist):
             log.debug(
                 f"Exchanged needed, change in virtual submesh index: {c_v_smi} != {t_v_smi}"
             )
-            real_smi = sub_comm.Get_rank()
-            real_midx = sub_comm.Get_coords(real_smi)
-
-            log.debug(f"Current real idx and mindx: {real_smi}, {real_midx}")
+            log.info(f"Current virtual smi: {c_v_smi}")
+            log.info(f"Target virtual smi: {t_v_smi}")
+            log.info(f"Current axis order: {current_axis_order}")
+            log.info(f"Target axis order: {target_axis_order}")
+            log.info(f"Processor mesh: {mesh}")
 
             t_r_smi = virtualSubmeshIndex2RealSubmeshIndex(
                 sub_comm,
                 t_v_smi,
-                target_axis_order,
+                current_axis_order,
             )
 
             log.info(f"Target real smi: {t_r_smi}")

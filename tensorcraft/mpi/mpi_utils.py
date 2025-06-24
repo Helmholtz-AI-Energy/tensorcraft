@@ -49,7 +49,7 @@ def as_buffer(x: torch.Tensor, offset: int = -1) -> MPI.buffer:
     """
     dtype_size = x.dtype.itemsize
     if offset == -1:
-        offset = x.storage_offset()
+        offset = x.storage_offset()  # type:ignore[assignment]
     return MPI.buffer.fromaddress(
         x.untyped_storage().data_ptr() + offset * dtype_size, 0
     )
@@ -174,6 +174,23 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
 def virtualSubmeshIndex2RealSubmeshIndex(
     sub_comm: MPI.Cartcomm, virtual_index: int, order: Iterable[int]
 ) -> int:
+    """
+    Given a cart subcommunicator, a virtual mesh linear index, and the virtual ordering of the sub mesh, calculate the real mpi cart communicator index.
+
+    Parameters
+    ----------
+    sub_comm: MPI.Cartcomm
+        Cartesian communicator object
+    virtual_index: int
+        The virtual index of the tensorcraft submesh
+    order: Iterable[int]
+        Mesh dimension assignment order for the tensorcraft submesh
+
+    Returns
+    -------
+    int
+        The MPI Cartcom index that owns the virtual tensorcraft submesh index.
+    """
     _, idx_order = torch.sort(torch.tensor(order))
     log.debug(f"Idx order: {idx_order}")
 

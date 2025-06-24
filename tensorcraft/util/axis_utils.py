@@ -115,7 +115,7 @@ def linear2multiIndex(
         If the index is out of bounds.
     """
     if index < 0 or index >= math.prod(dims):
-        raise ValueError("Index out of bounds")
+        raise IndexError("Index out of bounds")
 
     index_tensor = torch.tensor(index)
 

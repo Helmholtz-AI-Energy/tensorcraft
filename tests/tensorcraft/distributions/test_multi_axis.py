@@ -45,7 +45,7 @@ def axis_mapping(
 @st.composite
 def shape_and_dist(
     draw,
-    mesh: Optional[torch.Size] = None,
+    mesh: Optional[torch.Size | st.SearchStrategy] = None,
     is_compatible: bool = True,
     is_distributed: bool = False,
     min_axis_size: int = 25,
@@ -66,6 +66,8 @@ def shape_and_dist(
         mesh = draw(
             st.lists(st.integers(min_value=2, max_value=3), min_size=1, max_size=3)
         )
+    elif isinstance(mesh, st.SearchStrategy):
+        mesh = draw(mesh)
 
     block_sizes = draw(st.integers(min_value=1, max_value=5))
 
