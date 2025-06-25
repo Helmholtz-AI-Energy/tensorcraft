@@ -6,8 +6,6 @@ import torch
 
 torch.autograd.set_grad_enabled(False)
 
-from .logging import set_logger_config
-
 # Lower level modules
 import tensorcraft.compiler as compiler
 import tensorcraft.distributions as dist
@@ -17,6 +15,8 @@ import tensorcraft.mpi as mpi
 import tensorcraft.optim as optim
 import tensorcraft.util as util
 import tensorcraft.viz as viz
+
+from .logging import set_logger_config
 
 _compiler = compiler.Compiler()
 compile = _compiler.compile
@@ -30,5 +30,5 @@ __all__ = [
     "compile",
     "viz",
     "optim",
-    "set_logger_config"
+    "set_logger_config",
 ]

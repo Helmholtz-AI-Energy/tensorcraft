@@ -42,6 +42,7 @@ def mpi_st(draw, strategy: st.SearchStrategy):
     return sync_data
 
 
+@pytest.mark.mpi_test(2)
 @given(
     shape_dtype=mpi_st(
         st.tuples(
@@ -78,6 +79,7 @@ def test_torch2mpiBuffer_full_tensor(shape_dtype):
     note(f"R{mpi_rank}: After validation --------------------------------------------")
 
 
+@pytest.mark.mpi_test(2)
 @given(
     shape_dtype=mpi_st(
         st.tuples(
@@ -112,6 +114,7 @@ def test_torch2mpiBuffer_transposed_first_last(shape_dtype):
             assert torch.all(v_tensor == tensor)
 
 
+@pytest.mark.mpi_test(2)
 @given(
     shape_dtype=mpi_st(
         st.tuples(
@@ -148,6 +151,7 @@ def test_torch2mpiBuffer_transposed_first_second(shape_dtype):
             assert torch.all(v_tensor == tensor)
 
 
+@pytest.mark.mpi_test(2)
 @given(
     shape_dtype=mpi_st(
         st.tuples(
@@ -184,6 +188,7 @@ def test_torch2mpiBuffer_cont_offset(shape_dtype):
             assert torch.all(v_tensor == tensor)
 
 
+@pytest.mark.mpi_test(2)
 @given(
     shape_dtype=mpi_st(
         st.tuples(
@@ -220,6 +225,7 @@ def test_torch2mpiBuffer_non_cont_slice(shape_dtype):
             assert torch.all(v_tensor == tensor)
 
 
+@pytest.mark.mpi_test(2)
 @given(
     shape_dtype=mpi_st(
         st.tuples(

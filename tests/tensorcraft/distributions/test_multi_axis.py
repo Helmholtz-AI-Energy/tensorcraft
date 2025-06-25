@@ -42,17 +42,15 @@ def axis_mapping(
     return tuple(mappings)
 
 
-@st.composite
-def shape_and_dist(
+def _generate_shape_and_dist(
     draw,
     mesh: Optional[torch.Size | st.SearchStrategy] = None,
-    is_compatible: bool = True,
     is_distributed: bool = False,
     min_axis_size: int = 25,
     max_axis_size: int = 100,
     min_axes: int = 1,
     max_axes: int = 4,
-) -> tuple[torch.Size, MultiAxisDist]:
+):
     shape = torch.Size(
         draw(
             st.lists(
@@ -75,10 +73,32 @@ def shape_and_dist(
     mappings = draw(axis_mapping(shape, mesh, is_distributed))
 
     dist = MultiAxisDist(mesh, tuple(mappings), block_sizes)
-    if is_compatible:
-        while not dist.compatible(shape):
-            block_sizes -= 1
-            dist = MultiAxisDist(mesh, mappings, block_sizes)
+    return shape, dist
+
+
+@st.composite
+def shape_and_dist(
+    draw,
+    mesh: Optional[torch.Size | st.SearchStrategy] = None,
+    is_compatible: bool = True,
+    is_distributed: bool = False,
+    min_axis_size: int = 25,
+    max_axis_size: int = 100,
+    min_axes: int = 1,
+    max_axes: int = 4,
+) -> tuple[torch.Size, MultiAxisDist]:
+    if not is_compatible:
+        return _generate_shape_and_dist(
+            draw, mesh, is_distributed, min_axis_size, max_axis_size, min_axes, max_axes
+        )
+
+    shape, dist = _generate_shape_and_dist(
+        draw, mesh, is_distributed, min_axis_size, max_axis_size, min_axes, max_axes
+    )
+    while not dist.compatible(shape):
+        shape, dist = _generate_shape_and_dist(
+            draw, mesh, is_distributed, min_axis_size, max_axis_size, min_axes, max_axes
+        )
 
     return shape, dist
 
@@ -369,7 +389,20 @@ def test_split(kwargs, target_dist):
             MultiAxisDist(torch.Size([2, 2, 2]), (None, (0, 2, 1)), 4),
         ),
         (
-            {"from_tensor_axis": 0, "to_tensor_axis": 1, "minor": True},
+            {"from_tensor_axis": 0, "to_tensor_axis": 1, "from_minor": True},
+            MultiAxisDist(torch.Size([2, 2, 2]), ((0,), (2, 1)), (8, 4)),
+        ),
+        (
+            {"from_tensor_axis": 0, "to_tensor_axis": 1, "to_minor": True},
+            MultiAxisDist(torch.Size([2, 2, 2]), (None, (1, 0, 2)), (None, 1)),
+        ),
+        (
+            {
+                "from_tensor_axis": 0,
+                "to_tensor_axis": 1,
+                "from_minor": True,
+                "to_minor": True,
+            },
             MultiAxisDist(torch.Size([2, 2, 2]), ((0,), (1, 2)), (8, 2)),
         ),
         (

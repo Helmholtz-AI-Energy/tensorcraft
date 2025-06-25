@@ -241,26 +241,20 @@ def test_apply_permute(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
         note(f"Dist: {dist}")
         note(f"Swap: {swap_mesh_dims}")
 
-    print("Hello")
-
     g_tensor = torch.arange(math.prod(shape)).reshape(shape)
 
     l_tensor = dist.apply(g_tensor, rank)
-
-    print("Ready for the real test!")
 
     try:
         new_dist, new_l_tensor = dist.apply_permute(
             shape, l_tensor, comm, swap_mesh_dims
         )
-        print("In the  middle of a good test!")
         expected_l_tensor = new_dist.apply(g_tensor, rank)
-        print("Exited the big test!")
 
         AllAssert(comm, expected_l_tensor.shape == new_l_tensor.shape)
         AllAssert(comm, torch.all(expected_l_tensor == new_l_tensor).item())
     except ValueError as e:
-        print(f"Rank {rank} failed with error: {e}")
+        note(f"Rank {rank} failed with error: {e}")
 
 
 @pytest.mark.mpi_test(8)
@@ -285,7 +279,7 @@ def test_apply_alltoall(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
             from_axis = axis
             for to_axis in range(len(shape)):
                 if to_axis != from_axis:
-                    print(f"Testing from_axis: {from_axis}, to_axis: {to_axis}")
+                    note(f"Testing from_axis: {from_axis}, to_axis: {to_axis}")
 
                     g_tensor = torch.arange(math.prod(shape)).reshape(shape)
 
@@ -307,7 +301,7 @@ def test_apply_alltoall(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
                             comm, torch.all(alltoall_local == expected_split).item()
                         )
                     except ValueError as e:
-                        print(f"Skipping with error: {e}")
+                        note(f"Skipping with error: {e}")
 
                     # Minor: True, False
                     try:
@@ -326,7 +320,7 @@ def test_apply_alltoall(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
                             comm, torch.all(alltoall_local == expected_split).item()
                         )
                     except ValueError as e:
-                        print(f"Skipping with error: {e}")
+                        note(f"Skipping with error: {e}")
 
                     # Minor: False, True
                     try:
@@ -345,7 +339,7 @@ def test_apply_alltoall(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
                             comm, torch.all(alltoall_local == expected_split).item()
                         )
                     except ValueError as e:
-                        print(f"Skipping with error: {e}")
+                        note(f"Skipping with error: {e}")
 
                     # Minor: True, True
                     try:
@@ -365,4 +359,4 @@ def test_apply_alltoall(shape_and_dist: tuple[torch.Size, MPIMultiAxisDist]):
                             comm, torch.all(alltoall_local == expected_split).item()
                         )
                     except ValueError as e:
-                        print(f"Skipping with error: {e}")
+                        note(f"Skipping with error: {e}")
