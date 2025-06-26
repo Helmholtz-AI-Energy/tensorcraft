@@ -422,20 +422,20 @@ class ProgramTransformer(lark.Transformer):
         """
         if isinstance(children[0], lark.Tree):
             if children[0].data == "pos_tensor":
-                var_name = children[0].children[0][0]
+                var_name = children[0].children[0][0]  # type:ignore[index]
 
-                index_vars = ",".join(children[0].children[0][1])
+                index_vars = ",".join(children[0].children[0][1])  # type:ignore[index]
                 operand_name = f"{var_name}[{index_vars}]"
 
                 neg = False
             elif children[0].data == "neg_tensor":
-                var_name = children[0].children[0][0]
+                var_name = children[0].children[0][0]  # type:ignore[index]
 
-                index_vars = ",".join(children[0].children[0][1])
+                index_vars = ",".join(children[0].children[0][1])  # type:ignore[index]
                 operand_name = f"{var_name}[{index_vars}]"
                 neg = True
             elif children[0].data == "pos_indexvar":
-                operand_name = children[0].children[0]
+                operand_name = f"{children[0].children[0]}"
                 neg = False
             elif children[0].data == "neg_indexvar":
                 operand_name = f"{children[0].children[0]}"

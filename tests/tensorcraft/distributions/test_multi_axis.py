@@ -50,6 +50,7 @@ def _generate_shape_and_dist(
     max_axis_size: int = 100,
     min_axes: int = 1,
     max_axes: int = 4,
+    max_block_size: int = 10,
 ):
     shape = torch.Size(
         draw(
@@ -67,7 +68,7 @@ def _generate_shape_and_dist(
     elif isinstance(mesh, st.SearchStrategy):
         mesh = draw(mesh)
 
-    block_sizes = draw(st.integers(min_value=1, max_value=5))
+    block_sizes = draw(st.integers(min_value=1, max_value=max_block_size))
 
     # Create mappings, as list with the same lenght as the shape and with non-repeating values from available_dims
     mappings = draw(axis_mapping(shape, mesh, is_distributed))
@@ -96,6 +97,7 @@ def shape_and_dist(
         draw, mesh, is_distributed, min_axis_size, max_axis_size, min_axes, max_axes
     )
     while not dist.compatible(shape):
+        print("Repeating")
         shape, dist = _generate_shape_and_dist(
             draw, mesh, is_distributed, min_axis_size, max_axis_size, min_axes, max_axes
         )
