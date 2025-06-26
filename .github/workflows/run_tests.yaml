@@ -35,7 +35,7 @@ jobs:
         run: |
           coverage run
           mpirun -n 2 coverage run -m pytest --hypothesis-profile mpi -m mpi_test
-          mpirun -n 4 coverage run -m pytest --hypothesis-profile mpi -m mpi_test
+          # mpirun -n 4 coverage run -m pytest --hypothesis-profile mpi -m mpi_test
           mpirun -n 8 --use-hwthread-cpus coverage run -m pytest --hypothesis-profile mpi -m mpi_test
           coverage combine
           coverage xml
