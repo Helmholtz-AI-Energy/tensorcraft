@@ -1,0 +1,39 @@
+name: Trigger Codebase Tests
+description: "Triggers the tests on codebase juan.muriedas/hai_cx"
+inputs:
+  SHA:
+    description: "Commit SHA"
+    required: true
+  BRANCH:
+    description: "Branch name"
+    required: true
+  PR_NUMBER:
+    description: "The id number of the PR"
+    required: false
+    default: ""
+  GL_TOKEN:
+    description: "Gitlab CI access token"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+      with:
+        egress-policy: audit
+    - name: Trigger pipeline
+      env:
+        SHA: ${{ inputs.SHA }}
+        BRANCH: ${ inputs.BRANCH }}
+        PR_NUMBER: ${{ inputs.PR_NUMBER }}
+        GL_TOKEN: ${{ inputs.GL_TOKEN }}
+      shell: bash
+      run: |
+        curl -X POST \
+          --fail-with-body \
+          -F token=${GL_TOKEN} \
+          -F ref=tensorcraft/ci/base \
+          -F "variables[SHA]=${SHA}"
+          -F "variables[BRANCH]=${BRANCH}" \
+          -F "variables[PR]=$PR_NUMBER" \
+          https://codebase.helmholtz.cloud/api/v4/projects/17376/trigger/pipeline⏎

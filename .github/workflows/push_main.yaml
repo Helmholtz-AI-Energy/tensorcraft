@@ -1,0 +1,19 @@
+name: Push Main
+
+on:
+  push:
+    branches:
+        - main
+
+jobs:
+  codebase-tests:
+    name: Trigger codebase tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/codebase_tests.yaml
+        with:
+          SHA: ${SHA}
+          BRANCH: "main"
+          GL_TOKEN: ${{ secrets.GITLAB_CX_TOKEN }}
+        env:
+          SHA: ${{ github.sha }}
