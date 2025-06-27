@@ -15,11 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/codebase_tests
         with:
-          SHA: ${SHA}
-          BRANCH: ${BRANCH}
-          PR_NUMBER: ${PR_NUMBER}
-          GL_TOKEN: ${{ secrets.GITLAB_CX_TOKEN }}
-        env:
           SHA: ${{ github.event.pull_request.head.sha }}
           BRANCH: ${{ github.head_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GL_TOKEN: ${{ secrets.GITLAB_CX_TOKEN }}
