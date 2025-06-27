@@ -10,7 +10,7 @@ jobs:
     name: Trigger codebase tests
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/codebase_tests.yaml
+      - uses: ./.github/actions/codebase_tests
         with:
           SHA: ${SHA}
           BRANCH: "main"

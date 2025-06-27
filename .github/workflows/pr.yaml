@@ -13,7 +13,7 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/codebase_tests.yaml
+      - uses: ./.github/actions/codebase_tests
         with:
           SHA: ${SHA}
           BRANCH: ${BRANCH}
