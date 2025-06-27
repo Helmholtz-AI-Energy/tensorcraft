@@ -30,6 +30,6 @@ runs:
           https://codebase.helmholtz.cloud/api/v4/projects/17376/trigger/pipeline
       env:
         SHA: ${{ inputs.SHA }}
-        BRANCH: ${ inputs.BRANCH }}
+        BRANCH: ${{ inputs.BRANCH }}
         PR_NUMBER: ${{ inputs.PR_NUMBER }}
         GL_TOKEN: ${{ inputs.GL_TOKEN }}
