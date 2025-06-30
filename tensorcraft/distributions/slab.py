@@ -2,13 +2,14 @@
 """Block distribution module."""
 
 import logging
+from typing import Any
 
 import torch
 
 from tensorcraft.distributions.dist import Dist
-from tensorcraft.util.axis_utils import multi2linearIndex
+from tensorcraft.util.axis_utils import linear2multiIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class SlabDist(Dist):
@@ -40,16 +41,16 @@ class SlabDist(Dist):
         self._dim = dim
         self._block_size = block_size
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if super().__eq__(other) and isinstance(other, SlabDist):
             return self._dim == other._dim and self._block_size == other._block_size
         else:
             return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"D_[{self.numProcessors}]⊥{self._dim}({self._block_size})"
 
-    def latexStr(self):
+    def latexStr(self) -> str:
         return f"T_{{\\perp\\{{ {self._dim} \\}}({self._block_size})}}"
 
     def compatible(self, shape: torch.Size) -> bool:
@@ -88,16 +89,18 @@ class SlabDist(Dist):
             prev_idx = next_idx
         return processor_view
 
-    def getElementLocation(self, shape: torch.Size, index: torch.Size | int):
+    def getElementLocation(
+        self, shape: torch.Size, index: torch.Size | int
+    ) -> torch.Tensor:
         if isinstance(index, int):
-            mindex: torch.Size = multi2linearIndex(shape, index)
+            mindex: torch.Size = linear2multiIndex(index, shape)
         else:
             mindex = index
 
         _, tile_ends = self.axisSplits(
             shape[self._dim],
             self._block_size,
-            self.numProcessors,  # type: ignore
+            self.numProcessors,
         )
         dim_index = mindex[self._dim]
         block_idx = torch.where(dim_index < tile_ends)[0][0]
@@ -107,8 +110,8 @@ class SlabDist(Dist):
 
         return p_list
 
-    def maxNumElements(self, shape):
+    def maxNumElements(self, shape: torch.Size) -> int:
         raise NotImplementedError("Not implemented for SlabDist")
 
-    def neighbours(self, shape):
+    def neighbours(self, shape: torch.Size) -> list[tuple[str, "SlabDist", int, int]]:
         raise NotImplementedError("Not implemented for SlabDist")

@@ -1,13 +1,14 @@
 """TileDist class."""
 
 import logging
+from typing import Any
 
 import torch
 
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class TileDist(Dist):
@@ -37,19 +38,19 @@ class TileDist(Dist):
         super().__init__(processor_mesh=processor_mesh)
         self._tile_size = tile_size
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if super().__eq__(other) and isinstance(other, TileDist):
             return self._tile_size == other._tile_size
         else:
             return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"D_[{self.numProcessors}]⊥({self._tile_size})"
 
-    def latexStr(self):  # noqa: D102
+    def latexStr(self) -> str:  # noqa: D102
         return f"T_(\\perp\\{{ {self._tile_size} \\}})"
 
-    def compatible(self, shape: torch.Size):  # noqa: D102
+    def compatible(self, shape: torch.Size) -> bool:  # noqa: D102
         for dim, dim_size in enumerate(shape):
             if dim_size % self._tile_size != 0:
                 log.debug("Tile shape not divisible by tile size along dimension ", dim)
@@ -57,7 +58,7 @@ class TileDist(Dist):
 
         return True
 
-    def processorView(self, shape: torch.Size):  # noqa: D102
+    def processorView(self, shape: torch.Size) -> torch.Tensor:  # noqa: D102
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
@@ -68,17 +69,19 @@ class TileDist(Dist):
 
         return processor_view
 
-    def getElementLocation(self, shape: torch.Size, index: int | torch.Size):  # noqa: D102
+    def getElementLocation(  # noqa: D102
+        self, shape: torch.Size, index: int | torch.Size
+    ) -> torch.Tensor:
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
         if isinstance(index, int):
-            index = multi2linearIndex(shape, index)
+            index = linear2multiIndex(index, shape)
 
         shrinked_index = torch.tensor(index) // self._tile_size
         shrinked_shape = torch.tensor(shape) // self._tile_size
         shrinked_linear_index = multi2linearIndex(
-            shrinked_shape, shrinked_index, order=torch.arange(len(shape)).flip(0)
+            shrinked_shape, shrinked_index, order=list(torch.arange(len(shape)).flip(0))
         )
 
         p_list = torch.zeros((self.numProcessors,), dtype=torch.bool)
@@ -88,8 +91,8 @@ class TileDist(Dist):
 
         return p_list
 
-    def maxNumElements(self, shape):  # noqa: D102
+    def maxNumElements(self, shape: torch.Size) -> int:  # noqa: D102
         raise NotImplementedError("Not implemented for TileDist")
 
-    def neighbours(self, shape):  # noqa: D102
+    def neighbours(self, shape: torch.Size) -> list[tuple[str, "TileDist", int, int]]:  # noqa: D102
         raise NotImplementedError("Not implemented for TileDist")

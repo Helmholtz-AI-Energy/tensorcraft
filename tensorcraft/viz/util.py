@@ -3,11 +3,13 @@
 import matplotlib as mpl
 import torch
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure, SubFigure
+from numpy import ndarray
 
 from tensorcraft.util.axis_utils import linear2multiIndex
 
 
-def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
+def get_n_colors(n: int, colormap: str = "viridis") -> torch.Tensor:
     """
     Get an array of n colors from a colormap.
 
@@ -23,7 +25,8 @@ def get_n_colors(n: int, colormap: str = "viridis") -> torch.IntTensor:
     ndarray
         An array of n colors.
     """
-    return torch.tensor(mpl.colormaps[colormap].resampled(n).colors)
+    x = [1.0 / (n - 1) * i for i in range(n)]
+    return torch.tensor(mpl.colormaps[colormap](x))
 
 
 def rgba2hex(rgba: torch.Tensor) -> str:
@@ -45,7 +48,9 @@ def rgba2hex(rgba: torch.Tensor) -> str:
     return "#{:02x}{:02x}{:02x}{:02x}".format(*RGBA)
 
 
-def draw_2d_grid(ax: Axes, shape: tuple | torch.Tensor, color: str = "black") -> None:
+def draw_2d_grid(
+    ax: Axes, shape: tuple[int, ...] | torch.Size, color: str = "black"
+) -> None:
     """
     Set the axis ticks and labels for a 2D tensor plot.
 
@@ -82,24 +87,35 @@ def draw_2d_grid(ax: Axes, shape: tuple | torch.Tensor, color: str = "black") ->
 
 
 def draw_color_bar(
-    fig, axs, colors: torch.Tensor, shrink=1.0, orientation="horizontal"
-):
+    fig: Figure | SubFigure | None,
+    axs: Axes | ndarray,
+    colors: torch.Tensor,
+    shrink: float = 1.0,
+    orientation: str = "horizontal",
+) -> None:
     """
     Draw a color bar for the given colors.
 
     Parameters
     ----------
-    fig : Figure
+    fig : Figure | SubFigure | None
         The figure object.
     axs : Axes
         The axes object.
-    colors : ndarray
+    colors : torch.Tensor
         An array of colors.
+    shrink: float, optional
+        Factor by which to shrink the color bar.
+    orientation: str, optional
+        The orientation of the colorbar. Either "horizontal" or "vertical".
+
 
     Returns
     -------
     None
     """
+    if not fig:
+        return
     np_colors = colors.numpy()
     location = "bottom" if orientation == "horizontal" else "right"
     cmap = mpl.colors.ListedColormap(np_colors)
@@ -145,7 +161,7 @@ def explode(data: torch.Tensor) -> torch.Tensor:
     return data_e
 
 
-def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
+def mesh_grid(mesh: torch.Size) -> dict[tuple[int, ...], torch.Tensor]:
     """
     Generate a mesh grid based on the given tensor.
 
@@ -156,10 +172,10 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
 
     Returns
     -------
-    dict[tuple[int], torch.Tensor]
+    dict[tuple[int, ...], torch.Tensor]
         A dictionary containing the positions of each element in the mesh grid.
     """
-    positions = {}
+    positions: dict[tuple[int, ...], torch.Tensor] = {}
     for i in range(mesh.numel()):
         mindex = linear2multiIndex(i, mesh)
         pos = [
@@ -168,7 +184,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
         if len(mesh) <= 1:
             pos += [0.5]
             pos[-1] = 1 - pos[-1]
-            positions[mindex[0]] = torch.tensor(pos).flip(0)
+            positions[(mindex[0],)] = torch.tensor(pos).flip(0)
         else:
             pos[-1] = 1 - pos[-1]
             positions[tuple(mindex)] = torch.tensor(pos).flip(0)
@@ -177,7 +193,7 @@ def mesh_grid(mesh: torch.Size) -> dict[tuple[int], torch.tensor]:
 
 
 def latex2figSize(
-    width: float, fraction: float = 1, ratio=16 / 9
+    width: float, fraction: float = 1, ratio: float = 16.0 / 9.0
 ) -> tuple[float, float]:
     """Set figure dimensions to avoid scaling in LaTeX.
 

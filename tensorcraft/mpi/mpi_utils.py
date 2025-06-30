@@ -1,13 +1,15 @@
 """Datatype utilities."""
 
 import logging
-from typing import Tuple, TypeAlias
+from typing import Iterable, Tuple, TypeAlias
 
 import torch
 from mpi4py import MPI
 from mpi4py.typing import BufSpec, BufSpecB, BufSpecV, BufSpecW
 
-log = logging.getLogger("tensorcraft")
+from tensorcraft.util import linear2multiIndex, multi2linearIndex
+
+log = logging.getLogger(__name__)
 
 MPIBuffer: TypeAlias = BufSpec | BufSpecB | BufSpecV | BufSpecW
 
@@ -31,7 +33,7 @@ torch_type2mpi_type = {
 }
 
 
-def as_buffer(x: torch.Tensor, offset: int = 0) -> MPI.buffer:
+def as_buffer(x: torch.Tensor, offset: int = -1) -> MPI.buffer:
     """
     Convert a PyTorch tensor to an MPI buffer.
 
@@ -46,6 +48,8 @@ def as_buffer(x: torch.Tensor, offset: int = 0) -> MPI.buffer:
 
     """
     dtype_size = x.dtype.itemsize
+    if offset == -1:
+        offset = x.storage_offset()  # type:ignore[assignment]
     return MPI.buffer.fromaddress(
         x.untyped_storage().data_ptr() + offset * dtype_size, 0
     )
@@ -144,13 +148,13 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
     log.debug(f"tensor_shape: {tensor_shape}")
     log.debug(f"tensor_dtype: {tensor_dtype}")
 
-    if tensor.is_contiguous():
-        buffer = as_buffer(tensor, tensor_offset)
+    buffer = as_buffer(tensor, int(tensor_offset))
 
+    if tensor.is_contiguous():
         n_elements = tensor.numel()
         # Check
         if n_elements > MPI_INT_MAX:
-            log.info("tensor is too large, using tricks")
+            log.warning("tensor is too large, using tricks")
             if n_elements > MPI_INT_MAX**2:
                 raise ValueError("Tensor is too large, wtf are you doing?")
             mpi_type, type_count = _large_contiguous_vector(
@@ -158,10 +162,45 @@ def tensor2mpiBuffer(tensor: torch.Tensor) -> MPIBuffer:
             )
             return buffer, type_count, mpi_type
         else:
+            log.debug("Best case scenario, it is contiguous!")
             return buffer, n_elements, torch_type2mpi_type[tensor_dtype]
     else:
         # Check if the tensor stride is arranged in decending order
-        buffer = as_buffer(tensor, tensor_offset)
         recursive_dt = _create_recursive_vector(tensor)
         type_count = 1
         return buffer, type_count, recursive_dt
+
+
+def virtualSubmeshIndex2RealSubmeshIndex(
+    sub_comm: MPI.Cartcomm, virtual_index: int, order: Iterable[int]
+) -> int:
+    """
+    Given a cart subcommunicator, a virtual mesh linear index, and the virtual ordering of the sub mesh, calculate the real mpi cart communicator index.
+
+    Parameters
+    ----------
+    sub_comm: MPI.Cartcomm
+        Cartesian communicator object
+    virtual_index: int
+        The virtual index of the tensorcraft submesh
+    order: Iterable[int]
+        Mesh dimension assignment order for the tensorcraft submesh
+
+    Returns
+    -------
+    int
+        The MPI Cartcom index that owns the virtual tensorcraft submesh index.
+    """
+    _, idx_order = torch.sort(torch.tensor(order))
+    log.debug(f"Idx order: {idx_order}")
+
+    sub_mesh_dims = sub_comm.dims
+    log.debug(f"Sub mesh dims: {sub_mesh_dims}")
+
+    t_v_midx = linear2multiIndex(virtual_index, torch.Size(sub_mesh_dims))
+    log.debug(f"Target_v_midx {t_v_midx}")
+
+    t_r_midx = torch.tensor(t_v_midx)[idx_order]
+    log.debug(f"Target_r_midx {t_r_midx}")
+
+    return multi2linearIndex(sub_mesh_dims, t_r_midx.tolist())

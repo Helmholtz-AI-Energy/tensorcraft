@@ -13,7 +13,7 @@ import torch
 from tensorcraft.compiler.util import idx_exp2multiIdx, idx_exp_compatible, opGraph2Func
 from tensorcraft.util.axis_utils import linear2multiIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 class AssignmentType(enum.Enum):
@@ -34,7 +34,7 @@ class TensorVariable:
     order: int
     lines: list[int]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return the string representation of the tensor variable."""
         return f"{self.name} {self.order} {self.lines}"
 
@@ -65,7 +65,7 @@ class TensorExpression:
             str
         ] = []  # List of indexed variables used in the model
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return the string representation of the tensor expression."""
         return f"Line: {self.line}: {self.raw}"
 
@@ -102,7 +102,7 @@ class TensorExpression:
     def __call__(
         self,
         input_data: dict[str, torch.Tensor],
-        output_shape_hint: Optional[torch.Size] = None,
+        output_shape_hint: Optional[torch.Size | tuple[int, ...]] = None,
     ) -> torch.Tensor:
         """Evaluate the tensor expression.
 
@@ -237,7 +237,7 @@ class TensorExpression:
                     - set([c for chars in self.output[1] for c in chars])
                 )
                 tmp_output_idx_expr = self.output[1] + reduced_idx_variables
-                tmp_output_idx_dims = output_array.shape + tuple(  # type: ignore
+                tmp_output_idx_dims = output_array.shape + tuple(
                     [
                         index_var_dims[index_var_names.index(c)]
                         for c in reduced_idx_variables
@@ -245,7 +245,7 @@ class TensorExpression:
                 )
                 tmp_output_array = torch.zeros(
                     tmp_output_idx_dims,
-                    dtype=output_array.dtype,  # type: ignore
+                    dtype=output_array.dtype,
                 )
             else:
                 tmp_output_array = output_array
@@ -260,12 +260,12 @@ class TensorExpression:
                         value = input_data[var_name]
                     else:
                         var_midx = idx_exp2multiIdx(
-                            idx_exp_list,  # type: ignore
-                            index_var_names,  # type: ignore
-                            loop_mindex,  # type: ignore
-                            index_var_dims,  # type: ignore
+                            idx_exp_list,
+                            index_var_names,
+                            loop_mindex,
+                            index_var_dims,
                         )
-                        value = input_data[var_name][var_midx]  # type: ignore
+                        value = input_data[var_name][var_midx]
                     elementwise_inputs[var_id] = value
 
                 for index_var in index_var_names:
@@ -277,31 +277,31 @@ class TensorExpression:
 
                 if reduction_last:
                     output_midx = idx_exp2multiIdx(
-                        tmp_output_idx_expr,  # type: ignore
-                        index_var_names,  # type: ignore
-                        loop_mindex,  # type: ignore
-                        index_var_dims,  # type: ignore
+                        tmp_output_idx_expr,
+                        index_var_names,
+                        loop_mindex,
+                        index_var_dims,
                     )
-                    tmp_output_array[output_midx] = value  # type: ignore
+                    tmp_output_array[output_midx] = value
                 else:
                     output_midx = idx_exp2multiIdx(
-                        self.output[1],  # type: ignore
-                        index_var_names,  # type: ignore
-                        loop_mindex,  # type: ignore
-                        index_var_dims,  # type: ignore
+                        self.output[1],
+                        index_var_names,
+                        loop_mindex,
+                        index_var_dims,
                     )
 
                     match self.assignment_type:
                         case AssignmentType.ASSIGN:
-                            tmp_output_array[output_midx] = value  # type: ignore
+                            tmp_output_array[output_midx] = value
                         case AssignmentType.ADD:
-                            tmp_output_array[output_midx] += value  # type: ignore
+                            tmp_output_array[output_midx] += value
                         case AssignmentType.SUB:
-                            tmp_output_array[output_midx] -= value  # type: ignore
+                            tmp_output_array[output_midx] -= value
                         case AssignmentType.MUL:
-                            tmp_output_array[output_midx] *= value  # type: ignore
+                            tmp_output_array[output_midx] *= value
                         case AssignmentType.DIV:
-                            tmp_output_array[output_midx] /= value  # type: ignore
+                            tmp_output_array[output_midx] /= value
 
             if reduction_last:
                 log.debug(f"Reduction last: {self.output[0]}")
@@ -313,7 +313,7 @@ class TensorExpression:
                         )
                     case AssignmentType.SUB:
                         output_array -= torch.sum(
-                            tmp_output_array, axis=axis_tuple, dtype=output_array.dtype
+                            tmp_output_array, dim=axis_tuple, dtype=output_array.dtype
                         )
                     case AssignmentType.MUL:
                         for axis in axis_tuple[::-1]:
@@ -437,7 +437,7 @@ class Program:
                 if var_name not in inputs:
                     raise ValueError(f"Input {var_name} is missing.")
                 if len(inputs[var_name].shape) > 0:
-                    if var_metadata.order != len(inputs[var_name].shape):  # type: ignore
+                    if var_metadata.order != len(inputs[var_name].shape):
                         raise ValueError(f"Input {var_name} has an incompatible order.")
                 else:
                     if var_metadata.order != 0:

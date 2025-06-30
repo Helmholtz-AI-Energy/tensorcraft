@@ -15,7 +15,7 @@ class Cost:
     computation: float = 0
     max_memory_delta: float = 0
 
-    def __add__(self, other: Self):
+    def __add__(self, other: Self) -> "Cost":
         return Cost(
             self.latency + other.latency,
             self.bandwidth + other.bandwidth,

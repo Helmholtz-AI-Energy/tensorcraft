@@ -43,7 +43,7 @@ index_names = ["i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]
 def test_invalid_programs(program: str):
     with pytest.raises(ValueError) as exc_info:
         tc.compile(program)
-    print(exc_info.value)
+    note(exc_info.value)
     assert "Invalid program" in str(exc_info.value)
 
 
@@ -180,8 +180,8 @@ def test_tensor_elementwise_ops(op, shape):
 
     program = tc.compile(f"C[{idx_str}] = A[{idx_str}] {op[0]} B[{idx_str}]")
     result = program.tensor_expressions[1]({"A": a, "B": b})
-    print(f"Expected: {expected}")
-    print(f"Result: {result}")
+    note(f"Expected: {expected}")
+    note(f"Result: {result}")
     assert torch.allclose(result, expected, atol=TOL)
 
 

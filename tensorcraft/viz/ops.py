@@ -9,7 +9,7 @@ import torch
 
 from tensorcraft.compiler.model import TensorExpression
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 
 def _highlight_index(
@@ -21,7 +21,7 @@ def _highlight_index(
         return highlight[axis] == index or highlight[axis] is None
 
 
-def _orthogonal_projection(theta: float, gamma: float, phi: float) -> torch.tensor:
+def _orthogonal_projection(theta: float, gamma: float, phi: float) -> torch.Tensor:
     # Rotate the 3D point (x, y, z) by theta, gamma and phi angles
     # around the x, y and z axis respectively
     # The rotation matrix is given by:
@@ -66,7 +66,7 @@ def draw_tensor(
     stroke_color: str = "black",
     mindex_highlight: Optional[tuple[int, ...]] = None,
     stroke_width: float = 0.1,
-):
+) -> None:
     """Draw a tensor as a grid of cells.
 
     Parameters
@@ -231,7 +231,7 @@ def draw_op(
     op: TensorExpression,
     tensor_shapes: dict[str, torch.Size],
     mindex_highlight: Optional[tuple[int, ...]] = None,
-):
+) -> None:
     """Draw a tensor operation as a graph.
 
     Parameters

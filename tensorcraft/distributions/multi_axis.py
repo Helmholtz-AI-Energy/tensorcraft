@@ -3,7 +3,7 @@
 import itertools
 import logging
 import math
-from typing import Optional, TypeAlias
+from typing import Any, Optional, TypeAlias
 
 import torch
 from typing_extensions import override
@@ -11,10 +11,10 @@ from typing_extensions import override
 from tensorcraft.distributions.dist import Dist
 from tensorcraft.util.axis_utils import linear2multiIndex, multi2linearIndex
 
-log = logging.getLogger("tensorcraft")
+log = logging.getLogger(__name__)
 
 DimsMapType: TypeAlias = tuple[tuple[int, ...], ...]
-BlockSizesType: TypeAlias = int | tuple[int, ...]
+BlockSizesType: TypeAlias = tuple[int, ...]
 
 
 class MultiAxisDist(Dist):
@@ -27,8 +27,8 @@ class MultiAxisDist(Dist):
         The processor mesh.
     dims_mapping : DimsMapType
         The mapping of tensor dimensions to processor mesh axes.
-    block_sizes : BlockSizesType
-        The block sizes for each dimension.
+    block_sizes : int | Block
+        The block sizes for each dimension. Block size must be greater than zero. To leave a block size empty, use either -1 or None. If left empty, but the corresponding axis is split, a default block size of 1 will be used.
 
     Raises
     ------
@@ -46,11 +46,17 @@ class MultiAxisDist(Dist):
         self,
         processor_mesh: int | torch.Size,
         dims_mapping: tuple[Optional[tuple[int, ...]], ...],
-        block_sizes: BlockSizesType,
+        block_sizes: int | tuple[Optional[int], ...],
     ):
         super().__init__(processor_mesh=processor_mesh)
         if isinstance(block_sizes, int):
             block_sizes = (block_sizes,) * len(dims_mapping)
+
+        if isinstance(processor_mesh, int):
+            processor_mesh = torch.Size([processor_mesh])
+
+        if len(processor_mesh) == 0:
+            raise ValueError("The processor mesh must have at least one dimension")
 
         if len(dims_mapping) != len(block_sizes):
             raise ValueError("The number of dimensions and block sizes must match")
@@ -63,8 +69,11 @@ class MultiAxisDist(Dist):
                         raise ValueError("The dimension mapping is out of bounds")
 
         for block in block_sizes:
-            if block < 0 and block != -1:
-                raise ValueError("The block size must be greater or equal 0")
+            if block is not None:
+                if block <= 0 and block != -1:
+                    raise ValueError(
+                        "The block size must be None, greater than zero or -1"
+                    )
 
         # Check that no processor mesh axis is repeated
         mesh_dims = []
@@ -77,13 +86,13 @@ class MultiAxisDist(Dist):
                         raise ValueError("The processor mesh axis must not be repeated")
                     mesh_dims.append(axis)
                 dims_mapping_list.append(dim_mapping)
-                block_sizes_list.append(b_size)
+                block_sizes_list.append(b_size if b_size and b_size > 0 else 1)
             else:
                 dims_mapping_list.append(())
                 block_sizes_list.append(-1)
 
         self._dims_mapping: DimsMapType = tuple(dims_mapping_list)
-        self._block_sizes: tuple[int, ...] = tuple(block_sizes_list)
+        self._block_sizes: BlockSizesType = tuple(block_sizes_list)
 
     @property
     def dimsMapping(self) -> DimsMapType:
@@ -109,7 +118,7 @@ class MultiAxisDist(Dist):
         """
         return self._block_sizes
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         base_comp = super().__eq__(other)
         if base_comp and isinstance(other, MultiAxisDist):
             return (self._dims_mapping == other._dims_mapping) and (
@@ -118,7 +127,7 @@ class MultiAxisDist(Dist):
         else:
             return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         mesh_str = ",".join([str(x) for x in self._pmesh])
         map_str = "{"
         for m in self._dims_mapping:
@@ -132,7 +141,7 @@ class MultiAxisDist(Dist):
         b_str = ",".join([str(x) if x != -1 else "∅" for x in self._block_sizes])
         return f"D_[{mesh_str}]⊥{map_str}({b_str})"
 
-    def latexStr(self):  # noqa: D102
+    def latexStr(self) -> str:  # noqa: D102
         map_str = ""
         for m in self._dims_mapping:
             if len(m) == 0:
@@ -167,7 +176,7 @@ class MultiAxisDist(Dist):
 
         dist_axis_list = [self._distributeDim(i, shape[i]) for i in range(len(shape))]
         for i in range(shape.numel()):
-            m_idx = linear2multiIndex(i, shape) + (None,)
+            m_idx = tuple(linear2multiIndex(i, shape)) + (None,)
             for j in range(len(shape)):
                 processor_view[m_idx] &= dist_axis_list[j][m_idx[j], :]
 
@@ -189,7 +198,9 @@ class MultiAxisDist(Dist):
                 break
         return dist
 
-    def getElementLocation(self, shape, index):  # noqa: D102
+    def getElementLocation(  # noqa: D102
+        self, shape: torch.Size, index: int | torch.Size
+    ) -> torch.Tensor:
         if isinstance(index, int):
             mindex = linear2multiIndex(index, shape)
         else:
@@ -202,7 +213,7 @@ class MultiAxisDist(Dist):
 
         return p_list
 
-    def compatible(self, shape):  # noqa: D102
+    def compatible(self, shape: torch.Size) -> bool:  # noqa: D102
         # Ensure that the tensor order and the number of dimensions in the distribution match
         if len(shape) != len(self._dims_mapping) or len(shape) != len(
             self._block_sizes
@@ -237,7 +248,7 @@ class MultiAxisDist(Dist):
         dim_distribution = torch.ones((dim_size, num_process), dtype=torch.bool)
         mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
         block_size = self._block_sizes[dim]
-        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, math.prod(mesh_dims))  # type: ignore
+        _, axis_chunk_ends = self.axisSplits(dim_size, block_size, math.prod(mesh_dims))
         start_idx = 0
         for chunk_idx, end_idx in enumerate(axis_chunk_ends):
             left_eq = chunk_idx % math.prod(mesh_dims)
@@ -245,41 +256,58 @@ class MultiAxisDist(Dist):
                 p_mi = self.getProcessorMultiIndex(j)
                 right_eq = multi2linearIndex(
                     self._pmesh, p_mi, order=mesh_dims_idx
-                ) % math.prod(mesh_dims)  # type: ignore
+                ) % math.prod(mesh_dims)
                 dim_distribution[start_idx:end_idx, j] = left_eq == right_eq
 
             start_idx = end_idx
 
         return dim_distribution
 
-    def maxNumElements(self, shape):  # noqa: D102
-        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
-        return max_n_blocks * max_block_size
+    def localShape(self, global_shape: torch.Size, rank: int) -> torch.Size:
+        """
+        Get the local shape of the tensor on the given rank.
 
-    def _max_block_size_n_blocks(self, shape: torch.Size) -> tuple[int, int]:
-        max_block_size = 1
-        max_n_blocks = 1
-        for i in range(len(shape)):
-            mesh_dims_idx = self._dims_mapping[i]
-            if not mesh_dims_idx or len(mesh_dims_idx) == 0:
-                max_block_size *= shape[i]
-                continue
-            mesh_dims = [self._pmesh[i] for i in mesh_dims_idx]
-            n_procs_axis = math.prod(mesh_dims)
-            axis_splits, _ = self.axisSplits(
-                shape[i], self._block_sizes[i], n_procs_axis
-            )
-            max_block_size *= max(axis_splits)
-            max_n_blocks *= math.ceil(len(axis_splits) / n_procs_axis)
+        Parameters
+        ----------
+        global_shape : torch.Size
+            The global shape of the tensor.
+        rank : int
+            The rank of the processor.
 
-        if isinstance(max_n_blocks, torch.Tensor):
-            max_n_blocks = int(max_n_blocks.item())
-        if isinstance(max_block_size, torch.Tensor):
-            max_block_size = int(max_block_size.item())
-        return max_block_size, max_n_blocks
+        Returns
+        -------
+        torch.Size
+            The local shape of the tensor on the given rank.
+        """
+        # Check if global shape is compatible with the distribution
+        if not self.compatible(global_shape):
+            raise ValueError("The global shape is not compatible with the distribution")
+
+        # Get the processor multi index for the given rank
+        p_midx = self.getProcessorMultiIndex(rank)
+
+        local_shape = [0] * len(global_shape)
+        for axis, (axis_size, mapping, block_size) in enumerate(
+            zip(global_shape, self._dims_mapping, self._block_sizes)
+        ):
+            if mapping and len(mapping) > 0:
+                mesh_dims = [self._pmesh[i] for i in mapping]
+                n_procs = math.prod(mesh_dims)
+
+                axis_idx = multi2linearIndex(self._pmesh, p_midx, order=mapping)
+                axis_splits, _ = self.axisSplits(axis_size, block_size, n_procs)
+                local_shape[axis] = int(axis_splits[axis_idx::n_procs].sum().item())
+            else:
+                local_shape[axis] = axis_size
+
+        return torch.Size(local_shape)
+
+    def maxNumElements(self, shape: torch.Size) -> int:  # noqa: D102
+        rank_0_shape = self.localShape(shape, 0)
+        return math.prod(rank_0_shape)
 
     def allgather(
-        self, shape: torch.Size, gather_dim: Optional[int] = None
+        self, shape: torch.Size, gather_mesh_dim: Optional[int] = None
     ) -> tuple["MultiAxisDist", int, int]:
         """
         Return the distribution that results from gathering the tensor across the selected processor mesh axis.
@@ -288,8 +316,8 @@ class MultiAxisDist(Dist):
         ----------
         shape : torch.Size
             The shape of the tensor.
-        mesh_axis : int, optional
-            The processor mesh axis, by default None, signifying an allgather over all the processors.
+        gather_mesh_dim : int, optional
+            The processor mesh dimension, by default None, signifying an allgather over all the processors.
 
         Returns
         -------
@@ -301,43 +329,46 @@ class MultiAxisDist(Dist):
             The number of involved processes in each sub communicator.
         """
         if not self.isDistributed():
-            log.debug("The original distribution is not distributed, nothing to do.")
-            return self, 0, 0
+            raise ValueError("Tensor is not distrbuted, nothing to gather.")
 
         if not self.compatible(shape):
             raise ValueError("The tensor is not compatible with the distribution")
 
-        if gather_dim is None:
+        if gather_mesh_dim is None:
             # Results in full replication of the tensor on all processors
             new_dist = MultiAxisDist(
-                self._pmesh, ((),) * len(shape), (0,) * len(shape)
+                self._pmesh, ((),) * len(shape), (-1,) * len(shape)
             )  #
 
-            # Cost of all-gather is the number of processors
-            max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
             involved_dims = [
                 self._pmesh[mesh_dim]
                 for axis_map in self._dims_mapping
                 if len(axis_map) != 0
                 for mesh_dim in axis_map
             ]
-            involved_procs = math.prod(involved_dims)
+            involved_procs: int = math.prod(involved_dims)
+
+            # Cost of allgather
+            comm_volume = self.maxNumElements(shape) * involved_procs
+            log.debug(
+                f"New dist: {new_dist}, Involved procs: {involved_procs}, Comm volume: {comm_volume}"
+            )
 
             return (
                 new_dist,
-                max_n_blocks * max_block_size * involved_procs,
+                comm_volume,
                 involved_procs,
             )
         else:
             # Check that the mesh axis is valid
             tensor_axis = -1
             for axis, mappings in enumerate(self._dims_mapping):
-                if gather_dim in mappings:
-                    dist_axis_i = mappings.index(gather_dim)
+                if gather_mesh_dim in mappings:
+                    dist_axis_i = mappings.index(gather_mesh_dim)
 
                     if dist_axis_i != 0 and dist_axis_i != len(mappings) - 1:
                         log.debug(
-                            f"Gather along axis {gather_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
+                            f"Gather along axis {gather_mesh_dim} leads to an undefined data distribution. Can only gather along the first or last axis withing a dimmension mapping."
                         )
                         raise ValueError(
                             "Gather along axis leads to an undefined data distribution"
@@ -355,10 +386,10 @@ class MultiAxisDist(Dist):
                 )
 
             log.debug(f"Tensor axis: {tensor_axis}")
-            log.debug(f"Mesh axis: {gather_dim}")
+            log.debug(f"Mesh axis: {gather_mesh_dim}")
             log.debug(f"Mappings: {mappings}")
 
-            involved_procs = self._pmesh[gather_dim]
+            involved_procs = self._pmesh[gather_mesh_dim]
 
             if dist_axis_i != 0:
                 new_block_sizes = list(self._block_sizes)
@@ -367,7 +398,7 @@ class MultiAxisDist(Dist):
                 new_block_sizes = list(self._block_sizes)
 
             new_mapping = tuple(
-                tuple(m_axis for m_axis in axis_mappings if m_axis != gather_dim)
+                tuple(m_axis for m_axis in axis_mappings if m_axis != gather_mesh_dim)
                 if axis_mappings
                 else None
                 for axis_mappings in self._dims_mapping
@@ -377,9 +408,8 @@ class MultiAxisDist(Dist):
 
             # Cost of all-gather is the number of processors
 
-            max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+            comm_volume = self.maxNumElements(shape) * involved_procs
 
-            comm_volume = max_n_blocks * max_block_size * involved_procs
             return new_dist, comm_volume, involved_procs
 
     def split(
@@ -530,10 +560,8 @@ class MultiAxisDist(Dist):
 
         new_dim = MultiAxisDist(self._pmesh, new_dims_mapping, self._block_sizes)
 
-        max_block_size, max_n_blocks = self._max_block_size_n_blocks(shape)
+        comm_volume = self.maxNumElements(shape)
         n_procs = 2
-
-        comm_volume = max_n_blocks * max_block_size
 
         return new_dim, comm_volume, n_procs
 
@@ -543,7 +571,8 @@ class MultiAxisDist(Dist):
         from_tensor_axis: int,
         to_tensor_axis: int,
         block_size: int = -1,
-        minor: bool = False,
+        from_minor: bool = False,
+        to_minor: bool = False,
     ) -> tuple["MultiAxisDist", int, int]:
         """
         Return the distribution that results from an all-to-all communication of the tensor across the selected tensor axes.
@@ -558,8 +587,10 @@ class MultiAxisDist(Dist):
             The tensor axis to receive data to.
         block_size: int, Default -1
             If possible, the selected block size will be applied, otherwise, the block size of the reciving axis will remain unchanged. -1 will try to apply the block size of the source axis.
-        minor: bool, Default false
-            If set to true, it will only exchange data between the minor distribution dimention of the source tensor axis.
+        from_minor: bool, Default false
+            Only the minor mesh dimension of the from_tensor_axis will be moved to the to_tensor_axis.
+        to_minor: bool, Default false
+            If set to true, the moved mesh dimensions will be appended to the right (minor), by default False. If the axis is already split, it will change the existing block size. Requires the existing block size to be divisible by the number of involved ranks.
 
         Returns
         -------
@@ -582,25 +613,38 @@ class MultiAxisDist(Dist):
             self._block_sizes[from_tensor_axis] if block_size < 0 else block_size
         )
 
-        if minor:
+        if from_minor:
             moved_mesh_dims: tuple[int, ...] = (
                 self._dims_mapping[from_tensor_axis][-1],
             )
-            relevant_procs = self._pmesh[moved_mesh_dims[0]]
-            n_procs = relevant_procs
-
-            # Find out new dims mapping
-            new_from_t_axis_mapping = self._dims_mapping[from_tensor_axis][:-1]
-            new_to_t_axis_mapping = self._dims_mapping[to_tensor_axis] + moved_mesh_dims
-
-            new_dims_map_list[from_tensor_axis] = new_from_t_axis_mapping
-            new_dims_map_list[to_tensor_axis] = new_to_t_axis_mapping
+            relevant_proc = self._pmesh[moved_mesh_dims[0]]
+            n_procs = relevant_proc
 
             new_from_t_axis_bs = (
                 self._block_sizes[from_tensor_axis] * n_procs
                 if new_dims_map_list[from_tensor_axis] != ()
                 else -1
             )
+
+            # Find out new dims mapping
+            new_from_t_axis_mapping = self._dims_mapping[from_tensor_axis][:-1]
+
+        else:
+            moved_mesh_dims = self._dims_mapping[from_tensor_axis]
+            relevant_procs = [self._pmesh[x] for x in moved_mesh_dims]
+            n_procs = math.prod(relevant_procs)
+
+            # Find out new dims mapping
+            new_dims_map_list[from_tensor_axis] = ()
+            new_dims_map_list[to_tensor_axis] = (
+                moved_mesh_dims + self._dims_mapping[to_tensor_axis]
+            )
+
+            new_from_t_axis_mapping = ()
+            new_from_t_axis_bs = -1
+
+        if to_minor:
+            new_to_t_axis_mapping = self._dims_mapping[to_tensor_axis] + moved_mesh_dims
 
             to_t_axis_bs = (
                 self._block_sizes[to_tensor_axis]
@@ -617,24 +661,17 @@ class MultiAxisDist(Dist):
                 if self._dims_mapping[to_tensor_axis] != ()
                 else block_size
             )
+
         else:
-            moved_mesh_dims = self._dims_mapping[from_tensor_axis]
-            relevant_procs = [self._pmesh[x] for x in moved_mesh_dims]
-            n_procs = math.prod(relevant_procs)
-
-            # Find out new dims mapping
-            new_dims_map_list[from_tensor_axis] = ()
-            new_dims_map_list[to_tensor_axis] = (
-                moved_mesh_dims + self._dims_mapping[to_tensor_axis]
-            )
-
-            new_from_t_axis_bs = -1
-
+            new_to_t_axis_mapping = moved_mesh_dims + self._dims_mapping[to_tensor_axis]
             new_to_t_axis_bs = (
                 self._block_sizes[to_tensor_axis]
                 if self._dims_mapping[to_tensor_axis] != ()
                 else block_size
             )
+
+        new_dims_map_list[from_tensor_axis] = new_from_t_axis_mapping
+        new_dims_map_list[to_tensor_axis] = new_to_t_axis_mapping
 
         new_block_size_list[from_tensor_axis] = new_from_t_axis_bs
         new_block_size_list[to_tensor_axis] = new_to_t_axis_bs
@@ -689,14 +726,17 @@ class MultiAxisDist(Dist):
 
         old_block_size = new_block_size_list[tensor_axis]
         if old_block_size == block_size:
-            log.error(f"Block size is already {old_block_size}")
+            log.debug(f"Block size is already {old_block_size}")
             raise ValueError("Invalid arguments")
 
-        if block_size > old_block_size and block_size % old_block_size != 0:
-            log.error("New block size must be a multiple of the old block size")
+        if block_size > old_block_size and block_size % (old_block_size * n_procs) != 0:
+            log.debug("New block size must be a multiple of the old block size")
             raise ValueError("Invalid arguments")
-        elif block_size < old_block_size and old_block_size % block_size != 0:
-            log.error("Old block size must be a multiple of the new block size")
+        elif (
+            block_size < old_block_size
+            and old_block_size % (block_size * old_block_size) != 0
+        ):
+            log.debug("Old block size must be a multiple of the new block size")
             raise ValueError("Invalid arguments")
 
         ## TODO: Very simplified shit. If implemented like this it would be extremely inefficient, as some of the redistributions would have a lot of empty alltoallw buffers.
@@ -706,7 +746,7 @@ class MultiAxisDist(Dist):
         )
 
         if not new_dist.compatible(shape):
-            log.error("Tensor shape not compatible with new block size.")
+            log.debug("Tensor shape not compatible with new block size.")
             raise ValueError("Incompatible redistribution.")
 
         comm_volume = self.maxNumElements(shape)
@@ -717,6 +757,10 @@ class MultiAxisDist(Dist):
         self, shape: torch.Size, prefered_b_size: list[int] = []
     ) -> list[tuple[str, "MultiAxisDist", int, int]]:  # noqa: D102
         neighbours = []
+
+        log.debug(
+            f"Looking for neighbours for {self} with the following block sizes: {prefered_b_size}"
+        )
 
         # Free dims:
         free_dims = []
@@ -766,7 +810,9 @@ class MultiAxisDist(Dist):
         try:
             operation = "allgather_*"
             new_dist, vol, n_procs = self.allgather(shape)
-            log.debug(f"New neighbour: {new_dist}")
+            log.debug(
+                f"New neighbour: {new_dist}: Operation: {operation}, Volume: {vol}, Procs: {n_procs}"
+            )
 
             neighbours.append((operation, new_dist, vol, n_procs))
 
@@ -823,11 +869,15 @@ class MultiAxisDist(Dist):
 
                         if len(self._dims_mapping[source_axis]) > 1:
                             operation = (
-                                f"alltoall_minor_{source_axis}_{target_axis}_{b_size}"
+                                f"alltoall_mf_{source_axis}_{target_axis}_{b_size}"
                             )
                             try:
                                 new_dist, vol, n_procs = self.alltoall(
-                                    shape, source_axis, target_axis, b_size, True
+                                    shape,
+                                    source_axis,
+                                    target_axis,
+                                    b_size,
+                                    from_minor=True,
                                 )
                                 log.debug(f"New neighbour: {new_dist}")
 
@@ -837,4 +887,61 @@ class MultiAxisDist(Dist):
                                 log.debug(
                                     f"Failed operation {operation} on dist {self} with shape {shape}"
                                 )
+                        if len(self._dims_mapping[target_axis]) > 1:
+                            operation = (
+                                f"alltoall_mt_{source_axis}_{target_axis}_{b_size}"
+                            )
+                            try:
+                                new_dist, vol, n_procs = self.alltoall(
+                                    shape,
+                                    source_axis,
+                                    target_axis,
+                                    b_size,
+                                    to_minor=True,
+                                )
+                                log.debug(f"New neighbour: {new_dist}")
+
+                                neighbours.append((operation, new_dist, vol, n_procs))
+
+                            except Exception:
+                                log.debug(
+                                    f"Failed operation {operation} on dist {self} with shape {shape}"
+                                )
+
+                        if (len(self._dims_mapping[source_axis]) > 1) and (
+                            len(self._dims_mapping[target_axis]) > 1
+                        ):
+                            operation = (
+                                f"alltoall_mf_mt_{source_axis}_{target_axis}_{b_size}"
+                            )
+                            try:
+                                new_dist, vol, n_procs = self.alltoall(
+                                    shape,
+                                    source_axis,
+                                    target_axis,
+                                    b_size,
+                                    from_minor=True,
+                                    to_minor=True,
+                                )
+                                log.debug(f"New neighbour: {new_dist}")
+
+                                neighbours.append((operation, new_dist, vol, n_procs))
+
+                            except Exception:
+                                log.debug(
+                                    f"Failed operation {operation} on dist {self} with shape {shape}"
+                                )
+
+        # change_block_size
+        for axis in range(len(shape)):
+            for b_size in b_sizes:
+                operation = f"changeBlockSize_{axis}_{b_size}"
+                try:
+                    new_dist, vol, n_procs = self.change_block_size(shape, axis, b_size)
+                    log.debug(f"New neighbour: {new_dist}")
+                    neighbours.append((operation, new_dist, vol, n_procs))
+                except Exception:
+                    log.debug(
+                        f"Failed operation {operation} on dist {self} with shape {shape}"
+                    )
         return neighbours
