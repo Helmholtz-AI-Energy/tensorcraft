@@ -73,7 +73,8 @@ python_version="3.12"
 packages=["tensorcraft"]
 exclude=[
     'tests/',
-    'examples/'
+    'examples/',
+    'experiments/'
 ]
 
 disallow_untyped_defs = true
@@ -93,12 +94,10 @@ module =[
 disallow_any_unimported = false
 
 
-
-
 # Ruff
 [tool.ruff]
 target-version = "py312"
-extend-exclude = ["notebooks/*"]
+extend-exclude = ["notebooks/*", "experiments/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "D"]
