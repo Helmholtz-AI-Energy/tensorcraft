@@ -1,4 +1,6 @@
-# tensorcraft
+<div align="center">
+  <img src="https://raw.githubusercontent.com/helmholtz-ai-energy/tensorcraft/main/docs/images/logo.png">
+</div>
 
 Collection of tools for working with and visualizing distributed tensors.
 
